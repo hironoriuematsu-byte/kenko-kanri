@@ -4,6 +4,7 @@ import Header from "@/components/Header";
 import { requireProfile } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { formatDateJa } from "@/lib/fiscal";
+import { INTERVIEW_TYPES, formatDateTimeJa } from "@/lib/interviews";
 
 export const dynamic = "force-dynamic";
 
@@ -12,21 +13,80 @@ export default async function OfficeDashboard() {
   if (profile.role !== "office") redirect("/");
 
   const supabase = createClient();
-  const [{ data: companies }, { data: upcoming }] = await Promise.all([
-    supabase.from("companies").select("id, name").order("name"),
-    supabase
-      .from("hm_minutes")
-      .select("id, company_id, meeting_date, next_meeting_date, title, companies(name)")
-      .gte("next_meeting_date", new Date().toISOString().slice(0, 10))
-      .order("next_meeting_date", { ascending: true })
-      .limit(10),
-  ]);
+  const [{ data: companies }, { data: upcoming }, { data: interviews }] =
+    await Promise.all([
+      supabase.from("companies").select("id, name").order("name"),
+      supabase
+        .from("hm_minutes")
+        .select("id, company_id, meeting_date, next_meeting_date, title, companies(name)")
+        .gte("next_meeting_date", new Date().toISOString().slice(0, 10))
+        .order("next_meeting_date", { ascending: true })
+        .limit(10),
+      supabase
+        .from("hm_interviews")
+        .select("id, target_name, interview_type, scheduled_at, status, companies(name)")
+        .eq("status", "scheduled")
+        .order("scheduled_at", { ascending: true, nullsFirst: false })
+        .limit(15),
+    ]);
+
+  const today = new Date();
+  const overdue = (interviews ?? []).filter(
+    (i: any) => i.scheduled_at && new Date(i.scheduled_at) < today
+  );
+  const upcomingInterviews = (interviews ?? []).filter(
+    (i: any) => !i.scheduled_at || new Date(i.scheduled_at) >= today
+  );
 
   return (
     <>
       <Header profile={profile} />
       <main className="container">
         <h1 className="page-title">産業医事務所ダッシュボード</h1>
+
+        {overdue.length > 0 && (
+          <div className="notice">
+            <strong>予定日を過ぎて未実施の面談が {overdue.length} 件あります。</strong>{" "}
+            実施記録の入力、または日程の再調整をしてください。
+          </div>
+        )}
+
+        <div className="card">
+          <h2>面談予定</h2>
+          {(interviews ?? []).length > 0 ? (
+            <table className="list">
+              <thead>
+                <tr>
+                  <th>予定日時</th>
+                  <th>企業</th>
+                  <th>対象者</th>
+                  <th>種別</th>
+                </tr>
+              </thead>
+              <tbody>
+                {[...overdue, ...upcomingInterviews].map((i: any) => (
+                  <tr key={i.id}>
+                    <td>
+                      <Link href={`/interviews/${i.id}`}>
+                        {formatDateTimeJa(i.scheduled_at)}
+                      </Link>
+                      {overdue.includes(i) && (
+                        <span className="badge orange" style={{ marginLeft: 6 }}>
+                          未実施
+                        </span>
+                      )}
+                    </td>
+                    <td>{i.companies?.name ?? "—"}</td>
+                    <td>{i.target_name}</td>
+                    <td>{INTERVIEW_TYPES[i.interview_type] ?? i.interview_type}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          ) : (
+            <p className="muted">予定されている面談はありません。</p>
+          )}
+        </div>
 
         <div className="card">
           <h2>次回の安全衛生委員会</h2>

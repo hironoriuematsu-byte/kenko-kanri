@@ -2,6 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import Header from "@/components/Header";
 import MinutesTable from "@/components/MinutesTable";
+import InterviewsTable from "@/components/InterviewsTable";
 import { requireProfile } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { formatDateJa } from "@/lib/fiscal";
@@ -25,13 +26,18 @@ export default async function CompanyDashboard() {
   }
 
   const supabase = createClient();
-  const [{ data: company }, { data: minutes }] = await Promise.all([
+  const [{ data: company }, { data: minutes }, { data: interviews }] = await Promise.all([
     supabase.from("companies").select("id, name").eq("id", profile.company_id).single(),
     supabase
       .from("hm_minutes")
       .select("id, meeting_date, title, physician_attended, published_to_employees, next_meeting_date")
       .eq("company_id", profile.company_id)
       .order("meeting_date", { ascending: false }),
+    supabase
+      .from("hm_interviews")
+      .select("id, target_name, interview_type, scheduled_at, method, status")
+      .eq("company_id", profile.company_id)
+      .order("scheduled_at", { ascending: false, nullsFirst: false }),
   ]);
 
   const next = (minutes ?? [])
@@ -61,10 +67,16 @@ export default async function CompanyDashboard() {
         </div>
 
         <div className="card">
-          <h2>今後追加予定の機能</h2>
-          <p className="muted">
-            健康診断結果・事後措置・面談予定は次のフェーズで追加されます。
+          <h2>面談予定</h2>
+          <InterviewsTable interviews={interviews ?? []} />
+          <p className="muted" style={{ marginTop: 10 }}>
+            日程の調整は各面談の詳細画面から行えます。産業医の意見書は公開され次第、詳細画面に表示されます。
           </p>
+        </div>
+
+        <div className="card">
+          <h2>今後追加予定の機能</h2>
+          <p className="muted">健康診断結果・事後措置は次のフェーズで追加されます。</p>
         </div>
       </main>
     </>

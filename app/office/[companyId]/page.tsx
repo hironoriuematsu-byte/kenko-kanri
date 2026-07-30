@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import Header from "@/components/Header";
 import MinutesTable from "@/components/MinutesTable";
+import InterviewsTable from "@/components/InterviewsTable";
 import { requireProfile } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 
@@ -23,11 +24,18 @@ export default async function OfficeCompanyPage({
     .single();
   if (!company) notFound();
 
-  const { data: minutes } = await supabase
-    .from("hm_minutes")
-    .select("id, meeting_date, title, physician_attended, published_to_employees")
-    .eq("company_id", company.id)
-    .order("meeting_date", { ascending: false });
+  const [{ data: minutes }, { data: interviews }] = await Promise.all([
+    supabase
+      .from("hm_minutes")
+      .select("id, meeting_date, title, physician_attended, published_to_employees")
+      .eq("company_id", company.id)
+      .order("meeting_date", { ascending: false }),
+    supabase
+      .from("hm_interviews")
+      .select("id, target_name, interview_type, scheduled_at, method, status")
+      .eq("company_id", company.id)
+      .order("scheduled_at", { ascending: false, nullsFirst: false }),
+  ]);
 
   return (
     <>
@@ -49,10 +57,19 @@ export default async function OfficeCompanyPage({
         </div>
 
         <div className="card">
+          <h2>面談</h2>
+          <p>
+            <Link className="btn orange" href={`/office/${company.id}/interviews/new`}>
+              ＋ 面談予定を登録
+            </Link>
+          </p>
+          <InterviewsTable interviews={interviews ?? []} />
+        </div>
+
+        <div className="card">
           <h2>今後追加予定の機能</h2>
           <p className="muted">
-            健康診断結果（Phase 3）・ストレスチェック連携（Phase 4）・面談管理（Phase 2）は
-            次のフェーズで追加されます。
+            健康診断結果（Phase 3）・ストレスチェック連携（Phase 4）は次のフェーズで追加されます。
           </p>
         </div>
       </main>

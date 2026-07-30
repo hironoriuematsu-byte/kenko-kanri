@@ -11,7 +11,7 @@
 | フェーズ | 内容 | 状態 |
 |---|---|---|
 | Phase 1 | 基盤（認証・ロール・企業共用）＋ 安全衛生委員会議事録（作成・共有・添付・印刷/PDF） | ✅ 実装済み |
-| Phase 2 | 面談管理（高ストレス申出との連携含む） | 未着手 |
+| Phase 2 | 面談管理（予定・実施記録・非公開メモ・意見書PDF） | ✅ 実装済み |
 | Phase 3 | 健康診断結果（CSV取込・有所見・就業判定・事後措置） | 未着手 |
 | Phase 4 | 統合ビュー・ダッシュボード・集計、companyロール本格開放 | 未着手 |
 
@@ -24,6 +24,7 @@
 2. SQL Editor で次の順に実行:
    1. `supabase/dev_setup/0000_dev_base.sql` …… 開発用のみ（companies / profiles の代替を作成）
    2. `supabase/migrations/0101_hm_phase1.sql` …… Phase 1 本体
+   3. `supabase/migrations/0102_hm_phase2.sql` …… Phase 2 面談管理
 3. `0000_dev_base.sql` の末尾コメントに沿って、テストユーザー（office / company）とテスト企業を作成
 
 ### 2. ローカル/Vercelの環境変数
@@ -59,7 +60,10 @@ npm run dev
 
 ## データベース方針
 
-- 新規テーブル・関数はすべて `hm_` 接頭辞（`hm_minutes`, `hm_minute_files`, `hm_access_logs` など）
+- 新規テーブル・関数はすべて `hm_` 接頭辞（`hm_minutes`, `hm_minute_files`, `hm_interviews`, `hm_interview_opinions`, `hm_access_logs` など）
+- 面談の実施記録・産業医非公開メモは列単位GRANTで保護し、officeのみSECURITY DEFINER RPC経由で読み書き（閲覧もログに記録）
+- 既存`interview_requests`（高ストレス申出）との連携は`hm_interviews.interview_request_id`で受け口のみ用意（本番スキーマ確認後に接続）
+- メール通知（Resend）は未接続（本番のResendキー設定後に有効化予定）
 - migrationは `0101_` からの番号付きSQLファイルで管理し、SQL Editorで手動実行
 - ストレスチェックの既存テーブル（`results` 等）は読み取り専用で参照（Phase 4）
 - 添付ファイルはStorageバケット `hm-files`（非公開・企業別RLS）
