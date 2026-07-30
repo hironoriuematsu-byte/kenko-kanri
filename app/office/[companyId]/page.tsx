@@ -67,9 +67,18 @@ export default async function OfficeCompanyPage({
         </div>
 
         <div className="card">
+          <h2>健康診断</h2>
+          <p>
+            <Link className="btn" href={`/office/${company.id}/checkups`}>
+              健診結果の管理へ（取込・有所見・就業判定・事後措置）
+            </Link>
+          </p>
+        </div>
+
+        <div className="card">
           <h2>今後追加予定の機能</h2>
           <p className="muted">
-            健康診断結果（Phase 3）・ストレスチェック連携（Phase 4）は次のフェーズで追加されます。
+            ストレスチェック連携・統合ビュー（Phase 4）は次のフェーズで追加されます。
           </p>
         </div>
       </main>

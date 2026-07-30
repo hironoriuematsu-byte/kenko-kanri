@@ -75,8 +75,12 @@ export default async function CompanyDashboard() {
         </div>
 
         <div className="card">
-          <h2>今後追加予定の機能</h2>
-          <p className="muted">健康診断結果・事後措置は次のフェーズで追加されます。</p>
+          <h2>健康診断</h2>
+          <p>
+            <Link className="btn" href="/company/checkups">
+              健診結果の管理へ（取込・有所見・事後措置）
+            </Link>
+          </p>
         </div>
       </main>
     </>

@@ -12,7 +12,7 @@
 |---|---|---|
 | Phase 1 | 基盤（認証・ロール・企業共用）＋ 安全衛生委員会議事録（作成・共有・添付・印刷/PDF） | ✅ 実装済み |
 | Phase 2 | 面談管理（予定・実施記録・非公開メモ・意見書PDF） | ✅ 実装済み |
-| Phase 3 | 健康診断結果（CSV取込・有所見・就業判定・事後措置） | 未着手 |
+| Phase 3 | 健康診断結果（CSV取込・有所見・就業判定・事後措置・経年・個人票） | ✅ 実装済み |
 | Phase 4 | 統合ビュー・ダッシュボード・集計、companyロール本格開放 | 未着手 |
 
 ## セットアップ手順（開発用・無料Supabaseプロジェクト）
@@ -25,6 +25,7 @@
    1. `supabase/dev_setup/0000_dev_base.sql` …… 開発用のみ（companies / profiles の代替を作成）
    2. `supabase/migrations/0101_hm_phase1.sql` …… Phase 1 本体
    3. `supabase/migrations/0102_hm_phase2.sql` …… Phase 2 面談管理
+   4. `supabase/migrations/0103_hm_phase3.sql` …… Phase 3 健康診断結果
 3. `0000_dev_base.sql` の末尾コメントに沿って、テストユーザー（office / company）とテスト企業を作成
 
 ### 2. ローカル/Vercelの環境変数

@@ -12,7 +12,7 @@ export default async function MyPage() {
   if (profile.role !== "employee") redirect("/");
 
   const supabase = createClient();
-  const [{ data: minutes }, { data: interviews }] = await Promise.all([
+  const [{ data: minutes }, { data: interviews }, { data: checkups }] = await Promise.all([
     supabase
       .from("hm_minutes")
       .select("id, meeting_date, title, physician_attended, published_to_employees")
@@ -21,6 +21,10 @@ export default async function MyPage() {
       .from("hm_interviews")
       .select("id, target_name, interview_type, scheduled_at, method, status")
       .order("scheduled_at", { ascending: false, nullsFirst: false }),
+    supabase
+      .from("hm_checkups")
+      .select("id, fiscal_year, checkup_type, checkup_date, overall_judgment")
+      .order("fiscal_year", { ascending: false }),
   ]);
 
   return (
@@ -40,10 +44,33 @@ export default async function MyPage() {
         </div>
 
         <div className="card">
-          <h2>今後追加予定の機能</h2>
-          <p className="muted">
-            ご自身の健康診断結果（経年表示）は次のフェーズで追加されます。
-          </p>
+          <h2>ご自身の健康診断結果</h2>
+          {(checkups ?? []).length > 0 ? (
+            <table className="list">
+              <thead>
+                <tr>
+                  <th>年度</th>
+                  <th>健診日</th>
+                  <th>総合判定</th>
+                </tr>
+              </thead>
+              <tbody>
+                {(checkups ?? []).map((c: any) => (
+                  <tr key={c.id}>
+                    <td>
+                      <a href={`/checkup/${c.id}`}>{c.fiscal_year}年度</a>
+                    </td>
+                    <td>{c.checkup_date ?? "—"}</td>
+                    <td>{c.overall_judgment ?? "—"}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          ) : (
+            <p className="muted">
+              健診結果はまだ登録されていません（アカウントに紐付けられた結果のみ表示されます）。
+            </p>
+          )}
         </div>
       </main>
     </>
