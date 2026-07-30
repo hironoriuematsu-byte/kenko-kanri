@@ -26,6 +26,7 @@
    2. `supabase/migrations/0101_hm_phase1.sql` …… Phase 1 本体
    3. `supabase/migrations/0102_hm_phase2.sql` …… Phase 2 面談管理
    4. `supabase/migrations/0103_hm_phase3.sql` …… Phase 3 健康診断結果
+   5. `supabase/migrations/0104_hm_checkup_bulk_delete.sql` …… 健診記録の一括削除RPC
 3. `0000_dev_base.sql` の末尾コメントに沿って、テストユーザー（office / company）とテスト企業を作成
 
 ### 2. ローカル/Vercelの環境変数

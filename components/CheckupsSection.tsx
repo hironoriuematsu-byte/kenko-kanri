@@ -1,8 +1,6 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
-import { formatDateJa } from "@/lib/fiscal";
-import { CHECKUP_TYPES, FOLLOWUP_STATUS } from "@/lib/checkups";
-import { WORK_JUDGMENTS } from "@/lib/interviews";
+import CheckupsTable, { type CheckupRow } from "@/components/CheckupsTable";
 
 // 健診一覧+集計(サーバーコンポーネント)。office/company共用
 export default async function CheckupsSection({
@@ -10,11 +8,13 @@ export default async function CheckupsSection({
   basePath,
   selectedYear,
   canEdit,
+  canDelete = false,
 }: {
   companyId: string;
   basePath: string;
   selectedYear?: number;
   canEdit: boolean;
+  canDelete?: boolean;
 }) {
   const supabase = createClient();
 
@@ -101,42 +101,7 @@ export default async function CheckupsSection({
             </tbody>
           </table>
 
-          <table className="list">
-            <thead>
-              <tr>
-                <th>社員番号</th>
-                <th>氏名</th>
-                <th>種別</th>
-                <th>健診日</th>
-                <th>総合判定</th>
-                <th>有所見</th>
-                <th>就業判定</th>
-                <th>事後措置</th>
-              </tr>
-            </thead>
-            <tbody>
-              {list.map((c) => (
-                <tr key={c.id}>
-                  <td>{c.employee_no || "—"}</td>
-                  <td>
-                    <Link href={`/checkup/${c.id}`}>{c.target_name}</Link>
-                  </td>
-                  <td>{CHECKUP_TYPES[c.checkup_type] ?? c.checkup_type}</td>
-                  <td>{formatDateJa(c.checkup_date)}</td>
-                  <td>{c.overall_judgment || "—"}</td>
-                  <td>{c.has_findings ? <span className="badge orange">有</span> : "—"}</td>
-                  <td>{c.work_judgment ? WORK_JUDGMENTS[c.work_judgment] : "未判定"}</td>
-                  <td>
-                    {c.followup_status === "pending" ? (
-                      <span className="badge orange">{FOLLOWUP_STATUS[c.followup_status]}</span>
-                    ) : (
-                      FOLLOWUP_STATUS[c.followup_status] ?? "—"
-                    )}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <CheckupsTable rows={list as CheckupRow[]} canDelete={canDelete} />
         </>
       ) : (
         <p className="muted">健診結果はまだ登録されていません。</p>

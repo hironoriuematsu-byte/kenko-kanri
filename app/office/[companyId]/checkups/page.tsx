@@ -39,6 +39,7 @@ export default async function OfficeCheckupsPage({
             basePath={`/office/${company.id}/checkups`}
             selectedYear={searchParams.year ? Number(searchParams.year) : undefined}
             canEdit
+            canDelete
           />
         </div>
       </main>
