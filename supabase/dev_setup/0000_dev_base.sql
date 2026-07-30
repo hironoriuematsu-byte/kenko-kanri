@@ -30,36 +30,56 @@ create table if not exists public.profiles (
 alter table public.companies enable row level security;
 alter table public.profiles enable row level security;
 
+-- 判定用ヘルパー(SECURITY DEFINERでRLSをバイパスして判定する。
+--  profilesのポリシー内でprofiles自身をselectすると無限再帰になるため)
+create or replace function public.dev_is_office()
+returns boolean
+language sql stable security definer
+set search_path = public
+as $$
+  select exists (
+    select 1 from public.profiles
+    where id = auth.uid() and role = 'office'
+  )
+$$;
+
+create or replace function public.dev_my_company()
+returns uuid
+language sql stable security definer
+set search_path = public
+as $$
+  select company_id from public.profiles where id = auth.uid()
+$$;
+
+create or replace function public.dev_my_role()
+returns text
+language sql stable security definer
+set search_path = public
+as $$
+  select role from public.profiles where id = auth.uid()
+$$;
+
 -- 自分のプロフィールは読める
 create policy dev_profiles_select_own on public.profiles
   for select using (id = auth.uid());
 
 -- office は全プロフィールを読める / company は自社のみ
 create policy dev_profiles_select_office on public.profiles
-  for select using (
-    exists (select 1 from public.profiles p
-            where p.id = auth.uid() and p.role = 'office')
-  );
+  for select using (public.dev_is_office());
 create policy dev_profiles_select_company on public.profiles
   for select using (
-    company_id is not null and company_id = (
-      select p.company_id from public.profiles p
-      where p.id = auth.uid() and p.role = 'company'
-    )
+    public.dev_my_role() = 'company'
+    and company_id is not null
+    and company_id = public.dev_my_company()
   );
 
 -- companies: office は全社 / それ以外は自社のみ
 create policy dev_companies_select on public.companies
   for select using (
-    exists (select 1 from public.profiles p
-            where p.id = auth.uid() and p.role = 'office')
-    or id = (select p.company_id from public.profiles p where p.id = auth.uid())
+    public.dev_is_office() or id = public.dev_my_company()
   );
 create policy dev_companies_insert_office on public.companies
-  for insert with check (
-    exists (select 1 from public.profiles p
-            where p.id = auth.uid() and p.role = 'office')
-  );
+  for insert with check (public.dev_is_office());
 
 -- サインアップ時にprofilesを自動作成(開発用)
 create or replace function public.dev_handle_new_user()

@@ -24,7 +24,9 @@ export async function requireProfile(): Promise<{ profile: Profile }> {
     .eq("id", user.id)
     .single();
 
-  if (!profile) redirect("/login");
+  // ログイン済みなのにプロフィールが読めない場合、/loginへ戻すと
+  // middlewareが / へ戻して無限リダイレクトになるため専用ページへ
+  if (!profile) redirect("/profile-error");
   return { profile: profile as Profile };
 }
 
