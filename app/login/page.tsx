@@ -19,7 +19,20 @@ function LoginForm() {
     const supabase = createClient();
     const { error } = await supabase.auth.signInWithPassword({ email, password });
     if (error) {
-      setError("メールアドレスまたはパスワードが正しくありません。");
+      const m = error.message || "";
+      if (m.includes("Invalid login credentials")) {
+        setError("メールアドレスまたはパスワードが正しくありません。");
+      } else if (m.includes("Email not confirmed")) {
+        setError(
+          "メールアドレスが未確認の状態です。Supabaseの Authentication > Users で該当ユーザーのメニューから確認済みにしてください。"
+        );
+      } else if (m.includes("fetch") || m.includes("Failed") || m.includes("network")) {
+        setError(
+          "サーバーに接続できませんでした。Vercelの環境変数(NEXT_PUBLIC_SUPABASE_URL / NEXT_PUBLIC_SUPABASE_ANON_KEY)の設定を確認し、再デプロイしてください。"
+        );
+      } else {
+        setError(`ログインに失敗しました（詳細: ${m}）`);
+      }
       setBusy(false);
       return;
     }
