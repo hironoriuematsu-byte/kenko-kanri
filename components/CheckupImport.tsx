@@ -90,20 +90,33 @@ export default function CheckupImport({
       .map((s) => s.trim().toUpperCase())
       .filter(Boolean);
 
+    // 「血圧」(測定値)と「血圧判定」(判定)のような列ペアを1項目にまとめる
+    const norm = (s: string) => s.replace(/[\s　]/g, "");
     const payload = dataRows
       .map((r) => {
-        const items = header
-          .map((h, i) => {
-            if (baseCols.includes(i)) return null;
-            const modeOfCol = itemCols[i] ?? "off";
-            if (modeOfCol === "off") return null;
-            const cell = (r[i] ?? "").trim();
-            if (!cell) return null;
-            return modeOfCol === "judgment"
-              ? { name: h.trim(), judgment: cell.toUpperCase() }
-              : { name: h.trim(), value: cell };
-          })
-          .filter(Boolean);
+        const items: { name: string; value?: string; judgment?: string }[] = [];
+        // 1周目: 測定値列
+        header.forEach((h, i) => {
+          if (baseCols.includes(i) || (itemCols[i] ?? "off") !== "value") return;
+          const cell = (r[i] ?? "").trim();
+          if (!cell) return;
+          items.push({ name: h.trim(), value: cell });
+        });
+        // 2周目: 判定列を同名の測定値項目にマージ(「〇〇判定」→「〇〇」)
+        header.forEach((h, i) => {
+          if (baseCols.includes(i) || (itemCols[i] ?? "off") !== "judgment") return;
+          const cell = (r[i] ?? "").trim();
+          if (!cell) return;
+          const base = norm(h).replace(/判定$/, "") || h.trim();
+          const target =
+            items.find((it) => norm(it.name) === base) ??
+            items.find((it) => base !== "" && norm(it.name).startsWith(base));
+          if (target) {
+            target.judgment = cell.toUpperCase();
+          } else {
+            items.push({ name: base, judgment: cell.toUpperCase() });
+          }
+        });
         return {
           target_name: (r[nameCol] ?? "").trim(),
           employee_no: empNoCol >= 0 ? (r[empNoCol] ?? "").trim() : "",
@@ -238,6 +251,7 @@ export default function CheckupImport({
           </h3>
           <p className="muted">
             「判定」はA〜E等の判定が入っている列に選択してください（有所見の自動判定に使われます）。
+            「血圧」と「血圧判定」のような同名ペアは、自動的に1つの項目（測定値＋判定）にまとめられます。
           </p>
           <table className="list" style={{ marginBottom: 14 }}>
             <thead>
