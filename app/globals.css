@@ -1,0 +1,263 @@
+:root {
+  --teal: #0f9b8e;
+  --teal-dark: #0b7d73;
+  --teal-light: #e6f5f3;
+  --orange: #e8792b;
+  --orange-light: #fdf1e7;
+  --ink: #2b3a38;
+  --muted: #6b7b78;
+  --line: #d9e5e3;
+  --bg: #f4f8f7;
+  --danger: #c0392b;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: Meiryo, "Hiragino Kaku Gothic ProN", "Yu Gothic", sans-serif;
+  font-size: 15px;
+  line-height: 1.7;
+}
+
+a {
+  color: var(--teal-dark);
+  text-decoration: none;
+}
+a:hover {
+  text-decoration: underline;
+}
+
+.container {
+  max-width: 960px;
+  margin: 0 auto;
+  padding: 24px 16px 64px;
+}
+
+/* ---- header ---- */
+.site-header {
+  background: #fff;
+  border-bottom: 3px solid var(--teal);
+}
+.site-header .inner {
+  max-width: 960px;
+  margin: 0 auto;
+  padding: 10px 16px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+.brand {
+  font-weight: bold;
+  font-size: 17px;
+  color: var(--teal-dark);
+}
+.brand .sub {
+  font-size: 12px;
+  color: var(--orange);
+  font-weight: bold;
+  margin-left: 8px;
+}
+.header-right {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.site-footer {
+  text-align: center;
+  color: var(--muted);
+  font-size: 12px;
+  padding: 24px 0 40px;
+}
+
+/* ---- cards ---- */
+.card {
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 20px 24px;
+  margin-bottom: 16px;
+  box-shadow: 0 1px 3px rgba(15, 155, 142, 0.06);
+}
+.card h2 {
+  margin: 0 0 12px;
+  font-size: 17px;
+  color: var(--teal-dark);
+  border-left: 5px solid var(--orange);
+  padding-left: 10px;
+}
+.card-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 14px;
+}
+
+.page-title {
+  font-size: 21px;
+  color: var(--teal-dark);
+  margin: 8px 0 18px;
+}
+
+/* ---- buttons ---- */
+.btn {
+  display: inline-block;
+  border: none;
+  border-radius: 6px;
+  padding: 9px 18px;
+  font-size: 14px;
+  font-family: inherit;
+  cursor: pointer;
+  background: var(--teal);
+  color: #fff;
+}
+.btn:hover {
+  background: var(--teal-dark);
+}
+.btn.secondary {
+  background: #fff;
+  color: var(--teal-dark);
+  border: 1px solid var(--teal);
+}
+.btn.orange {
+  background: var(--orange);
+}
+.btn.danger {
+  background: var(--danger);
+}
+.btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* ---- forms ---- */
+.form-row {
+  margin-bottom: 14px;
+}
+.form-row label {
+  display: block;
+  font-weight: bold;
+  font-size: 13px;
+  color: var(--teal-dark);
+  margin-bottom: 4px;
+}
+input[type="text"],
+input[type="email"],
+input[type="password"],
+input[type="date"],
+textarea,
+select {
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  font-family: inherit;
+  font-size: 15px;
+  background: #fff;
+}
+textarea {
+  min-height: 110px;
+  resize: vertical;
+}
+input:focus,
+textarea:focus,
+select:focus {
+  outline: 2px solid var(--teal);
+  border-color: var(--teal);
+}
+
+.checkbox-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+}
+.checkbox-row input {
+  width: 16px;
+  height: 16px;
+}
+
+/* ---- tables ---- */
+table.list {
+  width: 100%;
+  border-collapse: collapse;
+  background: #fff;
+}
+table.list th {
+  background: var(--teal-light);
+  color: var(--teal-dark);
+  text-align: left;
+  font-size: 13px;
+  padding: 8px 10px;
+  border-bottom: 2px solid var(--teal);
+}
+table.list td {
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--line);
+  font-size: 14px;
+}
+
+.badge {
+  display: inline-block;
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 10px;
+  background: var(--teal-light);
+  color: var(--teal-dark);
+  font-weight: bold;
+}
+.badge.orange {
+  background: var(--orange-light);
+  color: var(--orange);
+}
+
+.notice {
+  background: var(--orange-light);
+  border: 1px solid var(--orange);
+  border-radius: 8px;
+  padding: 10px 14px;
+  font-size: 13px;
+  margin-bottom: 16px;
+}
+
+.error-message {
+  color: var(--danger);
+  font-size: 13px;
+  margin-top: 8px;
+}
+
+.muted {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+/* ---- print (帳票: 既存方式) ---- */
+@media print {
+  body {
+    background: #fff;
+  }
+  .no-print {
+    display: none !important;
+  }
+  .container {
+    max-width: none;
+    padding: 0;
+  }
+  .card {
+    border: none;
+    box-shadow: none;
+    padding: 0;
+  }
+  .print-sheet {
+    font-size: 12pt;
+  }
+}
