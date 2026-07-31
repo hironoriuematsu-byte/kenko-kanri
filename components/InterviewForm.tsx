@@ -53,6 +53,7 @@ export default function InterviewForm({
     setBusy(true);
     setError(null);
     const supabase = createClient();
+    const { data: authUser } = await supabase.auth.getUser();
 
     const schedulePayload = {
       scheduled_at: v.scheduled_local ? new Date(v.scheduled_local).toISOString() : null,
@@ -60,13 +61,51 @@ export default function InterviewForm({
       location: v.location || null,
     };
 
+    // 氏名を直接入力した場合もカルテに反映する:
+    // 同姓同名のカルテがあればそれに紐付け、なければ自動作成する
+    let personId = v.person_id;
+    if (mode === "office" && !personId && v.target_name.trim()) {
+      const name = v.target_name.trim();
+      const { data: existing } = await supabase
+        .from("hm_persons")
+        .select("id, user_id")
+        .eq("company_id", v.company_id)
+        .eq("full_name", name)
+        .limit(1);
+      if (existing && existing.length > 0) {
+        personId = existing[0].id;
+      } else {
+        const { data: created, error: personErr } = await supabase
+          .from("hm_persons")
+          .insert({
+            company_id: v.company_id,
+            full_name: name,
+            created_by: authUser.user?.id,
+          })
+          .select("id")
+          .single();
+        if (personErr || !created) {
+          setError(`カルテの自動作成に失敗しました: ${personErr?.message ?? "unknown"}`);
+          setBusy(false);
+          return;
+        }
+        personId = created.id;
+        await supabase.rpc("hm_log_access", {
+          p_action: "create",
+          p_target_table: "hm_persons",
+          p_target_id: personId,
+          p_detail: { auto_created_from: "interview" },
+        });
+      }
+    }
+
     let id = v.id;
     if (id) {
       const payload =
         mode === "office"
           ? {
               ...schedulePayload,
-              person_id: v.person_id,
+              person_id: personId,
               target_user_id: v.target_user_id,
               target_name: v.target_name.trim(),
               interview_type: v.interview_type,
@@ -84,17 +123,16 @@ export default function InterviewForm({
         p_target_id: id,
       });
     } else {
-      const { data: user } = await supabase.auth.getUser();
       const { data, error } = await supabase
         .from("hm_interviews")
         .insert({
           company_id: v.company_id,
-          person_id: v.person_id,
+          person_id: personId,
           target_user_id: v.target_user_id,
           target_name: v.target_name.trim(),
           interview_type: v.interview_type,
           ...schedulePayload,
-          created_by: user.user?.id,
+          created_by: authUser.user?.id,
         })
         .select("id")
         .single();
