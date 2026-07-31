@@ -16,9 +16,20 @@ export default function Header({ profile }: { profile: Profile }) {
     <header className="site-header no-print">
       <AutoLogout />
       <div className="inner">
-        <Link href={homePathFor(profile.role)} className="brand">
-          健康管理Web
-          <span className="sub">うえまつ産業医事務所</span>
+        <Link
+          href={homePathFor(profile.role)}
+          className="brand"
+          style={{ display: "flex", alignItems: "center", gap: 12 }}
+        >
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src="/logo.png"
+            alt="mestate うえまつ産業医事務所"
+            style={{ height: 46, width: "auto", display: "block" }}
+          />
+          <span style={{ fontSize: 20, fontWeight: 800 }}>
+            健康管理<span style={{ color: "var(--orange)" }}>Web</span>
+          </span>
         </Link>
         <div className="header-right">
           <a href="https://stres.vercel.app" target="_blank" rel="noopener noreferrer">

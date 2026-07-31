@@ -43,10 +43,15 @@ function LoginForm() {
   return (
     <div className="container" style={{ maxWidth: 440, paddingTop: 60 }}>
       <div style={{ textAlign: "center", marginBottom: 20 }}>
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src="/logo.png"
+          alt="mestate うえまつ産業医事務所"
+          style={{ height: 90, width: "auto", display: "block", margin: "0 auto 10px" }}
+        />
         <div className="brand" style={{ fontSize: 22 }}>
-          健康管理Web
+          健康管理<span style={{ color: "var(--orange)" }}>Web</span>
         </div>
-        <div className="muted">うえまつ産業医事務所（Mestate LLC）</div>
       </div>
 
       {params.get("timeout") && (
