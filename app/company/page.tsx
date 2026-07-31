@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import Header from "@/components/Header";
 import MinutesTable from "@/components/MinutesTable";
 import InterviewsTable from "@/components/InterviewsTable";
+import CompanyInfoForm from "@/components/CompanyInfoForm";
 import { requireProfile } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { formatDateJa } from "@/lib/fiscal";
@@ -32,6 +33,7 @@ export default async function CompanyDashboard() {
     { data: interviews },
     { count: followupPending },
     { count: followupRecommended },
+    { data: companyInfo },
   ] = await Promise.all([
     supabase.from("companies").select("id, name").eq("id", profile.company_id).single(),
     supabase
@@ -54,6 +56,11 @@ export default async function CompanyDashboard() {
       .select("id", { count: "exact", head: true })
       .eq("company_id", profile.company_id)
       .eq("followup_status", "recommended"),
+    supabase
+      .from("hm_company_info")
+      .select("address, tel")
+      .eq("company_id", profile.company_id)
+      .maybeSingle(),
   ]);
 
   const next = (minutes ?? [])
@@ -113,6 +120,17 @@ export default async function CompanyDashboard() {
               健診結果の管理へ（取込・有所見・事後措置）
             </Link>
           </p>
+        </div>
+
+        <div className="card">
+          <h2>企業情報</h2>
+          <CompanyInfoForm
+            companyId={profile.company_id}
+            initial={{
+              address: companyInfo?.address ?? "",
+              tel: companyInfo?.tel ?? "",
+            }}
+          />
         </div>
       </main>
     </>

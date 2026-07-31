@@ -3,6 +3,7 @@ import { notFound, redirect } from "next/navigation";
 import Header from "@/components/Header";
 import MinutesTable from "@/components/MinutesTable";
 import InterviewsTable from "@/components/InterviewsTable";
+import CompanyInfoForm from "@/components/CompanyInfoForm";
 import { requireProfile } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 
@@ -24,7 +25,7 @@ export default async function OfficeCompanyPage({
     .single();
   if (!company) notFound();
 
-  const [{ data: minutes }, { data: interviews }] = await Promise.all([
+  const [{ data: minutes }, { data: interviews }, { data: companyInfo }] = await Promise.all([
     supabase
       .from("hm_minutes")
       .select("id, meeting_date, title, physician_attended, published_to_employees")
@@ -35,6 +36,11 @@ export default async function OfficeCompanyPage({
       .select("id, target_name, interview_type, scheduled_at, method, status")
       .eq("company_id", company.id)
       .order("scheduled_at", { ascending: false, nullsFirst: false }),
+    supabase
+      .from("hm_company_info")
+      .select("address, tel")
+      .eq("company_id", company.id)
+      .maybeSingle(),
   ]);
 
   return (
@@ -82,6 +88,17 @@ export default async function OfficeCompanyPage({
               健診結果の管理へ（取込・有所見・就業判定・事後措置）
             </Link>
           </p>
+        </div>
+
+        <div className="card">
+          <h2>企業情報</h2>
+          <CompanyInfoForm
+            companyId={company.id}
+            initial={{
+              address: companyInfo?.address ?? "",
+              tel: companyInfo?.tel ?? "",
+            }}
+          />
         </div>
 
         <div className="card">

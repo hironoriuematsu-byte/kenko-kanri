@@ -32,6 +32,12 @@ export default async function DocumentPage({ params }: { params: { id: string } 
     p_target_id: doc.id,
   });
 
+  const { data: companyInfo } = await supabase
+    .from("hm_company_info")
+    .select("address, tel")
+    .eq("company_id", doc.company_id)
+    .maybeSingle();
+
   const person = (doc as any).hm_persons;
   const companyName = (doc as any).companies?.name ?? "";
   const isOffice = profile.role === "office";
@@ -76,9 +82,18 @@ export default async function DocumentPage({ params }: { params: { id: string } 
           <div style={{ textAlign: "right", marginTop: 24 }}>
             <div>発行日: {formatDateJa(doc.issued_date)}</div>
             <div style={{ marginTop: 8 }}>
-              うえまつ産業医事務所　産業医　{doc.physician_name || ""}
+              <div>{companyName}</div>
+              {companyInfo?.address && <div>{companyInfo.address}</div>}
+              {companyInfo?.tel && <div>TEL: {companyInfo.tel}</div>}
+              <div style={{ marginTop: 4 }}>産業医　{doc.physician_name || ""}</div>
             </div>
           </div>
+
+          {isOffice && !companyInfo?.address && (
+            <p className="notice no-print" style={{ marginTop: 16 }}>
+              企業の所在地が未登録です。企業ページの「企業情報」で所在地を登録すると、文書に自動で記載されます。
+            </p>
+          )}
 
           {isOffice && (
             <p className="notice no-print" style={{ marginTop: 16 }}>
