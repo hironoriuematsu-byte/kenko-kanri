@@ -28,13 +28,13 @@ export default async function PatrolEditPage({ params }: { params: { id: string 
         </h1>
         <div className="card">
           <PatrolForm
-            physicianName={p.physician_name ?? profile.full_name ?? ""}
             backHref={`/patrols/${p.id}`}
             initial={{
               id: p.id,
               company_id: p.company_id,
               patrol_date: p.patrol_date ?? "",
               findings: combinePatrolText(p),
+              physician_name: p.physician_name ?? profile.full_name ?? "上松弘典",
             }}
           />
         </div>

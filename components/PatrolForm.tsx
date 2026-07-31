@@ -9,16 +9,15 @@ export type PatrolInput = {
   company_id: string;
   patrol_date: string;
   findings: string; // 指摘事項等(巡視場所・所見・指導・改善状況をまとめて記載)
+  physician_name: string;
 };
 
 // 産業医巡視記録の作成・編集(officeのみ)
 export default function PatrolForm({
   initial,
-  physicianName,
   backHref,
 }: {
   initial: PatrolInput;
-  physicianName: string;
   backHref: string;
 }) {
   const router = useRouter();
@@ -42,7 +41,7 @@ export default function PatrolForm({
       findings: v.findings.trim() || null,
       advice: null,
       note: null,
-      physician_name: physicianName,
+      physician_name: v.physician_name.trim() || null,
     };
 
     let id = v.id;
@@ -101,6 +100,16 @@ export default function PatrolForm({
             "巡視場所、指摘事項・所見、指導・助言、改善状況などをまとめて記載してください。\n例:\n本社2F事務室・倉庫・休憩室を巡視。通路に荷物が仮置きされ動線を塞いでいるため整理を指導。休憩室の換気不良あり、換気扇の点検を依頼。前回指摘の配線カバーは改善済み。"
           }
           style={{ minHeight: 180 }}
+        />
+      </div>
+      <div className="form-row">
+        <label>産業医名（別の先生が担当した場合は書き換えてください。敬称は付けません）</label>
+        <input
+          type="text"
+          value={v.physician_name}
+          onChange={(e) => set("physician_name", e.target.value)}
+          placeholder="上松弘典"
+          style={{ maxWidth: 260 }}
         />
       </div>
 

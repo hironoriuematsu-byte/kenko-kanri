@@ -29,12 +29,12 @@ export default async function OfficePatrolNewPage({
         <h1 className="page-title">{company.name} — 巡視記録の作成</h1>
         <div className="card">
           <PatrolForm
-            physicianName={profile.full_name ?? ""}
             backHref={`/office/${company.id}/patrols`}
             initial={{
               company_id: company.id,
               patrol_date: new Date().toISOString().slice(0, 10),
               findings: "",
+              physician_name: profile.full_name ?? "上松弘典",
             }}
           />
         </div>

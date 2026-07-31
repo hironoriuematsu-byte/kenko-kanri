@@ -39,7 +39,7 @@ export default async function InterviewDetailPage({ params }: { params: { id: st
 
   const { data: opinion } = await supabase
     .from("hm_interview_opinions")
-    .select("id, interview_date, work_judgment, opinion, issued_date, published")
+    .select("id, interview_date, work_judgment, opinion, issued_date, physician_name, published")
     .eq("interview_id", iv.id)
     .maybeSingle();
 
@@ -132,13 +132,13 @@ export default async function InterviewDetailPage({ params }: { params: { id: st
               <OpinionPanel
                 interviewId={iv.id}
                 companyId={iv.company_id}
-                physicianName={profile.full_name ?? ""}
                 initial={{
                   id: opinion?.id,
                   interview_date: opinion?.interview_date ?? "",
                   work_judgment: opinion?.work_judgment ?? "",
                   opinion: opinion?.opinion ?? "",
                   issued_date: opinion?.issued_date ?? "",
+                  physician_name: opinion?.physician_name ?? profile.full_name ?? "上松弘典",
                   published: opinion?.published ?? false,
                 }}
               />

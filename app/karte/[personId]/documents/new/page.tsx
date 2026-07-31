@@ -30,7 +30,6 @@ export default async function DocumentNewPage({
         <h1 className="page-title">文書の作成: {person.full_name}</h1>
         <div className="card">
           <DocumentForm
-            physicianName={profile.full_name ?? ""}
             backHref={`/karte/${person.id}`}
             initial={{
               person_id: person.id,
@@ -40,6 +39,7 @@ export default async function DocumentNewPage({
               addressee: "",
               body: "",
               issued_date: new Date().toISOString().slice(0, 10),
+              physician_name: profile.full_name ?? "上松弘典",
               visibility: "office_only",
             }}
           />

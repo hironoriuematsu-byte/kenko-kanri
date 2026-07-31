@@ -14,7 +14,7 @@ export default async function DocumentEditPage({ params }: { params: { id: strin
   const { data: doc } = await supabase
     .from("hm_person_documents")
     .select(
-      "id, person_id, company_id, doc_type, title, addressee, body, issued_date, visibility, hm_persons(full_name)"
+      "id, person_id, company_id, doc_type, title, addressee, body, issued_date, physician_name, visibility, hm_persons(full_name)"
     )
     .eq("id", params.id)
     .single();
@@ -29,7 +29,6 @@ export default async function DocumentEditPage({ params }: { params: { id: strin
         </h1>
         <div className="card">
           <DocumentForm
-            physicianName={profile.full_name ?? ""}
             backHref={`/document/${doc.id}`}
             initial={{
               id: doc.id,
@@ -40,6 +39,7 @@ export default async function DocumentEditPage({ params }: { params: { id: strin
               addressee: doc.addressee ?? "",
               body: doc.body ?? "",
               issued_date: doc.issued_date ?? "",
+              physician_name: doc.physician_name ?? profile.full_name ?? "上松弘典",
               visibility: doc.visibility,
             }}
           />

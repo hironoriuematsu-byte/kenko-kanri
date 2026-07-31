@@ -14,17 +14,16 @@ export type DocumentInput = {
   addressee: string;
   body: string;
   issued_date: string;
+  physician_name: string;
   visibility: string;
 };
 
 // 産業医の文書作成(officeのみ)。診療情報提供依頼書など
 export default function DocumentForm({
   initial,
-  physicianName,
   backHref,
 }: {
   initial: DocumentInput;
-  physicianName: string;
   backHref: string;
 }) {
   const router = useRouter();
@@ -61,7 +60,7 @@ export default function DocumentForm({
       addressee: v.addressee.trim() || null,
       body: v.body || null,
       issued_date: v.issued_date || null,
-      physician_name: physicianName,
+      physician_name: v.physician_name.trim() || null,
       visibility: v.visibility,
     };
 
@@ -157,6 +156,16 @@ export default function DocumentForm({
             type="date"
             value={v.issued_date}
             onChange={(e) => set("issued_date", e.target.value)}
+          />
+        </div>
+        <div>
+          <label>産業医名（敬称は付けません）</label>
+          <input
+            type="text"
+            value={v.physician_name}
+            onChange={(e) => set("physician_name", e.target.value)}
+            placeholder="上松弘典"
+            style={{ width: 200 }}
           />
         </div>
         <div>
