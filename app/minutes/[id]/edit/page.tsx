@@ -13,7 +13,7 @@ export default async function EditMinutesPage({ params }: { params: { id: string
   const { data: m } = await supabase
     .from("hm_minutes")
     .select(
-      "id, company_id, meeting_date, title, attendees, physician_attended, agenda, decisions, next_meeting_date, next_meeting_note, published_to_employees, companies(name)"
+      "id, company_id, meeting_date, title, attendees, agenda, published_to_employees, companies(name)"
     )
     .eq("id", params.id)
     .single();
@@ -38,13 +38,9 @@ export default async function EditMinutesPage({ params }: { params: { id: string
               id: m.id,
               company_id: m.company_id,
               meeting_date: m.meeting_date ?? "",
-              title: m.title ?? "安全衛生委員会",
+              title: m.title ?? "",
               attendees: m.attendees ?? "",
-              physician_attended: !!m.physician_attended,
               agenda: m.agenda ?? "",
-              decisions: m.decisions ?? "",
-              next_meeting_date: m.next_meeting_date ?? "",
-              next_meeting_note: m.next_meeting_note ?? "",
               published_to_employees: !!m.published_to_employees,
             }}
           />

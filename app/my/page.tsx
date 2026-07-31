@@ -15,7 +15,7 @@ export default async function MyPage() {
   const [{ data: minutes }, { data: interviews }, { data: checkups }] = await Promise.all([
     supabase
       .from("hm_minutes")
-      .select("id, meeting_date, title, physician_attended, published_to_employees")
+      .select("id, meeting_date, title, published_to_employees")
       .order("meeting_date", { ascending: false }),
     supabase
       .from("hm_interviews")

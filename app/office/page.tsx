@@ -15,18 +15,11 @@ export default async function OfficeDashboard() {
   const supabase = createClient();
   const [
     { data: companies },
-    { data: upcoming },
     { data: interviews },
     { count: unjudgedCount },
     { count: followupPendingCount },
   ] = await Promise.all([
       supabase.from("companies").select("id, name").order("name"),
-      supabase
-        .from("hm_minutes")
-        .select("id, company_id, meeting_date, next_meeting_date, title, companies(name)")
-        .gte("next_meeting_date", new Date().toISOString().slice(0, 10))
-        .order("next_meeting_date", { ascending: true })
-        .limit(10),
       supabase
         .from("hm_interviews")
         .select("id, target_name, interview_type, scheduled_at, status, companies(name)")
@@ -115,34 +108,6 @@ export default async function OfficeDashboard() {
             </table>
           ) : (
             <p className="muted">予定されている面談はありません。</p>
-          )}
-        </div>
-
-        <div className="card">
-          <h2>次回の安全衛生委員会</h2>
-          {upcoming && upcoming.length > 0 ? (
-            <table className="list">
-              <thead>
-                <tr>
-                  <th>企業</th>
-                  <th>次回予定日</th>
-                  <th>前回議事録</th>
-                </tr>
-              </thead>
-              <tbody>
-                {upcoming.map((m: any) => (
-                  <tr key={m.id}>
-                    <td>{m.companies?.name ?? "—"}</td>
-                    <td>{formatDateJa(m.next_meeting_date)}</td>
-                    <td>
-                      <Link href={`/minutes/${m.id}`}>{formatDateJa(m.meeting_date)} の議事録</Link>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          ) : (
-            <p className="muted">直近の委員会予定はありません。</p>
           )}
         </div>
 

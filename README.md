@@ -34,6 +34,7 @@
    9. `supabase/migrations/0107_hm_company_info.sql` …… 企業補足情報（住所等）
    10. `supabase/migrations/0108_hm_interview_pre_info.sql` …… 面談の事前情報欄
    11. `supabase/migrations/0109_hm_patrols_person_link.sql` …… 産業医巡視記録・面談とカルテの連携
+   12. `supabase/migrations/0110_hm_minutes_settings.sql` …… 議事録の企業別デフォルト設定
 3. `0000_dev_base.sql` の末尾コメントに沿って、テストユーザー（office / company）とテスト企業を作成
 
 ### 2. ローカル/Vercelの環境変数
@@ -62,7 +63,7 @@ npm run dev
 ## 本運用への切替（重要）
 
 1. 本番（ストレスチェックWebと共用のSupabaseプロジェクト）のSQL Editorで
-   `supabase/migrations/0101〜0104, 0106〜0109` **のみ** を順に実行する
+   `supabase/migrations/0101〜0104, 0106〜0110` **のみ** を順に実行する
    （`dev_setup/` 配下のSQLは**絶対に実行しない**。本番にはcompanies/profilesが既にあるため）
 2. `0105_hm_stress_link_template.sql` を既存テーブル（results / interview_requests / profiles）の
    実際の列名に合わせて調整し、コメントを外して実行（ストレスチェック連携の有効化）

@@ -35,19 +35,10 @@ export default async function CompanyDashboard() {
   const supabase = createClient();
   const [
     { data: company },
-    { data: nextMeeting },
     { count: followupPending },
     { data: companyInfo },
   ] = await Promise.all([
     supabase.from("companies").select("id, name").eq("id", profile.company_id).single(),
-    supabase
-      .from("hm_minutes")
-      .select("next_meeting_date")
-      .eq("company_id", profile.company_id)
-      .gte("next_meeting_date", new Date().toISOString().slice(0, 10))
-      .order("next_meeting_date", { ascending: true })
-      .limit(1)
-      .maybeSingle(),
     supabase
       .from("hm_checkups")
       .select("id", { count: "exact", head: true })
@@ -71,11 +62,6 @@ export default async function CompanyDashboard() {
           )}
         </h1>
 
-        {nextMeeting?.next_meeting_date && (
-          <div className="notice">
-            次回の安全衛生委員会: <strong>{formatDateJa(nextMeeting.next_meeting_date)}</strong>
-          </div>
-        )}
         {(followupPending ?? 0) > 0 && (
           <div className="notice">
             健診の事後措置が未対応の方が <strong>{followupPending}名</strong> います。

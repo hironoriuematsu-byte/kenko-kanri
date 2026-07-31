@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useState } from "react";
+import { ChangeEvent, FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/browser";
 
@@ -10,11 +10,7 @@ export type MinutesInput = {
   meeting_date: string;
   title: string;
   attendees: string;
-  physician_attended: boolean;
   agenda: string;
-  decisions: string;
-  next_meeting_date: string;
-  next_meeting_note: string;
   published_to_employees: boolean;
 };
 
@@ -36,28 +32,38 @@ export default function MinutesForm({
 }) {
   const router = useRouter();
   const [v, setV] = useState<MinutesInput>(initial);
+  const [files, setFiles] = useState<File[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
   const set = <K extends keyof MinutesInput>(k: K, val: MinutesInput[K]) =>
     setV((p) => ({ ...p, [k]: val }));
 
+  const onFilesChange = (e: ChangeEvent<HTMLInputElement>) => {
+    const list = Array.from(e.target.files ?? []);
+    const tooBig = list.find((f) => f.size > 20 * 1024 * 1024);
+    if (tooBig) {
+      setError(`「${tooBig.name}」が20MBを超えています。20MB以下のファイルを選択してください。`);
+      e.target.value = "";
+      return;
+    }
+    setError(null);
+    setFiles(list);
+  };
+
   const onSubmit = async (e: FormEvent) => {
     e.preventDefault();
     setBusy(true);
     setError(null);
     const supabase = createClient();
+    const { data: authUser } = await supabase.auth.getUser();
 
     const payload = {
       company_id: v.company_id,
       meeting_date: v.meeting_date,
-      title: v.title || "安全衛生委員会",
-      attendees: v.attendees || null,
-      physician_attended: v.physician_attended,
-      agenda: v.agenda || null,
-      decisions: v.decisions || null,
-      next_meeting_date: v.next_meeting_date || null,
-      next_meeting_note: v.next_meeting_note || null,
+      title: v.title.trim() || "安全衛生委員会",
+      attendees: v.attendees.trim() || null,
+      agenda: v.agenda.trim() || null,
       published_to_employees: v.published_to_employees,
     };
 
@@ -75,10 +81,9 @@ export default function MinutesForm({
         p_target_id: id,
       });
     } else {
-      const { data: user } = await supabase.auth.getUser();
       const { data, error } = await supabase
         .from("hm_minutes")
-        .insert({ ...payload, created_by: user.user?.id })
+        .insert({ ...payload, created_by: authUser.user?.id })
         .select("id")
         .single();
       if (error || !data) {
@@ -93,6 +98,39 @@ export default function MinutesForm({
         p_target_id: id,
       });
     }
+
+    // 選択されたファイルをアップロード(本文なしのファイルのみ登録も可)
+    for (const file of files) {
+      const safeName = file.name.replace(/[^\w.\-ぁ-んァ-ヶ一-龠]/g, "_");
+      const path = `${v.company_id}/${id}/${Date.now()}_${safeName}`;
+      const { error: upErr } = await supabase.storage.from("hm-files").upload(path, file);
+      if (upErr) {
+        setError(
+          `議事録は保存されましたが「${file.name}」のアップロードに失敗しました: ${upErr.message}`
+        );
+        setBusy(false);
+        return;
+      }
+      const { data: fileRow, error: insErr } = await supabase
+        .from("hm_minute_files")
+        .insert({
+          minutes_id: id,
+          file_name: file.name,
+          storage_path: path,
+          uploaded_by: authUser.user?.id,
+        })
+        .select("id")
+        .single();
+      if (!insErr && fileRow) {
+        await supabase.rpc("hm_log_access", {
+          p_action: "upload",
+          p_target_table: "hm_minute_files",
+          p_target_id: fileRow.id,
+          p_detail: { file_name: file.name },
+        });
+      }
+    }
+
     router.replace(`/minutes/${id}`);
     router.refresh();
   };
@@ -123,19 +161,8 @@ export default function MinutesForm({
           value={v.attendees}
           onChange={(e) => set("attendees", e.target.value)}
           placeholder="委員長: ○○、衛生管理者: ○○、産業医: ○○ ほか"
-          style={{ minHeight: 70 }}
+          style={{ minHeight: 90 }}
         />
-      </div>
-      <div className="form-row checkbox-row">
-        <input
-          id="physician"
-          type="checkbox"
-          checked={v.physician_attended}
-          onChange={(e) => set("physician_attended", e.target.checked)}
-        />
-        <label htmlFor="physician" style={{ margin: 0 }}>
-          産業医が出席した
-        </label>
       </div>
       <div className="form-row">
         <label>
@@ -152,27 +179,23 @@ export default function MinutesForm({
           )}
         </label>
         <textarea value={v.agenda} onChange={(e) => set("agenda", e.target.value)} />
+        <p className="muted" style={{ margin: "4px 0 0" }}>
+          自社で作成した議事録ファイルを登録する場合は、本文を空欄のままファイルだけ添付しても構いません。
+        </p>
       </div>
       <div className="form-row">
-        <label>決定事項</label>
-        <textarea value={v.decisions} onChange={(e) => set("decisions", e.target.value)} />
-      </div>
-      <div className="form-row">
-        <label>次回開催予定日</label>
+        <label>議事録ファイルの添付（PDF・Word等、複数可）</label>
         <input
-          type="date"
-          value={v.next_meeting_date}
-          onChange={(e) => set("next_meeting_date", e.target.value)}
+          type="file"
+          multiple
+          accept=".pdf,.doc,.docx,.xls,.xlsx,.png,.jpg,.jpeg"
+          onChange={onFilesChange}
         />
-      </div>
-      <div className="form-row">
-        <label>次回予定メモ</label>
-        <input
-          type="text"
-          value={v.next_meeting_note}
-          onChange={(e) => set("next_meeting_note", e.target.value)}
-          placeholder="次回の主な議題など"
-        />
+        {files.length > 0 && (
+          <p className="muted" style={{ margin: "4px 0 0" }}>
+            {files.map((f) => f.name).join("、")} を保存時にアップロードします。
+          </p>
+        )}
       </div>
       <div className="form-row checkbox-row">
         <input
@@ -192,11 +215,7 @@ export default function MinutesForm({
         <button className="btn" type="submit" disabled={busy}>
           {busy ? "保存中…" : "保存する"}
         </button>
-        <button
-          type="button"
-          className="btn secondary"
-          onClick={() => router.push(backHref)}
-        >
+        <button type="button" className="btn secondary" onClick={() => router.push(backHref)}>
           キャンセル
         </button>
       </div>

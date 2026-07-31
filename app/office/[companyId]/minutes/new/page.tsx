@@ -15,11 +15,14 @@ export default async function NewMinutesPage({
   if (profile.role !== "office") redirect("/");
 
   const supabase = createClient();
-  const { data: company } = await supabase
-    .from("companies")
-    .select("id, name")
-    .eq("id", params.companyId)
-    .single();
+  const [{ data: company }, { data: info }] = await Promise.all([
+    supabase.from("companies").select("id, name").eq("id", params.companyId).single(),
+    supabase
+      .from("hm_company_info")
+      .select("committee_name, default_attendees")
+      .eq("company_id", params.companyId)
+      .maybeSingle(),
+  ]);
   if (!company) notFound();
 
   return (
@@ -29,17 +32,13 @@ export default async function NewMinutesPage({
         <h1 className="page-title">{company.name} — 議事録の作成</h1>
         <div className="card">
           <MinutesForm
-            backHref={`/office/${company.id}`}
+            backHref={`/office/${company.id}/minutes`}
             initial={{
               company_id: company.id,
               meeting_date: new Date().toISOString().slice(0, 10),
-              title: "安全衛生委員会",
-              attendees: "",
-              physician_attended: true,
+              title: info?.committee_name ?? "安全衛生委員会",
+              attendees: info?.default_attendees ?? "",
               agenda: "",
-              decisions: "",
-              next_meeting_date: "",
-              next_meeting_note: "",
               published_to_employees: false,
             }}
           />

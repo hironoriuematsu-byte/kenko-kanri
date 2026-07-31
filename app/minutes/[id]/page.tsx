@@ -17,7 +17,7 @@ export default async function MinutesDetailPage({ params }: { params: { id: stri
   const { data: m } = await supabase
     .from("hm_minutes")
     .select(
-      "id, company_id, meeting_date, title, attendees, physician_attended, agenda, decisions, next_meeting_date, next_meeting_note, published_to_employees, companies(name)"
+      "id, company_id, meeting_date, title, attendees, agenda, published_to_employees, companies(name)"
     )
     .eq("id", params.id)
     .single();
@@ -39,6 +39,12 @@ export default async function MinutesDetailPage({ params }: { params: { id: stri
   const canEdit =
     profile.role === "office" ||
     (profile.role === "company" && profile.company_id === m.company_id);
+  const backHref =
+    profile.role === "office"
+      ? `/office/${m.company_id}/minutes`
+      : profile.role === "company"
+        ? "/company/minutes"
+        : homePathFor(profile.role);
   const companyName = (m as any).companies?.name ?? "";
 
   return (
@@ -46,9 +52,7 @@ export default async function MinutesDetailPage({ params }: { params: { id: stri
       <Header profile={profile} />
       <main className="container">
         <p className="muted no-print">
-          <Link href={profile.role === "office" ? `/office/${m.company_id}` : homePathFor(profile.role)}>
-            ← 一覧に戻る
-          </Link>
+          <Link href={backHref}>← 一覧に戻る</Link>
         </p>
 
         <div className="card print-sheet">
@@ -68,23 +72,8 @@ export default async function MinutesDetailPage({ params }: { params: { id: stri
                 <td style={{ whiteSpace: "pre-wrap" }}>{m.attendees || "—"}</td>
               </tr>
               <tr>
-                <th>産業医出席</th>
-                <td>{m.physician_attended ? "あり" : "なし"}</td>
-              </tr>
-              <tr>
                 <th>審議事項</th>
                 <td style={{ whiteSpace: "pre-wrap" }}>{m.agenda || "—"}</td>
-              </tr>
-              <tr>
-                <th>決定事項</th>
-                <td style={{ whiteSpace: "pre-wrap" }}>{m.decisions || "—"}</td>
-              </tr>
-              <tr>
-                <th>次回予定</th>
-                <td>
-                  {formatDateJa(m.next_meeting_date)}
-                  {m.next_meeting_note ? `　${m.next_meeting_note}` : ""}
-                </td>
               </tr>
             </tbody>
           </table>
@@ -100,17 +89,15 @@ export default async function MinutesDetailPage({ params }: { params: { id: stri
           </div>
         </div>
 
-        {profile.role !== "employee" && (
-          <div className="card no-print">
-            <h2>添付ファイル</h2>
-            <AttachmentsPanel
-              minutesId={m.id}
-              companyId={m.company_id}
-              initialFiles={files ?? []}
-              canUpload={canEdit}
-            />
-          </div>
-        )}
+        <div className="card no-print">
+          <h2>議事録ファイル・添付資料</h2>
+          <AttachmentsPanel
+            minutesId={m.id}
+            companyId={m.company_id}
+            initialFiles={files ?? []}
+            canUpload={canEdit}
+          />
+        </div>
       </main>
     </>
   );
