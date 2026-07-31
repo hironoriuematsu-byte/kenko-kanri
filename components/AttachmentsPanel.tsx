@@ -2,6 +2,7 @@
 
 import { ChangeEvent, useState } from "react";
 import { createClient } from "@/lib/supabase/browser";
+import { makeStorageFileName } from "@/lib/storage";
 
 type FileRow = { id: string; file_name: string; storage_path: string };
 
@@ -32,8 +33,7 @@ export default function AttachmentsPanel({
     setError(null);
     const supabase = createClient();
 
-    const safeName = file.name.replace(/[^\w.\-ぁ-んァ-ヶ一-龠]/g, "_");
-    const path = `${companyId}/${minutesId}/${Date.now()}_${safeName}`;
+    const path = `${companyId}/${minutesId}/${makeStorageFileName(file.name)}`;
 
     const { error: upErr } = await supabase.storage.from("hm-files").upload(path, file);
     if (upErr) {
@@ -73,7 +73,7 @@ export default function AttachmentsPanel({
     const supabase = createClient();
     const { data, error } = await supabase.storage
       .from("hm-files")
-      .createSignedUrl(f.storage_path, 60);
+      .createSignedUrl(f.storage_path, 60, { download: f.file_name });
     if (error || !data) {
       setError("ダウンロードURLの発行に失敗しました。");
       return;

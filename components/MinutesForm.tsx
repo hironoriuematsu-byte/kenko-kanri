@@ -3,6 +3,7 @@
 import { ChangeEvent, FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/browser";
+import { makeStorageFileName } from "@/lib/storage";
 
 export type MinutesInput = {
   id?: string;
@@ -101,8 +102,7 @@ export default function MinutesForm({
 
     // 選択されたファイルをアップロード(本文なしのファイルのみ登録も可)
     for (const file of files) {
-      const safeName = file.name.replace(/[^\w.\-ぁ-んァ-ヶ一-龠]/g, "_");
-      const path = `${v.company_id}/${id}/${Date.now()}_${safeName}`;
+      const path = `${v.company_id}/${id}/${makeStorageFileName(file.name)}`;
       const { error: upErr } = await supabase.storage.from("hm-files").upload(path, file);
       if (upErr) {
         setError(

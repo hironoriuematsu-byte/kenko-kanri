@@ -2,6 +2,7 @@
 
 import { ChangeEvent, useState } from "react";
 import { createClient } from "@/lib/supabase/browser";
+import { makeStorageFileName } from "@/lib/storage";
 import { FILE_CATEGORIES, VISIBILITY_LABELS } from "@/lib/karte";
 import { formatDateJa } from "@/lib/fiscal";
 
@@ -52,8 +53,7 @@ export default function PersonFilesPanel({
     const vis = role === "office" ? visibility : "shared";
     // office限定ファイルは 'office/' 配下に置き、企業のStorageポリシーから分離する
     const prefix = vis === "office_only" ? "office" : companyId;
-    const safeName = file.name.replace(/[^\w.\-ぁ-んァ-ヶ一-龠]/g, "_");
-    const path = `${prefix}/persons/${personId}/${Date.now()}_${safeName}`;
+    const path = `${prefix}/persons/${personId}/${makeStorageFileName(file.name)}`;
 
     const { error: upErr } = await supabase.storage.from("hm-files").upload(path, file);
     if (upErr) {
@@ -97,7 +97,7 @@ export default function PersonFilesPanel({
     const supabase = createClient();
     const { data, error } = await supabase.storage
       .from("hm-files")
-      .createSignedUrl(f.storage_path, 60);
+      .createSignedUrl(f.storage_path, 60, { download: f.file_name });
     if (error || !data) {
       setError("ダウンロードURLの発行に失敗しました。");
       return;
