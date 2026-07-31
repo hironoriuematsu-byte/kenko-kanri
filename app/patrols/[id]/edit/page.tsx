@@ -3,6 +3,7 @@ import Header from "@/components/Header";
 import PatrolForm from "@/components/PatrolForm";
 import { requireProfile } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
+import { combinePatrolText } from "@/lib/patrols";
 
 export const dynamic = "force-dynamic";
 
@@ -33,10 +34,7 @@ export default async function PatrolEditPage({ params }: { params: { id: string 
               id: p.id,
               company_id: p.company_id,
               patrol_date: p.patrol_date ?? "",
-              areas: p.areas ?? "",
-              findings: p.findings ?? "",
-              advice: p.advice ?? "",
-              note: p.note ?? "",
+              findings: combinePatrolText(p),
             }}
           />
         </div>

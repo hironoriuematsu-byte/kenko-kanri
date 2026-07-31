@@ -1,12 +1,21 @@
 import Link from "next/link";
 import { formatDateJa } from "@/lib/fiscal";
+import { combinePatrolText } from "@/lib/patrols";
 
 type Row = {
   id: string;
   patrol_date: string;
   areas: string | null;
+  findings: string | null;
+  advice: string | null;
+  note: string | null;
   physician_name: string | null;
 };
+
+function excerpt(s: string, len = 40): string {
+  const t = s.replace(/\s+/g, " ").trim();
+  return t.length > len ? t.slice(0, len) + "…" : t;
+}
 
 export default function PatrolsTable({ patrols }: { patrols: Row[] }) {
   if (patrols.length === 0) {
@@ -17,7 +26,7 @@ export default function PatrolsTable({ patrols }: { patrols: Row[] }) {
       <thead>
         <tr>
           <th>巡視日</th>
-          <th>巡視場所</th>
+          <th>指摘事項等</th>
           <th>産業医</th>
         </tr>
       </thead>
@@ -27,7 +36,7 @@ export default function PatrolsTable({ patrols }: { patrols: Row[] }) {
             <td>
               <Link href={`/patrols/${p.id}`}>{formatDateJa(p.patrol_date)}</Link>
             </td>
-            <td>{p.areas || "—"}</td>
+            <td className="muted">{excerpt(combinePatrolText(p)) || "—"}</td>
             <td>{p.physician_name || "—"}</td>
           </tr>
         ))}

@@ -6,6 +6,7 @@ import DeletePatrolButton from "@/components/DeletePatrolButton";
 import { requireProfile, homePathFor } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { formatDateJa } from "@/lib/fiscal";
+import { combinePatrolText } from "@/lib/patrols";
 
 export const dynamic = "force-dynamic";
 
@@ -56,20 +57,8 @@ export default async function PatrolDetailPage({ params }: { params: { id: strin
                 <td>{formatDateJa(p.patrol_date)}</td>
               </tr>
               <tr>
-                <th>巡視場所</th>
-                <td style={{ whiteSpace: "pre-wrap" }}>{p.areas || "—"}</td>
-              </tr>
-              <tr>
-                <th>指摘事項・所見</th>
-                <td style={{ whiteSpace: "pre-wrap" }}>{p.findings || "—"}</td>
-              </tr>
-              <tr>
-                <th>指導・助言</th>
-                <td style={{ whiteSpace: "pre-wrap" }}>{p.advice || "—"}</td>
-              </tr>
-              <tr>
-                <th>改善状況・備考</th>
-                <td style={{ whiteSpace: "pre-wrap" }}>{p.note || "—"}</td>
+                <th>指摘事項等</th>
+                <td style={{ whiteSpace: "pre-wrap" }}>{combinePatrolText(p) || "—"}</td>
               </tr>
               <tr>
                 <th>産業医</th>

@@ -8,10 +8,7 @@ export type PatrolInput = {
   id?: string;
   company_id: string;
   patrol_date: string;
-  areas: string;
-  findings: string;
-  advice: string;
-  note: string;
+  findings: string; // 指摘事項等(巡視場所・所見・指導・改善状況をまとめて記載)
 };
 
 // 産業医巡視記録の作成・編集(officeのみ)
@@ -41,10 +38,10 @@ export default function PatrolForm({
     const payload = {
       company_id: v.company_id,
       patrol_date: v.patrol_date,
-      areas: v.areas.trim() || null,
+      areas: null,
       findings: v.findings.trim() || null,
-      advice: v.advice.trim() || null,
-      note: v.note.trim() || null,
+      advice: null,
+      note: null,
       physician_name: physicianName,
     };
 
@@ -96,35 +93,14 @@ export default function PatrolForm({
         />
       </div>
       <div className="form-row">
-        <label>巡視場所</label>
-        <textarea
-          value={v.areas}
-          onChange={(e) => set("areas", e.target.value)}
-          placeholder="例: 本社2F 事務室、倉庫、休憩室"
-          style={{ minHeight: 60 }}
-        />
-      </div>
-      <div className="form-row">
-        <label>指摘事項・所見</label>
+        <label>指摘事項等</label>
         <textarea
           value={v.findings}
           onChange={(e) => set("findings", e.target.value)}
-          placeholder="例: 通路に荷物が仮置きされ動線を塞いでいる、休憩室の換気不良 など"
-        />
-      </div>
-      <div className="form-row">
-        <label>指導・助言</label>
-        <textarea
-          value={v.advice}
-          onChange={(e) => set("advice", e.target.value)}
-        />
-      </div>
-      <div className="form-row">
-        <label>改善状況・備考</label>
-        <textarea
-          value={v.note}
-          onChange={(e) => set("note", e.target.value)}
-          style={{ minHeight: 60 }}
+          placeholder={
+            "巡視場所、指摘事項・所見、指導・助言、改善状況などをまとめて記載してください。\n例:\n本社2F事務室・倉庫・休憩室を巡視。通路に荷物が仮置きされ動線を塞いでいるため整理を指導。休憩室の換気不良あり、換気扇の点検を依頼。前回指摘の配線カバーは改善済み。"
+          }
+          style={{ minHeight: 180 }}
         />
       </div>
 

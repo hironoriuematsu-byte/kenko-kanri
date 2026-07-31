@@ -14,7 +14,7 @@ export default async function CompanyPatrolsPage() {
   const supabase = createClient();
   const { data: patrols } = await supabase
     .from("hm_patrols")
-    .select("id, patrol_date, areas, physician_name")
+    .select("id, patrol_date, areas, findings, advice, note, physician_name")
     .eq("company_id", profile.company_id)
     .order("patrol_date", { ascending: false });
 

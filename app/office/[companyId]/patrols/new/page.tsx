@@ -34,10 +34,7 @@ export default async function OfficePatrolNewPage({
             initial={{
               company_id: company.id,
               patrol_date: new Date().toISOString().slice(0, 10),
-              areas: "",
               findings: "",
-              advice: "",
-              note: "",
             }}
           />
         </div>
