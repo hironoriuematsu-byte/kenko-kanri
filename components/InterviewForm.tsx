@@ -8,6 +8,7 @@ import { INTERVIEW_TYPES, INTERVIEW_METHODS } from "@/lib/interviews";
 export type InterviewInput = {
   id?: string;
   company_id: string;
+  person_id: string | null;
   target_user_id: string | null;
   target_name: string;
   interview_type: string;
@@ -16,17 +17,22 @@ export type InterviewInput = {
   location: string;
 };
 
-type Employee = { id: string; full_name: string | null };
+type Person = {
+  id: string;
+  full_name: string;
+  employee_no: string | null;
+  user_id: string | null;
+};
 
 // mode: "office"=全項目 / "company"=日程調整のみ(日時・方法・場所)
 export default function InterviewForm({
   initial,
-  employees,
+  persons,
   backHref,
   mode,
 }: {
   initial: InterviewInput;
-  employees: Employee[];
+  persons: Person[];
   backHref: string;
   mode: "office" | "company";
 }) {
@@ -60,6 +66,7 @@ export default function InterviewForm({
         mode === "office"
           ? {
               ...schedulePayload,
+              person_id: v.person_id,
               target_user_id: v.target_user_id,
               target_name: v.target_name.trim(),
               interview_type: v.interview_type,
@@ -82,6 +89,7 @@ export default function InterviewForm({
         .from("hm_interviews")
         .insert({
           company_id: v.company_id,
+          person_id: v.person_id,
           target_user_id: v.target_user_id,
           target_name: v.target_name.trim(),
           interview_type: v.interview_type,
@@ -111,23 +119,25 @@ export default function InterviewForm({
       {mode === "office" && (
         <>
           <div className="form-row">
-            <label>対象者（従業員アカウントから選択）</label>
+            <label>対象者（カルテから選択。面談がカルテの履歴に紐付きます）</label>
             <select
-              value={v.target_user_id ?? ""}
+              value={v.person_id ?? ""}
               onChange={(e) => {
                 const id = e.target.value || null;
-                const emp = employees.find((x) => x.id === id);
+                const person = persons.find((x) => x.id === id);
                 setV((p) => ({
                   ...p,
-                  target_user_id: id,
-                  target_name: emp?.full_name ?? p.target_name,
+                  person_id: id,
+                  target_user_id: person?.user_id ?? null,
+                  target_name: person?.full_name ?? p.target_name,
                 }));
               }}
             >
-              <option value="">（選択しない / 氏名を直接入力）</option>
-              {employees.map((e) => (
-                <option key={e.id} value={e.id}>
-                  {e.full_name ?? e.id}
+              <option value="">（カルテ未登録 / 氏名を直接入力）</option>
+              {persons.map((person) => (
+                <option key={person.id} value={person.id}>
+                  {person.employee_no ? `${person.employee_no} ` : ""}
+                  {person.full_name}
                 </option>
               ))}
             </select>

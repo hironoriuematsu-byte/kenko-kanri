@@ -25,7 +25,7 @@ export default async function InterviewDetailPage({ params }: { params: { id: st
   const { data: iv } = await supabase
     .from("hm_interviews")
     .select(
-      "id, company_id, target_user_id, target_name, interview_type, scheduled_at, method, location, status, companies(name)"
+      "id, company_id, person_id, target_user_id, target_name, interview_type, scheduled_at, method, location, status, companies(name)"
     )
     .eq("id", params.id)
     .single();
@@ -90,6 +90,11 @@ export default async function InterviewDetailPage({ params }: { params: { id: st
             {(isOffice || isCompany) && iv.status === "scheduled" && (
               <Link className="btn secondary" href={`/interviews/${iv.id}/edit`}>
                 {isOffice ? "予定を編集" : "日程を調整"}
+              </Link>
+            )}
+            {(isOffice || isCompany) && iv.person_id && (
+              <Link className="btn secondary" href={`/karte/${iv.person_id}`}>
+                カルテを開く
               </Link>
             )}
             {isOffice && iv.target_user_id && (

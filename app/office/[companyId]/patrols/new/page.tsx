@@ -1,12 +1,12 @@
 import { notFound, redirect } from "next/navigation";
 import Header from "@/components/Header";
-import InterviewForm from "@/components/InterviewForm";
+import PatrolForm from "@/components/PatrolForm";
 import { requireProfile } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
 
-export default async function NewInterviewPage({
+export default async function OfficePatrolNewPage({
   params,
 }: {
   params: { companyId: string };
@@ -22,32 +22,22 @@ export default async function NewInterviewPage({
     .single();
   if (!company) notFound();
 
-  const { data: persons } = await supabase
-    .from("hm_persons")
-    .select("id, full_name, employee_no, user_id")
-    .eq("company_id", company.id)
-    .order("employee_no", { ascending: true, nullsFirst: false })
-    .order("full_name");
-
   return (
     <>
       <Header profile={profile} />
       <main className="container">
-        <h1 className="page-title">{company.name} — 面談予定の登録</h1>
+        <h1 className="page-title">{company.name} — 巡視記録の作成</h1>
         <div className="card">
-          <InterviewForm
-            mode="office"
-            persons={persons ?? []}
-            backHref={`/office/${company.id}/interviews`}
+          <PatrolForm
+            physicianName={profile.full_name ?? ""}
+            backHref={`/office/${company.id}/patrols`}
             initial={{
               company_id: company.id,
-              person_id: null,
-              target_user_id: null,
-              target_name: "",
-              interview_type: "high_stress",
-              scheduled_local: "",
-              method: "",
-              location: "",
+              patrol_date: new Date().toISOString().slice(0, 10),
+              areas: "",
+              findings: "",
+              advice: "",
+              note: "",
             }}
           />
         </div>

@@ -1,14 +1,20 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import Header from "@/components/Header";
-import MinutesTable from "@/components/MinutesTable";
-import InterviewsTable from "@/components/InterviewsTable";
 import CompanyInfoForm from "@/components/CompanyInfoForm";
 import { requireProfile } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { formatDateJa } from "@/lib/fiscal";
 
 export const dynamic = "force-dynamic";
+
+const MENU = [
+  { href: "/company/minutes", title: "安全衛生委員会議事録", desc: "議事録の作成・共有・印刷" },
+  { href: "/company/patrols", title: "産業医巡視記録", desc: "職場巡視の記録の閲覧" },
+  { href: "/company/interviews", title: "産業医面談管理", desc: "面談予定・日程調整・意見書" },
+  { href: "/company/checkups", title: "健康診断", desc: "取込・有所見・事後措置" },
+  { href: "/company/persons", title: "個人カルテ", desc: "診断書等の共有・履歴" },
+];
 
 export default async function CompanyDashboard() {
   const { profile } = await requireProfile();
@@ -29,33 +35,24 @@ export default async function CompanyDashboard() {
   const supabase = createClient();
   const [
     { data: company },
-    { data: minutes },
-    { data: interviews },
+    { data: nextMeeting },
     { count: followupPending },
-    { count: followupRecommended },
     { data: companyInfo },
   ] = await Promise.all([
     supabase.from("companies").select("id, name").eq("id", profile.company_id).single(),
     supabase
       .from("hm_minutes")
-      .select("id, meeting_date, title, physician_attended, published_to_employees, next_meeting_date")
+      .select("next_meeting_date")
       .eq("company_id", profile.company_id)
-      .order("meeting_date", { ascending: false }),
-    supabase
-      .from("hm_interviews")
-      .select("id, target_name, interview_type, scheduled_at, method, status")
-      .eq("company_id", profile.company_id)
-      .order("scheduled_at", { ascending: false, nullsFirst: false }),
+      .gte("next_meeting_date", new Date().toISOString().slice(0, 10))
+      .order("next_meeting_date", { ascending: true })
+      .limit(1)
+      .maybeSingle(),
     supabase
       .from("hm_checkups")
       .select("id", { count: "exact", head: true })
       .eq("company_id", profile.company_id)
       .eq("followup_status", "pending"),
-    supabase
-      .from("hm_checkups")
-      .select("id", { count: "exact", head: true })
-      .eq("company_id", profile.company_id)
-      .eq("followup_status", "recommended"),
     supabase
       .from("hm_company_info")
       .select("address, tel")
@@ -63,66 +60,39 @@ export default async function CompanyDashboard() {
       .maybeSingle(),
   ]);
 
-  const next = (minutes ?? [])
-    .filter((m) => m.next_meeting_date && m.next_meeting_date >= new Date().toISOString().slice(0, 10))
-    .sort((a, b) => (a.next_meeting_date! < b.next_meeting_date! ? -1 : 1))[0];
-
   return (
     <>
       <Header profile={profile} />
       <main className="container">
-        <h1 className="page-title">{company?.name ?? "自社"} ダッシュボード</h1>
+        <h1 className="page-title" style={{ marginBottom: 4 }}>
+          {company?.name ?? "自社"} ダッシュボード{" "}
+          {companyInfo?.address && (
+            <span style={{ fontSize: 14, color: "var(--muted)" }}>{companyInfo.address}</span>
+          )}
+        </h1>
 
-        {next && (
+        {nextMeeting?.next_meeting_date && (
           <div className="notice">
-            次回の安全衛生委員会: <strong>{formatDateJa(next.next_meeting_date)}</strong>
+            次回の安全衛生委員会: <strong>{formatDateJa(nextMeeting.next_meeting_date)}</strong>
+          </div>
+        )}
+        {(followupPending ?? 0) > 0 && (
+          <div className="notice">
+            健診の事後措置が未対応の方が <strong>{followupPending}名</strong> います。
+            健康診断のページからご確認ください。
           </div>
         )}
 
-        <div className="card">
-          <h2>安全衛生委員会 議事録</h2>
-          <p>
-            <Link className="btn orange" href="/company/minutes/new">
-              ＋ 議事録を作成
+        <div className="card-grid" style={{ marginTop: 18 }}>
+          {MENU.map((m) => (
+            <Link key={m.href} href={m.href} className="card" style={{ marginBottom: 0 }}>
+              <strong style={{ color: "var(--teal-dark)" }}>{m.title}</strong>
+              <div className="muted">{m.desc}</div>
             </Link>
-          </p>
-          <MinutesTable minutes={minutes ?? []} />
+          ))}
         </div>
 
-        <div className="card">
-          <h2>面談予定</h2>
-          <InterviewsTable interviews={interviews ?? []} />
-          <p className="muted" style={{ marginTop: 10 }}>
-            日程の調整は各面談の詳細画面から行えます。産業医の意見書は公開され次第、詳細画面に表示されます。
-          </p>
-        </div>
-
-        <div className="card">
-          <h2>従業員カルテ</h2>
-          <p>
-            <Link className="btn" href="/company/persons">
-              カルテ一覧へ（診断書等の共有・履歴）
-            </Link>
-          </p>
-        </div>
-
-        <div className="card">
-          <h2>健康診断</h2>
-          {((followupPending ?? 0) > 0 || (followupRecommended ?? 0) > 0) && (
-            <p>
-              有所見者フォロー状況: 未対応{" "}
-              <span className="badge orange">{followupPending ?? 0}名</span>
-              {"　"}勧奨済 <span className="badge">{followupRecommended ?? 0}名</span>
-            </p>
-          )}
-          <p>
-            <Link className="btn" href="/company/checkups">
-              健診結果の管理へ（取込・有所見・事後措置）
-            </Link>
-          </p>
-        </div>
-
-        <div className="card">
+        <div className="card" style={{ marginTop: 18 }}>
           <h2>企業情報</h2>
           <CompanyInfoForm
             companyId={profile.company_id}

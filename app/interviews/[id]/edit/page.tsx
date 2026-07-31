@@ -14,7 +14,7 @@ export default async function EditInterviewPage({ params }: { params: { id: stri
   const { data: iv } = await supabase
     .from("hm_interviews")
     .select(
-      "id, company_id, target_user_id, target_name, interview_type, scheduled_at, method, location, status, companies(name)"
+      "id, company_id, person_id, target_user_id, target_name, interview_type, scheduled_at, method, location, status, companies(name)"
     )
     .eq("id", params.id)
     .single();
@@ -26,12 +26,12 @@ export default async function EditInterviewPage({ params }: { params: { id: stri
     redirect(`/interviews/${iv.id}`);
   }
 
-  const { data: employees } = isOffice
+  const { data: persons } = isOffice
     ? await supabase
-        .from("profiles")
-        .select("id, full_name")
+        .from("hm_persons")
+        .select("id, full_name, employee_no, user_id")
         .eq("company_id", iv.company_id)
-        .eq("role", "employee")
+        .order("employee_no", { ascending: true, nullsFirst: false })
         .order("full_name")
     : { data: [] };
 
@@ -50,11 +50,12 @@ export default async function EditInterviewPage({ params }: { params: { id: stri
         <div className="card">
           <InterviewForm
             mode={isOffice ? "office" : "company"}
-            employees={employees ?? []}
+            persons={persons ?? []}
             backHref={`/interviews/${iv.id}`}
             initial={{
               id: iv.id,
               company_id: iv.company_id,
+              person_id: iv.person_id,
               target_user_id: iv.target_user_id,
               target_name: iv.target_name,
               interview_type: iv.interview_type,
