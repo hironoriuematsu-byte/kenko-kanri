@@ -91,6 +91,15 @@ export default async function CompanyDashboard() {
         </div>
 
         <div className="card">
+          <h2>従業員カルテ</h2>
+          <p>
+            <Link className="btn" href="/company/persons">
+              カルテ一覧へ（診断書等の共有・履歴）
+            </Link>
+          </p>
+        </div>
+
+        <div className="card">
           <h2>健康診断</h2>
           {((followupPending ?? 0) > 0 || (followupRecommended ?? 0) > 0) && (
             <p>

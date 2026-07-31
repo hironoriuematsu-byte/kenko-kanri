@@ -67,6 +67,15 @@ export default async function OfficeCompanyPage({
         </div>
 
         <div className="card">
+          <h2>従業員カルテ</h2>
+          <p>
+            <Link className="btn" href={`/office/${company.id}/persons`}>
+              カルテ一覧へ（書類共有・文書作成・履歴）
+            </Link>
+          </p>
+        </div>
+
+        <div className="card">
           <h2>健康診断</h2>
           <p>
             <Link className="btn" href={`/office/${company.id}/checkups`}>

@@ -14,6 +14,7 @@
 | Phase 2 | 面談管理（予定・実施記録・非公開メモ・意見書PDF） | ✅ 実装済み |
 | Phase 3 | 健康診断結果（CSV取込・有所見・就業判定・事後措置・経年・個人票） | ✅ 実装済み |
 | Phase 4 | 統合ビュー・ダッシュボード・集計・ストレスチェック連携 | ✅ 実装済み（本番連携は移行時に0105を調整） |
+| Phase 5 | 従業員カルテ（書類共有・産業医文書作成・履歴集約） | ✅ 実装済み |
 
 ## セットアップ手順（開発用・無料Supabaseプロジェクト）
 
@@ -29,6 +30,7 @@
    5. `supabase/migrations/0102_hm_phase2.sql` …… Phase 2 面談管理
    6. `supabase/migrations/0103_hm_phase3.sql` …… Phase 3 健康診断結果
    7. `supabase/migrations/0104_hm_checkup_bulk_delete.sql` …… 健診記録の一括削除RPC
+   8. `supabase/migrations/0106_hm_phase5_karte.sql` …… Phase 5 従業員カルテ
 3. `0000_dev_base.sql` の末尾コメントに沿って、テストユーザー（office / company）とテスト企業を作成
 
 ### 2. ローカル/Vercelの環境変数
@@ -57,7 +59,7 @@ npm run dev
 ## 本運用への切替（重要）
 
 1. 本番（ストレスチェックWebと共用のSupabaseプロジェクト）のSQL Editorで
-   `supabase/migrations/0101〜0104` **のみ** を順に実行する
+   `supabase/migrations/0101〜0104, 0106` **のみ** を順に実行する
    （`dev_setup/` 配下のSQLは**絶対に実行しない**。本番にはcompanies/profilesが既にあるため）
 2. `0105_hm_stress_link_template.sql` を既存テーブル（results / interview_requests / profiles）の
    実際の列名に合わせて調整し、コメントを外して実行（ストレスチェック連携の有効化）
