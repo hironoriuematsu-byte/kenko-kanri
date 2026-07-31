@@ -76,9 +76,14 @@ export default async function OfficeCompanyPage({
         </div>
 
         <div className="card">
-          <h2>今後追加予定の機能</h2>
+          <h2>ストレスチェック</h2>
+          <p>
+            <Link className="btn" href={`/office/${company.id}/stress`}>
+              高ストレス者一覧・集団サマリーへ
+            </Link>
+          </p>
           <p className="muted">
-            ストレスチェック連携・統合ビュー（Phase 4）は次のフェーズで追加されます。
+            既存ストレスチェックWebのデータを読み取り専用で参照します。個人統合ビューは高ストレス者一覧・健診個人票から開けます。
           </p>
         </div>
       </main>

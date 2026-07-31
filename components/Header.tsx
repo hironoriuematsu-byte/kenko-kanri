@@ -21,6 +21,9 @@ export default function Header({ profile }: { profile: Profile }) {
           <span className="sub">うえまつ産業医事務所</span>
         </Link>
         <div className="header-right">
+          <a href="https://stres.vercel.app" target="_blank" rel="noopener noreferrer">
+            ストレスチェックWeb ↗
+          </a>
           <span>
             {profile.full_name ?? "—"}（{ROLE_LABEL[profile.role] ?? profile.role}）
           </span>

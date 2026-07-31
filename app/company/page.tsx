@@ -26,7 +26,13 @@ export default async function CompanyDashboard() {
   }
 
   const supabase = createClient();
-  const [{ data: company }, { data: minutes }, { data: interviews }] = await Promise.all([
+  const [
+    { data: company },
+    { data: minutes },
+    { data: interviews },
+    { count: followupPending },
+    { count: followupRecommended },
+  ] = await Promise.all([
     supabase.from("companies").select("id, name").eq("id", profile.company_id).single(),
     supabase
       .from("hm_minutes")
@@ -38,6 +44,16 @@ export default async function CompanyDashboard() {
       .select("id, target_name, interview_type, scheduled_at, method, status")
       .eq("company_id", profile.company_id)
       .order("scheduled_at", { ascending: false, nullsFirst: false }),
+    supabase
+      .from("hm_checkups")
+      .select("id", { count: "exact", head: true })
+      .eq("company_id", profile.company_id)
+      .eq("followup_status", "pending"),
+    supabase
+      .from("hm_checkups")
+      .select("id", { count: "exact", head: true })
+      .eq("company_id", profile.company_id)
+      .eq("followup_status", "recommended"),
   ]);
 
   const next = (minutes ?? [])
@@ -76,6 +92,13 @@ export default async function CompanyDashboard() {
 
         <div className="card">
           <h2>健康診断</h2>
+          {((followupPending ?? 0) > 0 || (followupRecommended ?? 0) > 0) && (
+            <p>
+              有所見者フォロー状況: 未対応{" "}
+              <span className="badge orange">{followupPending ?? 0}名</span>
+              {"　"}勧奨済 <span className="badge">{followupRecommended ?? 0}名</span>
+            </p>
+          )}
           <p>
             <Link className="btn" href="/company/checkups">
               健診結果の管理へ（取込・有所見・事後措置）

@@ -13,8 +13,13 @@ export default async function OfficeDashboard() {
   if (profile.role !== "office") redirect("/");
 
   const supabase = createClient();
-  const [{ data: companies }, { data: upcoming }, { data: interviews }] =
-    await Promise.all([
+  const [
+    { data: companies },
+    { data: upcoming },
+    { data: interviews },
+    { count: unjudgedCount },
+    { count: followupPendingCount },
+  ] = await Promise.all([
       supabase.from("companies").select("id, name").order("name"),
       supabase
         .from("hm_minutes")
@@ -28,6 +33,15 @@ export default async function OfficeDashboard() {
         .eq("status", "scheduled")
         .order("scheduled_at", { ascending: true, nullsFirst: false })
         .limit(15),
+      supabase
+        .from("hm_checkups")
+        .select("id", { count: "exact", head: true })
+        .eq("has_findings", true)
+        .is("work_judgment", null),
+      supabase
+        .from("hm_checkups")
+        .select("id", { count: "exact", head: true })
+        .eq("followup_status", "pending"),
     ]);
 
   const today = new Date();
@@ -44,10 +58,26 @@ export default async function OfficeDashboard() {
       <main className="container">
         <h1 className="page-title">産業医事務所ダッシュボード</h1>
 
-        {overdue.length > 0 && (
-          <div className="notice">
-            <strong>予定日を過ぎて未実施の面談が {overdue.length} 件あります。</strong>{" "}
-            実施記録の入力、または日程の再調整をしてください。
+        {(overdue.length > 0 || (unjudgedCount ?? 0) > 0 || (followupPendingCount ?? 0) > 0) && (
+          <div className="card" style={{ borderColor: "var(--orange)" }}>
+            <h2>未対応タスク</h2>
+            <ul style={{ margin: 0, paddingLeft: 20 }}>
+              {(unjudgedCount ?? 0) > 0 && (
+                <li>
+                  就業判定が未入力の有所見者: <strong>{unjudgedCount}名</strong>
+                </li>
+              )}
+              {(followupPendingCount ?? 0) > 0 && (
+                <li>
+                  事後措置が未対応: <strong>{followupPendingCount}名</strong>
+                </li>
+              )}
+              {overdue.length > 0 && (
+                <li>
+                  予定日を過ぎて未実施の面談: <strong>{overdue.length}件</strong>
+                </li>
+              )}
+            </ul>
           </div>
         )}
 

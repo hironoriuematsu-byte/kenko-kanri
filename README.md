@@ -13,7 +13,7 @@
 | Phase 1 | 基盤（認証・ロール・企業共用）＋ 安全衛生委員会議事録（作成・共有・添付・印刷/PDF） | ✅ 実装済み |
 | Phase 2 | 面談管理（予定・実施記録・非公開メモ・意見書PDF） | ✅ 実装済み |
 | Phase 3 | 健康診断結果（CSV取込・有所見・就業判定・事後措置・経年・個人票） | ✅ 実装済み |
-| Phase 4 | 統合ビュー・ダッシュボード・集計、companyロール本格開放 | 未着手 |
+| Phase 4 | 統合ビュー・ダッシュボード・集計・ストレスチェック連携 | ✅ 実装済み（本番連携は移行時に0105を調整） |
 
 ## セットアップ手順（開発用・無料Supabaseプロジェクト）
 
@@ -23,10 +23,12 @@
    （**既存のストレスチェックWebのプロジェクトは使わないでください**）
 2. SQL Editor で次の順に実行:
    1. `supabase/dev_setup/0000_dev_base.sql` …… 開発用のみ（companies / profiles の代替を作成）
-   2. `supabase/migrations/0101_hm_phase1.sql` …… Phase 1 本体
-   3. `supabase/migrations/0102_hm_phase2.sql` …… Phase 2 面談管理
-   4. `supabase/migrations/0103_hm_phase3.sql` …… Phase 3 健康診断結果
-   5. `supabase/migrations/0104_hm_checkup_bulk_delete.sql` …… 健診記録の一括削除RPC
+   2. `supabase/dev_setup/0001_dev_fix_recursion.sql` …… 開発用のみ（RLS修正パッチ。0000を最新版で実行した場合は不要）
+   3. `supabase/dev_setup/0002_dev_stress_mock.sql` …… 開発用のみ（ストレスチェック連携モック）
+   4. `supabase/migrations/0101_hm_phase1.sql` …… Phase 1 本体
+   5. `supabase/migrations/0102_hm_phase2.sql` …… Phase 2 面談管理
+   6. `supabase/migrations/0103_hm_phase3.sql` …… Phase 3 健康診断結果
+   7. `supabase/migrations/0104_hm_checkup_bulk_delete.sql` …… 健診記録の一括削除RPC
 3. `0000_dev_base.sql` の末尾コメントに沿って、テストユーザー（office / company）とテスト企業を作成
 
 ### 2. ローカル/Vercelの環境変数
@@ -55,10 +57,19 @@ npm run dev
 ## 本運用への切替（重要）
 
 1. 本番（ストレスチェックWebと共用のSupabaseプロジェクト）のSQL Editorで
-   `supabase/migrations/0101_*.sql` 以降 **のみ** を実行する
-   （`dev_setup/0000_dev_base.sql` は**絶対に実行しない**。本番にはcompanies/profilesが既にあるため）
-2. Vercelの環境変数を本番プロジェクトのURL/keyに差し替えてRedeploy
-3. 既存テーブル・既存ポリシー・既存関数は一切変更しない（追加のみ）
+   `supabase/migrations/0101〜0104` **のみ** を順に実行する
+   （`dev_setup/` 配下のSQLは**絶対に実行しない**。本番にはcompanies/profilesが既にあるため）
+2. `0105_hm_stress_link_template.sql` を既存テーブル（results / interview_requests / profiles）の
+   実際の列名に合わせて調整し、コメントを外して実行（ストレスチェック連携の有効化）
+3. Vercelの環境変数を本番プロジェクトのURL/keyに差し替えてRedeploy
+4. 既存テーブル・既存ポリシー・既存関数は一切変更しない（追加のみ・読み取りのみ）
+
+## 今後の改善候補（TODO）
+
+- 就業判定の一括入力（複数人の判定・判定日をまとめて登録し、産業医の作業時間を短縮）
+- 面談予定のメール通知（Resendキー設定後に有効化。本文に健康情報を書かない原則を踏襲）
+- companyロールの招待フロー（既存 /api/invite の仕組みを流用）
+- ストレスチェックWebヘッダーからの相互リンク設置（ストレスチェックWeb側の変更）
 
 ## データベース方針
 

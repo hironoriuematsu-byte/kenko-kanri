@@ -85,14 +85,24 @@ export default async function InterviewDetailPage({ params }: { params: { id: st
               </tr>
             </tbody>
           </table>
-          {(isOffice || isCompany) && iv.status === "scheduled" && (
-            <div style={{ display: "flex", gap: 10, marginTop: 14, flexWrap: "wrap" }}>
+          <div style={{ display: "flex", gap: 10, marginTop: 14, flexWrap: "wrap" }}>
+            {(isOffice || isCompany) && iv.status === "scheduled" && (
               <Link className="btn secondary" href={`/interviews/${iv.id}/edit`}>
                 {isOffice ? "予定を編集" : "日程を調整"}
               </Link>
-              {isOffice && <CancelInterviewButton interviewId={iv.id} />}
-            </div>
-          )}
+            )}
+            {isOffice && iv.target_user_id && (
+              <Link
+                className="btn secondary"
+                href={`/office/${iv.company_id}/person/${iv.target_user_id}`}
+              >
+                個人統合ビュー
+              </Link>
+            )}
+            {isOffice && iv.status === "scheduled" && (
+              <CancelInterviewButton interviewId={iv.id} />
+            )}
+          </div>
         </div>
 
         {isOffice && (

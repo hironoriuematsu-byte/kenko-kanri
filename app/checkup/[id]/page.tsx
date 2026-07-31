@@ -180,6 +180,14 @@ export default async function CheckupDetailPage({ params }: { params: { id: stri
 
           <div className="no-print" style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
             <PrintButton />
+            {isOffice && c.target_user_id && (
+              <Link
+                className="btn secondary"
+                href={`/office/${c.company_id}/person/${c.target_user_id}`}
+              >
+                個人統合ビュー
+              </Link>
+            )}
             {isOffice && <DeleteCheckupButton checkupId={c.id} backHref={backHref} />}
           </div>
         </div>
