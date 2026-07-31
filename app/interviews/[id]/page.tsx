@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import Header from "@/components/Header";
 import InterviewRecordPanel from "@/components/InterviewRecordPanel";
 import OpinionPanel from "@/components/OpinionPanel";
+import PreInfoPanel from "@/components/PreInfoPanel";
 import CancelInterviewButton from "@/components/CancelInterviewButton";
 import { requireProfile, homePathFor } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
@@ -104,6 +105,16 @@ export default async function InterviewDetailPage({ params }: { params: { id: st
             )}
           </div>
         </div>
+
+        {(isOffice || isCompany) && (
+          <div className="card">
+            <h2>事前情報</h2>
+            <p className="muted">
+              企業担当者と産業医事務所の間で共有されます。対象の従業員本人には表示されません。
+            </p>
+            <PreInfoPanel interviewId={iv.id} />
+          </div>
+        )}
 
         {isOffice && (
           <>

@@ -32,6 +32,7 @@
    7. `supabase/migrations/0104_hm_checkup_bulk_delete.sql` …… 健診記録の一括削除RPC
    8. `supabase/migrations/0106_hm_phase5_karte.sql` …… Phase 5 従業員カルテ
    9. `supabase/migrations/0107_hm_company_info.sql` …… 企業補足情報（住所等）
+   10. `supabase/migrations/0108_hm_interview_pre_info.sql` …… 面談の事前情報欄
 3. `0000_dev_base.sql` の末尾コメントに沿って、テストユーザー（office / company）とテスト企業を作成
 
 ### 2. ローカル/Vercelの環境変数
@@ -60,7 +61,7 @@ npm run dev
 ## 本運用への切替（重要）
 
 1. 本番（ストレスチェックWebと共用のSupabaseプロジェクト）のSQL Editorで
-   `supabase/migrations/0101〜0104, 0106, 0107` **のみ** を順に実行する
+   `supabase/migrations/0101〜0104, 0106〜0108` **のみ** を順に実行する
    （`dev_setup/` 配下のSQLは**絶対に実行しない**。本番にはcompanies/profilesが既にあるため）
 2. `0105_hm_stress_link_template.sql` を既存テーブル（results / interview_requests / profiles）の
    実際の列名に合わせて調整し、コメントを外して実行（ストレスチェック連携の有効化）
