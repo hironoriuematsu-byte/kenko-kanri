@@ -9,10 +9,11 @@ import { formatDateJa } from "@/lib/fiscal";
 export const dynamic = "force-dynamic";
 
 const MENU = [
-  { href: "/company/minutes", title: "安全衛生委員会議事録" },
+  { href: "/company/minutes", title: "衛生委員会議事録" },
   { href: "/company/patrols", title: "産業医巡視記録" },
+  { href: "/company/hygiene-patrols", title: "衛生管理者巡視記録" },
   { href: "/company/interviews", title: "産業医面談管理" },
-  { href: "/company/checkups", title: "健康診断" },
+  { href: "/company/checkups", title: "健康診断管理" },
   { href: "/company/persons", title: "個人カルテ" },
 ];
 

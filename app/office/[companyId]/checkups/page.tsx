@@ -32,7 +32,7 @@ export default async function OfficeCheckupsPage({
         <p className="muted">
           <Link href={`/office/${company.id}`}>← {company.name}</Link>
         </p>
-        <h1 className="page-title">{company.name} — 健康診断結果</h1>
+        <h1 className="page-title">{company.name} — 健康診断管理</h1>
         <div className="card">
           <CheckupsSection
             companyId={company.id}

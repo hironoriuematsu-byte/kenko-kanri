@@ -8,10 +8,11 @@ import { createClient } from "@/lib/supabase/server";
 export const dynamic = "force-dynamic";
 
 const MENU = [
-  { href: "minutes", title: "安全衛生委員会議事録" },
+  { href: "minutes", title: "衛生委員会議事録" },
   { href: "patrols", title: "産業医巡視記録" },
+  { href: "hygiene-patrols", title: "衛生管理者巡視記録" },
   { href: "interviews", title: "産業医面談管理" },
-  { href: "checkups", title: "健康診断" },
+  { href: "checkups", title: "健康診断管理" },
   { href: "stress", title: "ストレスチェック" },
   { href: "persons", title: "個人カルテ" },
 ];

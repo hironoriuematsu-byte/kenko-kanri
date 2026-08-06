@@ -21,7 +21,7 @@ export default async function CompanyCheckupsPage({
         <p className="muted">
           <Link href="/company">← ダッシュボード</Link>
         </p>
-        <h1 className="page-title">健康診断結果</h1>
+        <h1 className="page-title">健康診断管理</h1>
         <div className="card">
           <CheckupsSection
             companyId={profile.company_id}
