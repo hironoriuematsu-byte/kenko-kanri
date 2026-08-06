@@ -6,42 +6,29 @@ import ChecklistSettingsForm from "@/components/ChecklistSettingsForm";
 import DefaultInspectorForm from "@/components/DefaultInspectorForm";
 import { requireProfile } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
+import { groupYearsBy } from "@/lib/minutesYears";
 
 export const dynamic = "force-dynamic";
-
-const RECENT_LIMIT = 10;
 
 export default async function OfficeHygienePatrolsPage({
   params,
   searchParams,
 }: {
   params: { companyId: string };
-  searchParams: { all?: string };
+  searchParams: { year?: string };
 }) {
   const { profile } = await requireProfile();
   if (profile.role !== "office") redirect("/");
 
-  const showAll = searchParams.all === "1";
   const supabase = createClient();
-  const [{ data: company }, { data: patrols, count }, { data: items }, { data: info }] =
+  const [{ data: company }, { data: patrols }, { data: items }, { data: info }] =
     await Promise.all([
       supabase.from("companies").select("id, name").eq("id", params.companyId).single(),
-      showAll
-        ? supabase
-            .from("hm_hygiene_patrols")
-            .select("id, patrol_date, checklist_type, inspector_name, results", {
-              count: "exact",
-            })
-            .eq("company_id", params.companyId)
-            .order("patrol_date", { ascending: false })
-        : supabase
-            .from("hm_hygiene_patrols")
-            .select("id, patrol_date, checklist_type, inspector_name, results", {
-              count: "exact",
-            })
-            .eq("company_id", params.companyId)
-            .order("patrol_date", { ascending: false })
-            .limit(RECENT_LIMIT),
+      supabase
+        .from("hm_hygiene_patrols")
+        .select("id, patrol_date, checklist_type, inspector_name, results")
+        .eq("company_id", params.companyId)
+        .order("patrol_date", { ascending: false }),
       supabase
         .from("hm_checklist_items")
         .select("checklist_type, item_text, sort_order")
@@ -63,7 +50,10 @@ export default async function OfficeHygienePatrolsPage({
       .filter((r) => r.checklist_type === "office")
       .map((r) => r.item_text),
   };
-  const total = count ?? (patrols ?? []).length;
+
+  const { years, byYear } = groupYearsBy(patrols ?? [], (p) => p.patrol_date);
+  const selectedYear = searchParams.year ? Number(searchParams.year) : years[0];
+  const list = selectedYear != null ? (byYear.get(selectedYear) ?? []) : [];
 
   return (
     <>
@@ -78,23 +68,33 @@ export default async function OfficeHygienePatrolsPage({
             <Link className="btn orange" href={`/office/${company.id}/hygiene-patrols/new`}>
               ＋ 巡視記録を作成
             </Link>
-            <Link className="btn" href={`/office/${company.id}/hygiene-patrols/report`}>
-              直近10件をまとめて印刷/PDF
-            </Link>
-          </p>
-          <HygienePatrolsTable patrols={(patrols as any[]) ?? []} />
-          {!showAll && total > RECENT_LIMIT && (
-            <p style={{ marginTop: 10 }}>
-              <Link href={`/office/${company.id}/hygiene-patrols?all=1`}>
-                過去の記録も表示する（全{total}件）
+            {selectedYear != null && (
+              <Link
+                className="btn"
+                href={`/office/${company.id}/hygiene-patrols/report?year=${selectedYear}`}
+              >
+                {selectedYear}年度をまとめて印刷/PDF
               </Link>
+            )}
+          </p>
+
+          {years.length > 0 && (
+            <p style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+              <span className="muted">年度:</span>
+              {years.map((y) => (
+                <Link
+                  key={y}
+                  href={`/office/${company.id}/hygiene-patrols?year=${y}`}
+                  className={y === selectedYear ? "badge" : ""}
+                  style={y === selectedYear ? {} : { padding: "2px 8px" }}
+                >
+                  {y}年度
+                </Link>
+              ))}
             </p>
           )}
-          {showAll && (
-            <p style={{ marginTop: 10 }}>
-              <Link href={`/office/${company.id}/hygiene-patrols`}>直近10件のみ表示に戻す</Link>
-            </p>
-          )}
+
+          <HygienePatrolsTable patrols={list as any[]} />
         </div>
 
         <div className="card">

@@ -5,15 +5,22 @@ export function fiscalYearOf(dateStr: string): number {
   return d.getMonth() + 1 >= 4 ? y : y - 1;
 }
 
-export function groupYears<T extends { meeting_date: string }>(
-  minutes: T[]
+export function groupYearsBy<T>(
+  items: T[],
+  getDate: (item: T) => string
 ): { years: number[]; byYear: Map<number, T[]> } {
   const byYear = new Map<number, T[]>();
-  for (const m of minutes) {
-    const fy = fiscalYearOf(m.meeting_date);
+  for (const item of items) {
+    const fy = fiscalYearOf(getDate(item));
     if (!byYear.has(fy)) byYear.set(fy, []);
-    byYear.get(fy)!.push(m);
+    byYear.get(fy)!.push(item);
   }
   const years = Array.from(byYear.keys()).sort((a, b) => b - a);
   return { years, byYear };
+}
+
+export function groupYears<T extends { meeting_date: string }>(
+  minutes: T[]
+): { years: number[]; byYear: Map<number, T[]> } {
+  return groupYearsBy(minutes, (m) => m.meeting_date);
 }
