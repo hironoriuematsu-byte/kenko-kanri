@@ -16,11 +16,14 @@ export default async function OfficeHygienePatrolNewPage({
   if (profile.role !== "office") redirect("/");
 
   const supabase = createClient();
-  const { data: company } = await supabase
-    .from("companies")
-    .select("id, name")
-    .eq("id", params.companyId)
-    .single();
+  const [{ data: company }, { data: info }] = await Promise.all([
+    supabase.from("companies").select("id, name").eq("id", params.companyId).single(),
+    supabase
+      .from("hm_company_info")
+      .select("default_inspector_name")
+      .eq("company_id", params.companyId)
+      .maybeSingle(),
+  ]);
   if (!company) notFound();
 
   const { itemsByType } = await getChecklistItems(company.id);
@@ -38,7 +41,7 @@ export default async function OfficeHygienePatrolNewPage({
               company_id: company.id,
               patrol_date: new Date().toISOString().slice(0, 10),
               checklist_type: "office",
-              inspector_name: "",
+              inspector_name: info?.default_inspector_name ?? "",
               results: itemsByType.office.map((item) => ({
                 item,
                 result: "ok",

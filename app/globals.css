@@ -260,4 +260,10 @@ table.list td {
   .print-sheet {
     font-size: 12pt;
   }
+  .sheet-break {
+    page-break-after: always;
+  }
+  .sheet-break:last-child {
+    page-break-after: auto;
+  }
 }
