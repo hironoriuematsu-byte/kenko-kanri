@@ -8,36 +8,12 @@ import { createClient } from "@/lib/supabase/server";
 export const dynamic = "force-dynamic";
 
 const MENU = [
-  {
-    href: "minutes",
-    title: "安全衛生委員会議事録",
-    desc: "議事録の作成・共有・印刷",
-  },
-  {
-    href: "patrols",
-    title: "産業医巡視記録",
-    desc: "職場巡視の記録・指摘事項",
-  },
-  {
-    href: "interviews",
-    title: "産業医面談管理",
-    desc: "面談予定・実施記録・意見書",
-  },
-  {
-    href: "checkups",
-    title: "健康診断",
-    desc: "取込・有所見・就業判定・事後措置",
-  },
-  {
-    href: "stress",
-    title: "ストレスチェック",
-    desc: "高ストレス者・集団サマリー",
-  },
-  {
-    href: "persons",
-    title: "個人カルテ",
-    desc: "書類共有・文書作成・履歴",
-  },
+  { href: "minutes", title: "安全衛生委員会議事録" },
+  { href: "patrols", title: "産業医巡視記録" },
+  { href: "interviews", title: "産業医面談管理" },
+  { href: "checkups", title: "健康診断" },
+  { href: "stress", title: "ストレスチェック" },
+  { href: "persons", title: "個人カルテ" },
 ];
 
 export default async function OfficeCompanyPage({
@@ -83,7 +59,6 @@ export default async function OfficeCompanyPage({
               style={{ marginBottom: 0 }}
             >
               <strong style={{ color: "var(--teal-dark)" }}>{m.title}</strong>
-              <div className="muted">{m.desc}</div>
             </Link>
           ))}
         </div>

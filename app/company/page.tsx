@@ -9,11 +9,11 @@ import { formatDateJa } from "@/lib/fiscal";
 export const dynamic = "force-dynamic";
 
 const MENU = [
-  { href: "/company/minutes", title: "安全衛生委員会議事録", desc: "議事録の作成・共有・印刷" },
-  { href: "/company/patrols", title: "産業医巡視記録", desc: "職場巡視の記録の閲覧" },
-  { href: "/company/interviews", title: "産業医面談管理", desc: "面談予定・日程調整・意見書" },
-  { href: "/company/checkups", title: "健康診断", desc: "取込・有所見・事後措置" },
-  { href: "/company/persons", title: "個人カルテ", desc: "診断書等の共有・履歴" },
+  { href: "/company/minutes", title: "安全衛生委員会議事録" },
+  { href: "/company/patrols", title: "産業医巡視記録" },
+  { href: "/company/interviews", title: "産業医面談管理" },
+  { href: "/company/checkups", title: "健康診断" },
+  { href: "/company/persons", title: "個人カルテ" },
 ];
 
 export default async function CompanyDashboard() {
@@ -73,7 +73,6 @@ export default async function CompanyDashboard() {
           {MENU.map((m) => (
             <Link key={m.href} href={m.href} className="card" style={{ marginBottom: 0 }}>
               <strong style={{ color: "var(--teal-dark)" }}>{m.title}</strong>
-              <div className="muted">{m.desc}</div>
             </Link>
           ))}
         </div>
