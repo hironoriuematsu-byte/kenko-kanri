@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import Header from "@/components/Header";
 import PrintButton from "@/components/PrintButton";
 import DeletePatrolButton from "@/components/DeletePatrolButton";
+import PatrolFilesPanel from "@/components/PatrolFilesPanel";
 import { requireProfile, homePathFor } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { formatDateJa } from "@/lib/fiscal";
@@ -29,6 +30,12 @@ export default async function PatrolDetailPage({ params }: { params: { id: strin
     p_target_table: "hm_patrols",
     p_target_id: p.id,
   });
+
+  const { data: files } = await supabase
+    .from("hm_patrol_files")
+    .select("id, file_name, storage_path")
+    .eq("patrol_id", p.id)
+    .order("created_at");
 
   const isOffice = profile.role === "office";
   const companyName = (p as any).companies?.name ?? "";
@@ -78,6 +85,16 @@ export default async function PatrolDetailPage({ params }: { params: { id: strin
               </>
             )}
           </div>
+        </div>
+
+        <div className="card no-print">
+          <h2>写真・添付ファイル</h2>
+          <PatrolFilesPanel
+            patrolId={p.id}
+            companyId={p.company_id}
+            initialFiles={files ?? []}
+            canUpload={isOffice}
+          />
         </div>
       </main>
     </>

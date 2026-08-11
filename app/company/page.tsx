@@ -2,6 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import Header from "@/components/Header";
 import CompanyInfoForm from "@/components/CompanyInfoForm";
+import MenuGrid from "@/components/MenuGrid";
 import { requireProfile } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { formatDateJa } from "@/lib/fiscal";
@@ -9,12 +10,13 @@ import { formatDateJa } from "@/lib/fiscal";
 export const dynamic = "force-dynamic";
 
 const MENU = [
-  { href: "/company/minutes", title: "衛生委員会議事録" },
-  { href: "/company/patrols", title: "産業医巡視記録" },
-  { href: "/company/hygiene-patrols", title: "衛生管理者巡視記録" },
-  { href: "/company/interviews", title: "産業医面談管理" },
-  { href: "/company/checkups", title: "健康診断管理" },
-  { href: "/company/persons", title: "個人カルテ" },
+  { href: "/company/minutes", title: "衛生委員会議事録", icon: "📋", desc: "議事録の作成・共有・年度まとめ印刷" },
+  { href: "/company/hygiene-patrols", title: "衛生管理者巡視記録", icon: "✅", desc: "チェックリスト形式の職場巡視記録" },
+  { href: "/company/patrols", title: "産業医巡視記録", icon: "🔍", desc: "産業医による職場巡視・写真の記録" },
+  { href: "/company/env-measurements", title: "作業環境測定", icon: "📊", desc: "測定結果報告書のファイル保管・共有" },
+  { href: "/company/interviews", title: "産業医面談管理", icon: "💬", desc: "面談予定・日程調整・意見書" },
+  { href: "/company/checkups", title: "健康診断管理", icon: "🩺", desc: "取込・有所見・事後措置" },
+  { href: "/company/persons", title: "個人カルテ", icon: "🗂️", desc: "診断書等の共有・履歴" },
 ];
 
 export default async function CompanyDashboard() {
@@ -70,13 +72,7 @@ export default async function CompanyDashboard() {
           </div>
         )}
 
-        <div className="card-grid" style={{ marginTop: 18 }}>
-          {MENU.map((m) => (
-            <Link key={m.href} href={m.href} className="card" style={{ marginBottom: 0 }}>
-              <strong style={{ color: "var(--teal-dark)" }}>{m.title}</strong>
-            </Link>
-          ))}
-        </div>
+        <MenuGrid items={MENU} />
 
         <div className="card" style={{ marginTop: 18 }}>
           <h2>企業情報</h2>
