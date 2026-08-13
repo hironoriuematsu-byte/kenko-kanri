@@ -5,8 +5,8 @@ export const CHECKUP_TYPES: Record<string, string> = {
 };
 
 export const FOLLOWUP_STATUS: Record<string, string> = {
-  none: "対象外",
-  pending: "未対応",
+  none: "措置不要",
+  pending: "受診勧奨",
   recommended: "勧奨済",
   done: "受診済",
 };

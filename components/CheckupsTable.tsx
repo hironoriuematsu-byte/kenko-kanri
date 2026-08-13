@@ -110,6 +110,23 @@ export default function CheckupsTable({
   const onSelectSevereUnjudged = () =>
     setSelected(new Set(severeRows.filter((r) => !r.work_judgment).map((r) => r.id)));
 
+  // 一覧から1名ずつ就業判定する(判定日は当日が自動記録される)
+  const onRowJudgment = async (id: string, value: string) => {
+    setBusy(true);
+    setError(null);
+    setMessage(null);
+    const supabase = createClient();
+    const { error } = await supabase.rpc("hm_save_work_judgment", {
+      p_id: id,
+      p_judgment: value,
+      p_note: null,
+      p_date: null,
+    });
+    if (error) setError(`判定の保存に失敗しました: ${error.message}`);
+    else router.refresh();
+    setBusy(false);
+  };
+
   const onBulkDelete = async () => {
     if (selected.size === 0) return;
     const names = rows
@@ -157,7 +174,8 @@ export default function CheckupsTable({
         >
           <strong style={{ color: "var(--teal-dark)", fontSize: 14 }}>就業判定の一括入力</strong>
           <p className="muted" style={{ margin: "4px 0 10px" }}>
-            判定日は実行した当日が自動で記録されます。
+            判定日は実行した当日が自動で記録されます。D判定の方は、一覧の「就業判定」欄から
+            1名ずつ選択して判定することもできます。
           </p>
           <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
             <button className="btn" onClick={onNormalBulk} disabled={busy || normalTargets.length === 0}>
@@ -291,7 +309,29 @@ export default function CheckupsTable({
                   "—"
                 )}
               </td>
-              <td>{c.work_judgment ? WORK_JUDGMENTS[c.work_judgment] : "未判定"}</td>
+              <td>
+                {canJudge ? (
+                  <select
+                    value={c.work_judgment ?? ""}
+                    onChange={(e) => onRowJudgment(c.id, e.target.value)}
+                    disabled={busy}
+                    style={{ fontSize: 13, padding: "4px 6px" }}
+                  >
+                    <option value="" disabled>
+                      未判定
+                    </option>
+                    {Object.entries(WORK_JUDGMENTS).map(([k, v]) => (
+                      <option key={k} value={k}>
+                        {v}
+                      </option>
+                    ))}
+                  </select>
+                ) : c.work_judgment ? (
+                  WORK_JUDGMENTS[c.work_judgment]
+                ) : (
+                  "未判定"
+                )}
+              </td>
               <td>
                 {c.followup_status === "pending" ? (
                   <span className="badge orange">{FOLLOWUP_STATUS[c.followup_status]}</span>
