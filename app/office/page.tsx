@@ -112,6 +112,15 @@ export default async function OfficeDashboard() {
         </div>
 
         <div className="card">
+          <h2>事務所の設定</h2>
+          <p>
+            <Link className="btn secondary" href="/office/judgment-criteria">
+              健診結果の判定基準（A〜D）を設定する
+            </Link>
+          </p>
+        </div>
+
+        <div className="card">
           <h2>企業一覧</h2>
           {companies && companies.length > 0 ? (
             <div className="card-grid">

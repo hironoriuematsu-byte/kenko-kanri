@@ -11,31 +11,47 @@ import {
   readCsvFile,
   normalizeDate,
 } from "@/lib/checkups";
+import {
+  LEGAL_ITEMS,
+  findLegalItemByHeader,
+  judgeItem,
+  splitBloodPressure,
+  worstGrade,
+  type Grade,
+  type JudgmentRule,
+} from "@/lib/judgment";
 
 const NOT_USED = "__not_used__";
+
+// 列の扱い: 法定項目(自動判定) / 値のみ / 判定として取込 / 取り込まない
+type ColumnMode = { kind: "legal"; itemKey: string } | { kind: "value" } | { kind: "judgment" } | { kind: "off" };
 
 export default function CheckupImport({
   companyId,
   backHref,
+  rules,
+  autoJudgeDefault,
 }: {
   companyId: string;
   backHref: string;
+  rules: JudgmentRule[];
+  autoJudgeDefault: boolean;
 }) {
   const router = useRouter();
   const [fiscalYear, setFiscalYear] = useState(getFiscalYear());
   const [checkupType, setCheckupType] = useState("regular");
+  const [autoJudge, setAutoJudge] = useState(autoJudgeDefault);
   const [findingsJudgments, setFindingsJudgments] = useState(
     DEFAULT_FINDINGS_JUDGMENTS.join(",")
   );
   const [rows, setRows] = useState<string[][] | null>(null);
   const [fileName, setFileName] = useState("");
-  // マッピング: 基本項目 → 列index
   const [nameCol, setNameCol] = useState<number>(-1);
   const [empNoCol, setEmpNoCol] = useState<number>(-1);
+  const [sexCol, setSexCol] = useState<number>(-1);
   const [dateCol, setDateCol] = useState<number>(-1);
   const [judgmentCol, setJudgmentCol] = useState<number>(-1);
-  // 検査項目として取り込む列: index -> "value" | "judgment" | 取り込まない
-  const [itemCols, setItemCols] = useState<Record<number, "value" | "judgment" | "off">>({});
+  const [colModes, setColModes] = useState<Record<number, ColumnMode>>({});
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [done, setDone] = useState<number | null>(null);
@@ -59,24 +75,36 @@ export default function CheckupImport({
       setRows(parsed);
       setFileName(file.name);
       const h = parsed[0];
-      // 見出しから自動推定
       const find = (words: string[]) =>
         h.findIndex((c) => words.some((w) => c.replace(/\s/g, "").includes(w)));
       setNameCol(find(["氏名", "名前", "社員名"]));
       setEmpNoCol(find(["社員番号", "社員No", "従業員番号", "職員番号"]));
+      setSexCol(find(["性別", "性"]));
       setDateCol(find(["健診日", "受診日", "実施日"]));
       setJudgmentCol(find(["総合判定", "総合", "判定区分"]));
-      const init: Record<number, "value" | "judgment" | "off"> = {};
+      // 見出しから法定項目を自動推定
+      const init: Record<number, ColumnMode> = {};
       h.forEach((c, i) => {
-        init[i] = /判定/.test(c) ? "judgment" : "value";
+        const key = findLegalItemByHeader(c);
+        if (/判定/.test(c)) init[i] = { kind: "judgment" };
+        else if (key) init[i] = { kind: "legal", itemKey: key };
+        else init[i] = { kind: "value" };
       });
-      setItemCols(init);
+      setColModes(init);
     } catch {
       setError("ファイルの読み込みに失敗しました。CSV形式か確認してください。");
     }
   };
 
-  const baseCols = [nameCol, empNoCol, dateCol, judgmentCol];
+  const baseCols = [nameCol, empNoCol, sexCol, dateCol, judgmentCol];
+
+  const readSex = (r: string[]): "male" | "female" | null => {
+    if (sexCol < 0) return null;
+    const v = (r[sexCol] ?? "").trim();
+    if (/^(男|男性|M|male|1)$/i.test(v)) return "male";
+    if (/^(女|女性|F|female|2)$/i.test(v)) return "female";
+    return null;
+  };
 
   const onImport = async () => {
     if (nameCol < 0) {
@@ -90,40 +118,73 @@ export default function CheckupImport({
       .map((s) => s.trim().toUpperCase())
       .filter(Boolean);
 
-    // 「血圧」(測定値)と「血圧判定」(判定)のような列ペアを1項目にまとめる
     const norm = (s: string) => s.replace(/[\s　]/g, "");
     const payload = dataRows
       .map((r) => {
+        const sex = readSex(r);
         const items: { name: string; value?: string; judgment?: string }[] = [];
-        // 1周目: 測定値列
+        const autoGrades: (Grade | null)[] = [];
+
         header.forEach((h, i) => {
-          if (baseCols.includes(i) || (itemCols[i] ?? "off") !== "value") return;
+          if (baseCols.includes(i)) return;
+          const mode = colModes[i] ?? { kind: "off" as const };
+          if (mode.kind === "off") return;
           const cell = (r[i] ?? "").trim();
           if (!cell) return;
+
+          if (mode.kind === "legal" && autoJudge) {
+            // 「142/90」形式の血圧は収縮期・拡張期に分けて判定
+            if (mode.itemKey === "sbp" || mode.itemKey === "dbp") {
+              const bp = splitBloodPressure(cell);
+              if (bp.sbp != null && bp.dbp != null) {
+                const gs = judgeItem("sbp", String(bp.sbp), sex, rules);
+                const gd = judgeItem("dbp", String(bp.dbp), sex, rules);
+                const g = worstGrade([gs, gd]);
+                autoGrades.push(g);
+                items.push({ name: h.trim(), value: cell, judgment: g ?? undefined });
+                return;
+              }
+            }
+            const g = judgeItem(mode.itemKey, cell, sex, rules);
+            autoGrades.push(g);
+            items.push({ name: h.trim(), value: cell, judgment: g ?? undefined });
+            return;
+          }
+          if (mode.kind === "judgment") {
+            items.push({ name: h.trim(), judgment: cell.toUpperCase() });
+            return;
+          }
           items.push({ name: h.trim(), value: cell });
         });
-        // 2周目: 判定列を同名の測定値項目にマージ(「〇〇判定」→「〇〇」)
-        header.forEach((h, i) => {
-          if (baseCols.includes(i) || (itemCols[i] ?? "off") !== "judgment") return;
-          const cell = (r[i] ?? "").trim();
-          if (!cell) return;
-          const base = norm(h).replace(/判定$/, "") || h.trim();
-          const target =
-            items.find((it) => norm(it.name) === base) ??
-            items.find((it) => base !== "" && norm(it.name).startsWith(base));
-          if (target) {
-            target.judgment = cell.toUpperCase();
-          } else {
-            items.push({ name: base, judgment: cell.toUpperCase() });
+
+        // 「〇〇判定」列を同名の測定値項目にマージ
+        const merged: typeof items = [];
+        for (const it of items) {
+          if (it.judgment && !it.value) {
+            const base = norm(it.name).replace(/判定$/, "");
+            const target = merged.find((m) => norm(m.name) === base);
+            if (target && !target.judgment) {
+              target.judgment = it.judgment;
+              continue;
+            }
+            merged.push({ ...it, name: base || it.name });
+            continue;
           }
-        });
+          merged.push(it);
+        }
+
+        const csvOverall =
+          judgmentCol >= 0 ? (r[judgmentCol] ?? "").trim().toUpperCase() : "";
+        // 自動判定ONのときは、最も重い項目判定を総合判定とする
+        const autoOverall = autoJudge ? worstGrade(autoGrades) : null;
+
         return {
           target_name: (r[nameCol] ?? "").trim(),
           employee_no: empNoCol >= 0 ? (r[empNoCol] ?? "").trim() : "",
+          sex: sex ?? "",
           checkup_date: dateCol >= 0 ? normalizeDate(r[dateCol] ?? "") : null,
-          overall_judgment:
-            judgmentCol >= 0 ? (r[judgmentCol] ?? "").trim().toUpperCase() : "",
-          items,
+          overall_judgment: autoOverall ?? csvOverall,
+          items: merged,
         };
       })
       .filter((r) => r.target_name);
@@ -164,6 +225,7 @@ export default function CheckupImport({
       <div>
         <p>
           <strong>{done}名分</strong>の健診結果を取り込みました。
+          {autoJudge && "（総合判定は事務所基準で自動判定しました）"}
         </p>
         <button className="btn" onClick={() => router.push(backHref)}>
           健診一覧へ戻る
@@ -205,15 +267,27 @@ export default function CheckupImport({
         </div>
       </div>
 
+      <div className="form-row checkbox-row">
+        <input
+          id="autojudge"
+          type="checkbox"
+          checked={autoJudge}
+          onChange={(e) => setAutoJudge(e.target.checked)}
+        />
+        <label htmlFor="autojudge" style={{ margin: 0 }}>
+          事務所基準で自動判定する（法定項目をA〜Dで判定し、最も重い判定を総合判定にする）
+        </label>
+      </div>
+      {autoJudge && rules.length === 0 && (
+        <p className="error-message">
+          判定基準が未登録です。SQL(0115)の実行と「判定基準の設定」をご確認ください。
+        </p>
+      )}
+
       <div className="form-row">
         <label className="btn secondary" style={{ display: "inline-block" }}>
           CSVファイルを選択
-          <input
-            type="file"
-            accept=".csv,.txt"
-            style={{ display: "none" }}
-            onChange={onFile}
-          />
+          <input type="file" accept=".csv,.txt" style={{ display: "none" }} onChange={onFile} />
         </label>
         {fileName && (
           <span style={{ marginLeft: 10 }} className="muted">
@@ -236,29 +310,37 @@ export default function CheckupImport({
                 <td>{colSelect(empNoCol, setEmpNoCol)}</td>
               </tr>
               <tr>
+                <th>性別（自動判定に使用）</th>
+                <td>{colSelect(sexCol, setSexCol)}</td>
+              </tr>
+              <tr>
                 <th>健診日</th>
                 <td>{colSelect(dateCol, setDateCol)}</td>
               </tr>
               <tr>
-                <th>総合判定</th>
-                <td>{colSelect(judgmentCol, setJudgmentCol)}</td>
+                <th>総合判定（健診機関の判定）</th>
+                <td>
+                  {colSelect(judgmentCol, setJudgmentCol)}
+                  {autoJudge && (
+                    <span className="muted" style={{ marginLeft: 8 }}>
+                      自動判定ONのため、総合判定は自動計算値が優先されます
+                    </span>
+                  )}
+                </td>
               </tr>
             </tbody>
           </table>
 
-          <h3 style={{ color: "var(--teal-dark)", fontSize: 15 }}>
-            検査項目として取り込む列
-          </h3>
+          <h3 style={{ color: "var(--teal-dark)", fontSize: 15 }}>検査項目の割り当て</h3>
           <p className="muted">
-            「判定」はA〜E等の判定が入っている列に選択してください（有所見の自動判定に使われます）。
-            「血圧」と「血圧判定」のような同名ペアは、自動的に1つの項目（測定値＋判定）にまとめられます。
+            法定項目に割り当てた列は、事務所基準で自動判定されます（「値のみ」は保存だけ、「判定として取込」は健診機関の判定をそのまま使用）。
           </p>
           <table className="list" style={{ marginBottom: 14 }}>
             <thead>
               <tr>
                 <th>列（見出し）</th>
                 <th>1行目の例</th>
-                <th>取込方法</th>
+                <th style={{ width: 260 }}>取込方法</th>
               </tr>
             </thead>
             <tbody>
@@ -269,16 +351,28 @@ export default function CheckupImport({
                     <td className="muted">{dataRows[0]?.[i] ?? ""}</td>
                     <td>
                       <select
-                        value={itemCols[i] ?? "off"}
-                        onChange={(e) =>
-                          setItemCols((p) => ({
-                            ...p,
-                            [i]: e.target.value as "value" | "judgment" | "off",
-                          }))
+                        value={
+                          colModes[i]?.kind === "legal"
+                            ? `legal:${(colModes[i] as any).itemKey}`
+                            : (colModes[i]?.kind ?? "off")
                         }
+                        onChange={(e) => {
+                          const v = e.target.value;
+                          const mode: ColumnMode = v.startsWith("legal:")
+                            ? { kind: "legal", itemKey: v.slice(6) }
+                            : ({ kind: v } as ColumnMode);
+                          setColModes((p) => ({ ...p, [i]: mode }));
+                        }}
                       >
-                        <option value="value">測定値として取込</option>
-                        <option value="judgment">判定（A〜E等）として取込</option>
+                        <optgroup label="法定項目（自動判定）">
+                          {LEGAL_ITEMS.map((it) => (
+                            <option key={it.key} value={`legal:${it.key}`}>
+                              {it.label}
+                            </option>
+                          ))}
+                        </optgroup>
+                        <option value="value">値のみ取込（判定しない）</option>
+                        <option value="judgment">判定（A〜E）として取込</option>
                         <option value="off">取り込まない</option>
                       </select>
                     </td>
