@@ -37,6 +37,9 @@ export const LEGAL_ITEMS: {
 }[] = [
   { key: "bmi", label: "BMI", unit: "kg/m2", aliases: ["bmi", "肥満度"] },
   { key: "waist", label: "腹囲", unit: "cm", sexSpecific: true, aliases: ["腹囲", "ウエスト"] },
+  { key: "vision", label: "視力（悪い側）", aliases: ["視力"] },
+  { key: "hearing1000", label: "聴力 1000Hz", unit: "dB", aliases: ["1000hz", "1000ｈｚ"] },
+  { key: "hearing4000", label: "聴力 4000Hz", unit: "dB", aliases: ["4000hz", "4000ｈｚ"] },
   { key: "sbp", label: "収縮期血圧", unit: "mmHg", aliases: ["収縮期", "最高血圧", "sbp"] },
   { key: "dbp", label: "拡張期血圧", unit: "mmHg", aliases: ["拡張期", "最低血圧", "dbp"] },
   { key: "ast", label: "AST(GOT)", unit: "U/L", aliases: ["ast", "got"] },
@@ -45,10 +48,9 @@ export const LEGAL_ITEMS: {
   { key: "tg", label: "中性脂肪(TG)", unit: "mg/dL", aliases: ["中性脂肪", "tg", "トリグリセ"] },
   { key: "hdl", label: "HDLコレステロール", unit: "mg/dL", aliases: ["hdl"] },
   { key: "ldl", label: "LDLコレステロール", unit: "mg/dL", aliases: ["ldl"] },
-  { key: "glucose", label: "空腹時血糖", unit: "mg/dL", aliases: ["空腹時血糖", "血糖", "fpg", "glu"] },
+  { key: "glucose", label: "空腹時血糖(FPG)", unit: "mg/dL", aliases: ["空腹時血糖", "血糖", "fpg", "glu"] },
   { key: "hba1c", label: "HbA1c(NGSP)", unit: "%", aliases: ["hba1c", "ヘモグロビンa1c"] },
   { key: "hb", label: "血色素量(Hb)", unit: "g/dL", sexSpecific: true, aliases: ["血色素", "ヘモグロビン", "hb"] },
-  { key: "rbc", label: "赤血球数", unit: "万/μL", sexSpecific: true, aliases: ["赤血球", "rbc"] },
   { key: "urine_glucose", label: "尿糖", aliases: ["尿糖"] },
   { key: "urine_protein", label: "尿蛋白", aliases: ["尿蛋白", "尿たん白", "尿タンパク"] },
 ];

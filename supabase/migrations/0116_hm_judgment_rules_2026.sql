@@ -1,0 +1,97 @@
+-- ============================================================
+-- 0116_hm_judgment_rules_2026.sql :
+--   判定基準を「判定区分（2026年4月1日改定）」の数値へ全面差し替え
+-- ============================================================
+-- 日本人間ドック・予防医療学会の判定区分表(2026年4月1日改定)のうち、
+-- 労働安全衛生規則第44条の定期健康診断の法定検査項目のみを登録する。
+--   * A(異常なし) / B(軽度異常) / C(要再検査・生活改善) / D(要精密検査・治療)
+--     の4区分のみ。E(治療中)は自動判定しない。
+--   * 判定区分表に区分の記載がない項目(赤血球数など)は自動判定の対象外。
+-- ※ 既存のルールはすべて削除して入れ直します。画面で独自に調整済みの場合は
+--    実行前に内容を控えてください。
+-- ============================================================
+
+delete from public.hm_judgment_rules;
+
+insert into public.hm_judgment_rules
+  (item_key, item_label, unit, sex, grade, min_value, max_value, match_text, sort_order)
+values
+  -- 体格指数(BMI): A 18.5-24.9 / C 18.4以下, 25.0以上
+  ('bmi', 'BMI', 'kg/m2', 'all', 'C', null, 18.4, null, 1),
+  ('bmi', 'BMI', 'kg/m2', 'all', 'C', 25.0, null, null, 2),
+  -- 腹囲: 男 A 84.9以下 / C 85.0以上、女 A 89.9以下 / C 90.0以上
+  ('waist', '腹囲', 'cm', 'male', 'C', 85.0, null, null, 1),
+  ('waist', '腹囲', 'cm', 'female', 'C', 90.0, null, null, 1),
+  -- 視力(悪い側で判定): A 1.0以上 / B 0.7-0.9 / C 0.6以下
+  ('vision', '視力', null, 'all', 'B', 0.7, 0.9, null, 1),
+  ('vision', '視力', null, 'all', 'C', null, 0.6, null, 2),
+  -- 聴力: A 30以下 / B 35 / C 40以上 (35〜39dBはB扱い)
+  ('hearing1000', '聴力 1000Hz', 'dB', 'all', 'B', 31, 39, null, 1),
+  ('hearing1000', '聴力 1000Hz', 'dB', 'all', 'C', 40, null, null, 2),
+  ('hearing4000', '聴力 4000Hz', 'dB', 'all', 'B', 31, 39, null, 1),
+  ('hearing4000', '聴力 4000Hz', 'dB', 'all', 'C', 40, null, null, 2),
+  -- 血圧: 収縮期 A 129以下 / B 130-139 / C 140-159 / D 160以上
+  ('sbp', '収縮期血圧', 'mmHg', 'all', 'B', 130, 139, null, 1),
+  ('sbp', '収縮期血圧', 'mmHg', 'all', 'C', 140, 159, null, 2),
+  ('sbp', '収縮期血圧', 'mmHg', 'all', 'D', 160, null, null, 3),
+  -- 拡張期 A 84以下 / B 85-89 / C 90-99 / D 100以上
+  ('dbp', '拡張期血圧', 'mmHg', 'all', 'B', 85, 89, null, 1),
+  ('dbp', '拡張期血圧', 'mmHg', 'all', 'C', 90, 99, null, 2),
+  ('dbp', '拡張期血圧', 'mmHg', 'all', 'D', 100, null, null, 3),
+  -- 血色素量: 男 A 13.1-16.3 / B 16.4-18.0 / C 12.1-13.0 / D 12.0以下, 18.1以上
+  ('hb', '血色素量(Hb)', 'g/dL', 'male', 'B', 16.4, 18.0, null, 1),
+  ('hb', '血色素量(Hb)', 'g/dL', 'male', 'C', 12.1, 13.0, null, 2),
+  ('hb', '血色素量(Hb)', 'g/dL', 'male', 'D', null, 12.0, null, 3),
+  ('hb', '血色素量(Hb)', 'g/dL', 'male', 'D', 18.1, null, null, 4),
+  -- 女 A 12.1-14.5 / B 14.6-16.0 / C 11.1-12.0 / D 11.0以下, 16.1以上
+  ('hb', '血色素量(Hb)', 'g/dL', 'female', 'B', 14.6, 16.0, null, 1),
+  ('hb', '血色素量(Hb)', 'g/dL', 'female', 'C', 11.1, 12.0, null, 2),
+  ('hb', '血色素量(Hb)', 'g/dL', 'female', 'D', null, 11.0, null, 3),
+  ('hb', '血色素量(Hb)', 'g/dL', 'female', 'D', 16.1, null, null, 4),
+  -- AST(GOT): A 30以下 / B 31-35 / C 36-50 / D 51以上
+  ('ast', 'AST(GOT)', 'U/L', 'all', 'B', 31, 35, null, 1),
+  ('ast', 'AST(GOT)', 'U/L', 'all', 'C', 36, 50, null, 2),
+  ('ast', 'AST(GOT)', 'U/L', 'all', 'D', 51, null, null, 3),
+  -- ALT(GPT): A 30以下 / B 31-40 / C 41-50 / D 51以上
+  ('alt', 'ALT(GPT)', 'U/L', 'all', 'B', 31, 40, null, 1),
+  ('alt', 'ALT(GPT)', 'U/L', 'all', 'C', 41, 50, null, 2),
+  ('alt', 'ALT(GPT)', 'U/L', 'all', 'D', 51, null, null, 3),
+  -- γ-GT(γ-GTP): A 50以下 / B 51-80 / C 81-100 / D 101以上
+  ('ggt', 'γ-GT(γ-GTP)', 'U/L', 'all', 'B', 51, 80, null, 1),
+  ('ggt', 'γ-GT(γ-GTP)', 'U/L', 'all', 'C', 81, 100, null, 2),
+  ('ggt', 'γ-GT(γ-GTP)', 'U/L', 'all', 'D', 101, null, null, 3),
+  -- HDLコレステロール: A 40以上 / C 30-39 / D 29以下
+  ('hdl', 'HDLコレステロール', 'mg/dL', 'all', 'C', 30, 39, null, 1),
+  ('hdl', 'HDLコレステロール', 'mg/dL', 'all', 'D', null, 29, null, 2),
+  -- LDLコレステロール: A 60-119 / B 120-139 / C 140-179 / D 59以下, 180以上
+  ('ldl', 'LDLコレステロール', 'mg/dL', 'all', 'B', 120, 139, null, 1),
+  ('ldl', 'LDLコレステロール', 'mg/dL', 'all', 'C', 140, 179, null, 2),
+  ('ldl', 'LDLコレステロール', 'mg/dL', 'all', 'D', null, 59, null, 3),
+  ('ldl', 'LDLコレステロール', 'mg/dL', 'all', 'D', 180, null, null, 4),
+  -- 中性脂肪: A 30-149 / B 150-299 / C 300-499 / D 29以下, 500以上
+  ('tg', '中性脂肪(TG)', 'mg/dL', 'all', 'B', 150, 299, null, 1),
+  ('tg', '中性脂肪(TG)', 'mg/dL', 'all', 'C', 300, 499, null, 2),
+  ('tg', '中性脂肪(TG)', 'mg/dL', 'all', 'D', null, 29, null, 3),
+  ('tg', '中性脂肪(TG)', 'mg/dL', 'all', 'D', 500, null, null, 4),
+  -- 空腹時血糖: A 70-99 / B 100-109 / C 110-125, 54-69 / D 126以上, 53以下
+  ('glucose', '空腹時血糖(FPG)', 'mg/dL', 'all', 'B', 100, 109, null, 1),
+  ('glucose', '空腹時血糖(FPG)', 'mg/dL', 'all', 'C', 110, 125, null, 2),
+  ('glucose', '空腹時血糖(FPG)', 'mg/dL', 'all', 'C', 54, 69, null, 3),
+  ('glucose', '空腹時血糖(FPG)', 'mg/dL', 'all', 'D', 126, null, null, 4),
+  ('glucose', '空腹時血糖(FPG)', 'mg/dL', 'all', 'D', null, 53, null, 5),
+  -- HbA1c: A 5.5以下 / B 5.6-5.9 / C 6.0-6.4 / D 6.5以上
+  ('hba1c', 'HbA1c(NGSP)', '%', 'all', 'B', 5.6, 5.9, null, 1),
+  ('hba1c', 'HbA1c(NGSP)', '%', 'all', 'C', 6.0, 6.4, null, 2),
+  ('hba1c', 'HbA1c(NGSP)', '%', 'all', 'D', 6.5, null, null, 3),
+  -- 尿蛋白: A (-) / B (±) / C (+) / D (2+)以上
+  ('urine_protein', '尿蛋白', null, 'all', 'B', null, null, '±', 1),
+  ('urine_protein', '尿蛋白', null, 'all', 'C', null, null, '+', 2),
+  ('urine_protein', '尿蛋白', null, 'all', 'D', null, null, '2+', 3),
+  ('urine_protein', '尿蛋白', null, 'all', 'D', null, null, '3+', 4),
+  ('urine_protein', '尿蛋白', null, 'all', 'D', null, null, '4+', 5),
+  -- 尿糖: A (-) / C (±)以上
+  ('urine_glucose', '尿糖', null, 'all', 'C', null, null, '±', 1),
+  ('urine_glucose', '尿糖', null, 'all', 'C', null, null, '+', 2),
+  ('urine_glucose', '尿糖', null, 'all', 'C', null, null, '2+', 3),
+  ('urine_glucose', '尿糖', null, 'all', 'C', null, null, '3+', 4),
+  ('urine_glucose', '尿糖', null, 'all', 'C', null, null, '4+', 5);
