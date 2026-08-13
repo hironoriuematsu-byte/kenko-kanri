@@ -224,6 +224,9 @@ values
   ('glucose', '空腹時血糖(FPG)', 'mg/dL', 'all', 'C', 54, 69, null, 3),
   ('glucose', '空腹時血糖(FPG)', 'mg/dL', 'all', 'D', 126, null, null, 4),
   ('glucose', '空腹時血糖(FPG)', 'mg/dL', 'all', 'D', null, 53, null, 5),
+  -- 随時血糖: A 139以下 / B 140-199 / D 200以上
+  ('casual_glucose', '随時血糖', 'mg/dL', 'all', 'B', 140, 199, null, 1),
+  ('casual_glucose', '随時血糖', 'mg/dL', 'all', 'D', 200, null, null, 2),
   -- HbA1c: A 5.5以下 / B 5.6-5.9 / C 6.0-6.4 / D 6.5以上
   ('hba1c', 'HbA1c(NGSP)', '%', 'all', 'B', 5.6, 5.9, null, 1),
   ('hba1c', 'HbA1c(NGSP)', '%', 'all', 'C', 6.0, 6.4, null, 2),
