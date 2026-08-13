@@ -38,6 +38,7 @@
    13. `supabase/migrations/0111_hm_hygiene_patrols.sql` …… 衛生管理者巡視記録（チェックリスト）
    14. `supabase/migrations/0112_hm_hygiene_defaults.sql` …… 衛生管理者氏名のデフォルト設定
    15. `supabase/migrations/0113_hm_env_patrol_files.sql` …… 作業環境測定・巡視記録の写真添付
+   16. `supabase/migrations/0114_hm_bulk_work_judgment.sql` …… 就業判定の一括入力
 3. `0000_dev_base.sql` の末尾コメントに沿って、テストユーザー（office / company）とテスト企業を作成
 
 ### 2. ローカル/Vercelの環境変数
@@ -66,7 +67,7 @@ npm run dev
 ## 本運用への切替（重要）
 
 1. 本番（ストレスチェックWebと共用のSupabaseプロジェクト）のSQL Editorで
-   `supabase/migrations/0101〜0104, 0106〜0113` **のみ** を順に実行する
+   `supabase/migrations/0101〜0104, 0106〜0114` **のみ** を順に実行する
    （`dev_setup/` 配下のSQLは**絶対に実行しない**。本番にはcompanies/profilesが既にあるため）
 2. `0105_hm_stress_link_template.sql` を既存テーブル（results / interview_requests / profiles）の
    実際の列名に合わせて調整し、コメントを外して実行（ストレスチェック連携の有効化）
@@ -75,7 +76,6 @@ npm run dev
 
 ## 今後の改善候補（TODO）
 
-- 就業判定の一括入力（複数人の判定・判定日をまとめて登録し、産業医の作業時間を短縮）
 - 面談予定のメール通知（Resendキー設定後に有効化。本文に健康情報を書かない原則を踏襲）
 - companyロールの招待フロー（既存 /api/invite の仕組みを流用）
 - ストレスチェックWebヘッダーからの相互リンク設置（ストレスチェックWeb側の変更）

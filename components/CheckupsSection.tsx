@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import CheckupsTable, { type CheckupRow } from "@/components/CheckupsTable";
+import { isFindingJudgment } from "@/lib/checkups";
 
 // 健診一覧+集計(サーバーコンポーネント)。office/company共用
 export default async function CheckupsSection({
@@ -9,12 +10,14 @@ export default async function CheckupsSection({
   selectedYear,
   canEdit,
   canDelete = false,
+  canJudge = false,
 }: {
   companyId: string;
   basePath: string;
   selectedYear?: number;
   canEdit: boolean;
   canDelete?: boolean;
+  canJudge?: boolean;
 }) {
   const supabase = createClient();
 
@@ -38,7 +41,29 @@ export default async function CheckupsSection({
         .order("target_name")
     : { data: [] };
 
-  const list = checkups ?? [];
+  // 有所見の検査項目を一覧に表示するため、該当年度分の項目をまとめて取得
+  const ids = (checkups ?? []).map((c) => c.id);
+  const { data: items } =
+    ids.length > 0
+      ? await supabase
+          .from("hm_checkup_items")
+          .select("checkup_id, item_name, judgment, sort_order")
+          .in("checkup_id", ids)
+          .order("sort_order")
+      : { data: [] };
+
+  const findingsByCheckup = new Map<string, { item_name: string; judgment: string | null }[]>();
+  for (const it of items ?? []) {
+    if (!isFindingJudgment(it.judgment)) continue;
+    const arr = findingsByCheckup.get(it.checkup_id) ?? [];
+    arr.push({ item_name: it.item_name, judgment: it.judgment });
+    findingsByCheckup.set(it.checkup_id, arr);
+  }
+
+  const list = (checkups ?? []).map((c) => ({
+    ...c,
+    findingItems: findingsByCheckup.get(c.id) ?? [],
+  }));
   const total = list.length;
   const findings = list.filter((c) => c.has_findings).length;
   const pending = list.filter((c) => c.followup_status === "pending").length;
@@ -101,7 +126,11 @@ export default async function CheckupsSection({
             </tbody>
           </table>
 
-          <CheckupsTable rows={list as CheckupRow[]} canDelete={canDelete} />
+          <CheckupsTable
+            rows={list as CheckupRow[]}
+            canDelete={canDelete}
+            canJudge={canJudge}
+          />
         </>
       ) : (
         <p className="muted">健診結果はまだ登録されていません。</p>

@@ -40,6 +40,7 @@ export default async function OfficeCheckupsPage({
             selectedYear={searchParams.year ? Number(searchParams.year) : undefined}
             canEdit
             canDelete
+            canJudge
           />
         </div>
       </main>

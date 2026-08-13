@@ -16,7 +16,6 @@ export default function WorkJudgmentPanel({
   const router = useRouter();
   const [judgment, setJudgment] = useState(initial.judgment);
   const [note, setNote] = useState(initial.note);
-  const [date, setDate] = useState(initial.date);
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -27,11 +26,12 @@ export default function WorkJudgmentPanel({
     setError(null);
     setSaved(false);
     const supabase = createClient();
+    // 判定日は指定しない(サーバー側で実行日が自動設定される)
     const { error } = await supabase.rpc("hm_save_work_judgment", {
       p_id: checkupId,
       p_judgment: judgment,
       p_note: note,
-      p_date: date || null,
+      p_date: null,
     });
     if (error) {
       setError(`保存に失敗しました: ${error.message}`);
@@ -58,7 +58,10 @@ export default function WorkJudgmentPanel({
         </div>
         <div>
           <label>判定日</label>
-          <input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+          <p className="muted" style={{ margin: "6px 0 0" }}>
+            保存した日が自動で記録されます
+            {initial.date && `（現在: ${initial.date}）`}
+          </p>
         </div>
       </div>
       <div className="form-row">

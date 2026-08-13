@@ -14,6 +14,18 @@ export const FOLLOWUP_STATUS: Record<string, string> = {
 // 有所見とみなす総合判定・項目判定(取込時の既定値)
 export const DEFAULT_FINDINGS_JUDGMENTS = ["C", "D", "E"];
 
+// 判定文字が有所見に当たるか(C/D/E で始まるものを有所見扱い)
+export function isFindingJudgment(judgment: string | null | undefined): boolean {
+  if (!judgment) return false;
+  return /^[CDE]/i.test(judgment.trim());
+}
+
+// 就業判定を要する重度判定(D/E)か
+export function isSevereJudgment(judgment: string | null | undefined): boolean {
+  if (!judgment) return false;
+  return /^[DE]/i.test(judgment.trim());
+}
+
 // シンプルなCSVパーサ(ダブルクォート・改行・BOM対応)
 export function parseCsv(text: string): string[][] {
   const src = text.replace(/^﻿/, "");

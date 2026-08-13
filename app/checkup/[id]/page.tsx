@@ -8,7 +8,7 @@ import DeleteCheckupButton from "@/components/DeleteCheckupButton";
 import { requireProfile, homePathFor } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { formatDateJa } from "@/lib/fiscal";
-import { CHECKUP_TYPES, FOLLOWUP_STATUS } from "@/lib/checkups";
+import { CHECKUP_TYPES, FOLLOWUP_STATUS, isFindingJudgment } from "@/lib/checkups";
 import { WORK_JUDGMENTS } from "@/lib/interviews";
 
 export const dynamic = "force-dynamic";
@@ -135,13 +135,29 @@ export default async function CheckupDetailPage({ params }: { params: { id: stri
                 </tr>
               </thead>
               <tbody>
-                {(items ?? []).map((it) => (
-                  <tr key={it.id}>
-                    <td>{it.item_name}</td>
-                    <td>{it.value ?? "—"}</td>
-                    <td>{it.judgment ?? "—"}</td>
-                  </tr>
-                ))}
+                {(items ?? []).map((it) => {
+                  const finding = isFindingJudgment(it.judgment);
+                  return (
+                    <tr key={it.id} style={finding ? { background: "var(--orange-light)" } : {}}>
+                      <td>
+                        {it.item_name}
+                        {finding && (
+                          <span className="badge orange" style={{ marginLeft: 6 }}>
+                            有所見
+                          </span>
+                        )}
+                      </td>
+                      <td>{it.value ?? "—"}</td>
+                      <td>
+                        {finding ? (
+                          <strong style={{ color: "var(--danger)" }}>{it.judgment}</strong>
+                        ) : (
+                          (it.judgment ?? "—")
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           )}
