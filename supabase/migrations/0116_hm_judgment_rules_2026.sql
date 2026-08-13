@@ -7,9 +7,154 @@
 --   * A(異常なし) / B(軽度異常) / C(要再検査・生活改善) / D(要精密検査・治療)
 --     の4区分のみ。E(治療中)は自動判定しない。
 --   * 判定区分表に区分の記載がない項目(赤血球数など)は自動判定の対象外。
+-- ※ このファイルは単独で完結します(0115を実行していなくても実行できます)。
 -- ※ 既存のルールはすべて削除して入れ直します。画面で独自に調整済みの場合は
 --    実行前に内容を控えてください。
 -- ============================================================
+
+-- ------------------------------------------------------------
+-- 1. 判定基準マスタ(未作成の場合は作成)
+-- ------------------------------------------------------------
+
+create table if not exists public.hm_judgment_rules (
+  id uuid primary key default gen_random_uuid(),
+  item_key text not null,          -- bmi, sbp, ldl 等
+  item_label text not null,        -- 画面表示名
+  unit text,
+  sex text not null default 'all' check (sex in ('all', 'male', 'female')),
+  grade text not null check (grade in ('B', 'C', 'D')),
+  min_value numeric,               -- null = 下限なし
+  max_value numeric,               -- null = 上限なし
+  match_text text,                 -- 定性検査(尿糖・尿蛋白)の一致文字列
+  sort_order int not null default 0,
+  created_at timestamptz not null default now()
+);
+
+create index if not exists hm_judgment_rules_item_idx
+  on public.hm_judgment_rules (item_key, sort_order);
+
+alter table public.hm_judgment_rules enable row level security;
+
+drop policy if exists hm_judgment_rules_select on public.hm_judgment_rules;
+drop policy if exists hm_judgment_rules_insert on public.hm_judgment_rules;
+drop policy if exists hm_judgment_rules_update on public.hm_judgment_rules;
+drop policy if exists hm_judgment_rules_delete on public.hm_judgment_rules;
+
+create policy hm_judgment_rules_select on public.hm_judgment_rules
+  for select using (auth.uid() is not null);
+create policy hm_judgment_rules_insert on public.hm_judgment_rules
+  for insert with check (public.hm_is_office());
+create policy hm_judgment_rules_update on public.hm_judgment_rules
+  for update using (public.hm_is_office()) with check (public.hm_is_office());
+create policy hm_judgment_rules_delete on public.hm_judgment_rules
+  for delete using (public.hm_is_office());
+
+-- ------------------------------------------------------------
+-- 2. 健診対象者の性別(自動判定で性差のある項目に使用)と取込RPCの更新
+-- ------------------------------------------------------------
+
+alter table public.hm_checkups add column if not exists sex text
+  check (sex in ('male', 'female'));
+
+create or replace function public.hm_import_checkups(
+  p_company_id uuid,
+  p_fiscal_year int,
+  p_checkup_type text,
+  p_findings_judgments text[],
+  p_rows jsonb
+)
+returns int
+language plpgsql security definer
+set search_path = public
+as $$
+declare
+  v_row jsonb;
+  v_item jsonb;
+  v_checkup_id uuid;
+  v_count int := 0;
+  v_has_findings boolean;
+  v_order int;
+begin
+  if not (
+    public.hm_is_office()
+    or (public.hm_my_role() = 'company' and p_company_id = public.hm_my_company())
+  ) then
+    raise exception 'permission denied';
+  end if;
+  if p_rows is null or jsonb_typeof(p_rows) <> 'array' then
+    raise exception 'invalid rows';
+  end if;
+
+  for v_row in select * from jsonb_array_elements(p_rows) loop
+    if coalesce(trim(v_row ->> 'target_name'), '') = '' then
+      continue;
+    end if;
+
+    v_has_findings :=
+      (v_row ->> 'overall_judgment') = any (coalesce(p_findings_judgments, '{}'));
+    if not v_has_findings and v_row ? 'items' then
+      select exists (
+        select 1 from jsonb_array_elements(v_row -> 'items') it
+        where (it ->> 'judgment') = any (coalesce(p_findings_judgments, '{}'))
+      ) into v_has_findings;
+    end if;
+
+    insert into public.hm_checkups (
+      company_id, target_user_id, target_name, employee_no, sex,
+      fiscal_year, checkup_type, checkup_date, overall_judgment,
+      has_findings, followup_status, created_by
+    ) values (
+      p_company_id,
+      nullif(v_row ->> 'target_user_id', '')::uuid,
+      trim(v_row ->> 'target_name'),
+      nullif(trim(coalesce(v_row ->> 'employee_no', '')), ''),
+      nullif(v_row ->> 'sex', ''),
+      p_fiscal_year,
+      p_checkup_type,
+      nullif(v_row ->> 'checkup_date', '')::date,
+      nullif(trim(coalesce(v_row ->> 'overall_judgment', '')), ''),
+      v_has_findings,
+      case when v_has_findings then 'pending' else 'none' end,
+      auth.uid()
+    ) returning id into v_checkup_id;
+
+    v_order := 0;
+    if v_row ? 'items' then
+      for v_item in select * from jsonb_array_elements(v_row -> 'items') loop
+        if coalesce(trim(v_item ->> 'name'), '') = '' then
+          continue;
+        end if;
+        insert into public.hm_checkup_items (checkup_id, item_name, value, judgment, sort_order)
+        values (
+          v_checkup_id,
+          trim(v_item ->> 'name'),
+          nullif(trim(coalesce(v_item ->> 'value', '')), ''),
+          nullif(trim(coalesce(v_item ->> 'judgment', '')), ''),
+          v_order
+        );
+        v_order := v_order + 1;
+      end loop;
+    end if;
+
+    v_count := v_count + 1;
+  end loop;
+
+  perform public.hm_log_access(
+    'import', 'hm_checkups', null,
+    jsonb_build_object(
+      'company_id', p_company_id,
+      'fiscal_year', p_fiscal_year,
+      'checkup_type', p_checkup_type,
+      'count', v_count
+    )
+  );
+  return v_count;
+end;
+$$;
+
+-- ------------------------------------------------------------
+-- 3. 判定基準の登録(既存はすべて削除して入れ直す)
+-- ------------------------------------------------------------
 
 delete from public.hm_judgment_rules;
 
