@@ -175,7 +175,7 @@ export default function CheckupsTable({
           <strong style={{ color: "var(--teal-dark)", fontSize: 14 }}>就業判定の一括入力</strong>
           <p className="muted" style={{ margin: "4px 0 10px" }}>
             判定日は実行した当日が自動で記録されます。D判定の方は、一覧の「就業判定」欄から
-            1名ずつ選択して判定することもできます。
+            1名ずつ選択して判定することもできます（通常勤務可／就業制限が必要）。
           </p>
           <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
             <button className="btn" onClick={onNormalBulk} disabled={busy || normalTargets.length === 0}>
@@ -183,7 +183,7 @@ export default function CheckupsTable({
             </button>
             {severeRows.length > 0 && (
               <button className="btn secondary" onClick={onSelectSevereUnjudged} disabled={busy}>
-                D・Eの未判定を選択（{severeRows.filter((r) => !r.work_judgment).length}名）
+                Dの未判定を選択（{severeRows.filter((r) => !r.work_judgment).length}名）
               </button>
             )}
           </div>

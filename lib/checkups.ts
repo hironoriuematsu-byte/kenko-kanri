@@ -20,7 +20,8 @@ export function isFindingJudgment(judgment: string | null | undefined): boolean 
   return /^[CDE]/i.test(judgment.trim());
 }
 
-// 就業判定を要する重度判定(D/E)か
+// 産業医が個別に就業判定すべき重度判定(D)か
+// ※ 過去に健診機関の判定でEが入っているデータも同様に扱う
 export function isSevereJudgment(judgment: string | null | undefined): boolean {
   if (!judgment) return false;
   return /^[DE]/i.test(judgment.trim());
