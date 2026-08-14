@@ -39,17 +39,51 @@ export default async function CheckupDetailPage({ params }: { params: { id: stri
     .eq("checkup_id", c.id)
     .order("sort_order");
 
-  // 経年: 同一人物(アカウント紐付け or 同姓同名+同企業)の他年度
+  // 経年: 同一人物(アカウント紐付け or 同姓同名+同企業)の全年度
   let historyQuery = supabase
     .from("hm_checkups")
-    .select("id, fiscal_year, checkup_type, checkup_date, overall_judgment, has_findings, work_judgment")
+    .select(
+      "id, fiscal_year, checkup_type, checkup_date, overall_judgment, has_findings, work_judgment"
+    )
     .eq("company_id", c.company_id)
-    .neq("id", c.id)
     .order("fiscal_year", { ascending: false });
   historyQuery = c.target_user_id
     ? historyQuery.eq("target_user_id", c.target_user_id)
     : historyQuery.eq("target_name", c.target_name);
-  const { data: history } = await historyQuery;
+  const { data: allCheckups } = await historyQuery;
+
+  const series = (allCheckups ?? []).slice(0, 6); // 直近6年分を横並び表示
+  const history = series.filter((h) => h.id !== c.id);
+
+  // 経年比較表(検査項目 × 年度)を組み立てる
+  const { data: seriesItems } =
+    series.length > 0
+      ? await supabase
+          .from("hm_checkup_items")
+          .select("checkup_id, item_name, value, judgment, sort_order")
+          .in(
+            "checkup_id",
+            series.map((s) => s.id)
+          )
+          .order("sort_order")
+      : { data: [] };
+
+  const cellMap = new Map<string, { value: string | null; judgment: string | null }>();
+  const itemOrder = new Map<string, number>();
+  for (const it of seriesItems ?? []) {
+    cellMap.set(`${it.checkup_id}::${it.item_name}`, {
+      value: it.value,
+      judgment: it.judgment,
+    });
+    // 表示順は最新年度の並び順を優先し、古い年度にしかない項目は後ろへ
+    const isCurrent = it.checkup_id === c.id;
+    const prev = itemOrder.get(it.item_name);
+    const order = (isCurrent ? 0 : 1000) + it.sort_order;
+    if (prev == null || order < prev) itemOrder.set(it.item_name, order);
+  }
+  const comparisonItems = Array.from(itemOrder.entries())
+    .sort((a, b) => a[1] - b[1])
+    .map(([name]) => name);
 
   const isOffice = profile.role === "office";
   const isCompany = profile.role === "company" && profile.company_id === c.company_id;
@@ -162,35 +196,99 @@ export default async function CheckupDetailPage({ params }: { params: { id: stri
             </table>
           )}
 
-          {(history ?? []).length > 0 && (
+          {history.length > 0 && (
             <>
-              <h2 style={{ fontSize: 15, color: "var(--teal-dark)" }}>経年推移</h2>
-              <table className="list" style={{ marginBottom: 14 }}>
-                <thead>
-                  <tr>
-                    <th>年度</th>
-                    <th>種別</th>
-                    <th>健診日</th>
-                    <th>総合判定</th>
-                    <th>有所見</th>
-                    <th>就業判定</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {(history ?? []).map((h) => (
-                    <tr key={h.id}>
-                      <td>
-                        <Link href={`/checkup/${h.id}`}>{h.fiscal_year}年度</Link>
-                      </td>
-                      <td>{CHECKUP_TYPES[h.checkup_type] ?? h.checkup_type}</td>
-                      <td>{formatDateJa(h.checkup_date)}</td>
-                      <td>{h.overall_judgment || "—"}</td>
-                      <td>{h.has_findings ? "有" : "—"}</td>
-                      <td>{h.work_judgment ? WORK_JUDGMENTS[h.work_judgment] : "—"}</td>
+              <h2 style={{ fontSize: 15, color: "var(--teal-dark)" }}>
+                経年比較（直近{series.length}回）
+              </h2>
+              <div style={{ overflowX: "auto", marginBottom: 14 }}>
+                <table className="list">
+                  <thead>
+                    <tr>
+                      <th style={{ minWidth: 140 }}>検査項目</th>
+                      {series.map((s) => (
+                        <th key={s.id} style={{ minWidth: 110 }}>
+                          {s.id === c.id ? (
+                            <>
+                              {s.fiscal_year}年度
+                              <span className="badge" style={{ marginLeft: 4 }}>
+                                今回
+                              </span>
+                            </>
+                          ) : (
+                            <Link href={`/checkup/${s.id}`}>{s.fiscal_year}年度</Link>
+                          )}
+                        </th>
+                      ))}
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody>
+                    <tr>
+                      <th>健診日</th>
+                      {series.map((s) => (
+                        <td key={s.id}>{formatDateJa(s.checkup_date)}</td>
+                      ))}
+                    </tr>
+                    <tr>
+                      <th>種別</th>
+                      {series.map((s) => (
+                        <td key={s.id}>{CHECKUP_TYPES[s.checkup_type] ?? s.checkup_type}</td>
+                      ))}
+                    </tr>
+                    <tr>
+                      <th>総合判定</th>
+                      {series.map((s) => (
+                        <td key={s.id}>
+                          {s.overall_judgment && isFindingJudgment(s.overall_judgment) ? (
+                            <strong style={{ color: "var(--danger)" }}>
+                              {s.overall_judgment}
+                            </strong>
+                          ) : (
+                            (s.overall_judgment ?? "—")
+                          )}
+                        </td>
+                      ))}
+                    </tr>
+                    <tr>
+                      <th>就業判定</th>
+                      {series.map((s) => (
+                        <td key={s.id}>
+                          {s.work_judgment ? WORK_JUDGMENTS[s.work_judgment] : "—"}
+                        </td>
+                      ))}
+                    </tr>
+                    {comparisonItems.map((name) => (
+                      <tr key={name}>
+                        <th style={{ fontWeight: "normal" }}>{name}</th>
+                        {series.map((s) => {
+                          const cell = cellMap.get(`${s.id}::${name}`);
+                          if (!cell) return <td key={s.id} className="muted">—</td>;
+                          const finding = isFindingJudgment(cell.judgment);
+                          return (
+                            <td
+                              key={s.id}
+                              style={finding ? { background: "var(--orange-light)" } : {}}
+                            >
+                              {cell.value ?? "—"}
+                              {cell.judgment && (
+                                <span
+                                  style={{
+                                    marginLeft: 4,
+                                    color: finding ? "var(--danger)" : "var(--muted)",
+                                    fontWeight: finding ? 700 : 400,
+                                  }}
+                                >
+                                  ({cell.judgment})
+                                </span>
+                              )}
+                            </td>
+                          );
+                        })}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             </>
           )}
 
