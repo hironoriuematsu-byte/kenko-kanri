@@ -65,8 +65,6 @@ export default function CheckupReportPanel({
   const findingsCount = regular.filter((c) => ["B", "C", "D"].includes(gradeOf(c))).length;
   // 医師の指示人数: 総合判定 D
   const instructedCount = regular.filter((c) => gradeOf(c) === "D").length;
-  const heldCount = regular.filter((c) => c.work_judgment === "pending").length;
-  const unjudgedCount = regular.filter((c) => !c.work_judgment).length;
   const lastDate = regular
     .map((c) => c.checkup_date)
     .filter(Boolean)
@@ -89,8 +87,6 @@ export default function CheckupReportPanel({
       [],
       ["所見のあった者の数（総合判定B・C・D）", findingsCount],
       ["医師の指示人数（総合判定D）", instructedCount],
-      ["判定保留", heldCount],
-      ["就業判定 未入力", unjudgedCount],
       [],
       ["産業医氏名", officeInfo?.physician_name ?? "上松弘典"],
       ["産業医所属機関の名称", officeInfo?.office_name ?? "うえまつ産業医事務所"],
@@ -251,17 +247,6 @@ export default function CheckupReportPanel({
               <span className="muted" style={{ marginLeft: 8 }}>
                 （総合判定 D）
               </span>
-            </td>
-          </tr>
-          <tr>
-            <th>判定保留 / 就業判定 未入力</th>
-            <td>
-              {heldCount}名 / {unjudgedCount}名
-              {(heldCount > 0 || unjudgedCount > 0) && (
-                <span className="badge orange" style={{ marginLeft: 8 }}>
-                  報告前に判定の確定をおすすめします
-                </span>
-              )}
             </td>
           </tr>
           <tr>
