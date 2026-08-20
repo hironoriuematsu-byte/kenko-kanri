@@ -29,7 +29,7 @@ export default async function EditInterviewPage({ params }: { params: { id: stri
   const { data: persons } = isOffice
     ? await supabase
         .from("hm_persons")
-        .select("id, full_name, employee_no, user_id")
+        .select("id, full_name, kana, employee_no, department, user_id")
         .eq("company_id", iv.company_id)
         .order("employee_no", { ascending: true, nullsFirst: false })
         .order("full_name")

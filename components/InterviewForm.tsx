@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useState } from "react";
+import { FormEvent, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/browser";
 import { INTERVIEW_TYPES, INTERVIEW_METHODS } from "@/lib/interviews";
@@ -21,9 +21,19 @@ export type InterviewInput = {
 type Person = {
   id: string;
   full_name: string;
+  kana?: string | null;
   employee_no: string | null;
+  department?: string | null;
   user_id: string | null;
 };
+
+// 検索用の正規化: 空白除去・小文字化・ひらがな→カタカナ
+function normalizeSearch(s: string): string {
+  return s
+    .replace(/[\s　]/g, "")
+    .toLowerCase()
+    .replace(/[ぁ-ん]/g, (ch) => String.fromCharCode(ch.charCodeAt(0) + 0x60));
+}
 
 // mode: "office"=全項目 / "company"=日程調整のみ(日時・方法・場所)
 export default function InterviewForm({
@@ -39,8 +49,20 @@ export default function InterviewForm({
 }) {
   const router = useRouter();
   const [v, setV] = useState<InterviewInput>(initial);
+  const [personQuery, setPersonQuery] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+
+  // 社員番号・氏名・フリガナ・部署で対象者を絞り込む
+  const filteredPersons = useMemo(() => {
+    const q = normalizeSearch(personQuery);
+    if (!q) return persons;
+    return persons.filter((p) =>
+      [p.employee_no, p.full_name, p.kana, p.department]
+        .filter(Boolean)
+        .some((field) => normalizeSearch(field as string).includes(q))
+    );
+  }, [persons, personQuery]);
 
   const set = <K extends keyof InterviewInput>(k: K, val: InterviewInput[K]) =>
     setV((p) => ({ ...p, [k]: val }));
@@ -49,10 +71,6 @@ export default function InterviewForm({
     e.preventDefault();
     if (!v.target_name.trim()) {
       setError("対象者氏名を入力してください。");
-      return;
-    }
-    if (mode === "office" && !v.person_id && !v.birth_date) {
-      setError("カルテ未登録の方は生年月日を入力してください（カルテを自動作成します）。");
       return;
     }
     setBusy(true);
@@ -164,6 +182,14 @@ export default function InterviewForm({
         <>
           <div className="form-row">
             <label>対象者（カルテから選択。面談がカルテの履歴に紐付きます）</label>
+            <input
+              type="text"
+              value={personQuery}
+              onChange={(e) => setPersonQuery(e.target.value)}
+              placeholder="社員番号・氏名・フリガナ・部署で検索"
+              style={{ maxWidth: 340, marginBottom: 6 }}
+              aria-label="従業員を検索"
+            />
             <select
               value={v.person_id ?? ""}
               onChange={(e) => {
@@ -178,13 +204,20 @@ export default function InterviewForm({
               }}
             >
               <option value="">（カルテ未登録 / 氏名を直接入力）</option>
-              {persons.map((person) => (
+              {filteredPersons.map((person) => (
                 <option key={person.id} value={person.id}>
                   {person.employee_no ? `${person.employee_no} ` : ""}
                   {person.full_name}
+                  {person.department ? `（${person.department}）` : ""}
                 </option>
               ))}
             </select>
+            {personQuery && (
+              <p className="muted" style={{ margin: "4px 0 0" }}>
+                {filteredPersons.length}名が一致（全{persons.length}名）
+                {filteredPersons.length === 0 && " — 該当者がいない場合は下に氏名を直接入力してください"}
+              </p>
+            )}
           </div>
           <div className="form-row" style={{ display: "flex", gap: 16, flexWrap: "wrap" }}>
             <div style={{ flex: 1, minWidth: 200 }}>
@@ -199,19 +232,18 @@ export default function InterviewForm({
             </div>
             {!v.person_id && (
               <div>
-                <label>生年月日 *</label>
+                <label>生年月日</label>
                 <input
                   type="date"
                   value={v.birth_date}
                   onChange={(e) => set("birth_date", e.target.value)}
-                  required
                 />
               </div>
             )}
           </div>
           {!v.person_id && (
             <p className="muted" style={{ margin: "-8px 0 14px" }}>
-              カルテ未登録の方は、入力内容で個人カルテを自動作成します（生年月日は必須です）。
+              カルテ未登録の方は、入力内容で個人カルテを自動作成します（生年月日は任意です）。
             </p>
           )}
           <div className="form-row">
