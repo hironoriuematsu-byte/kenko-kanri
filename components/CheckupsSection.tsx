@@ -65,7 +65,10 @@ export default async function CheckupsSection({
     findingItems: findingsByCheckup.get(c.id) ?? [],
   }));
   const total = list.length;
-  const findings = list.filter((c) => c.has_findings).length;
+  // 有所見は総合判定 B・C・D で判定する
+  const findings = list.filter((c) =>
+    ["B", "C", "D"].includes((c.overall_judgment ?? "").trim().charAt(0).toUpperCase())
+  ).length;
   const attention = list.filter((c) => needsAttention(c.work_judgment)).length;
   const held = list.filter((c) => c.work_judgment === "pending").length;
   const restricted = list.filter(
@@ -118,7 +121,12 @@ export default async function CheckupsSection({
                 <th>受診者数</th>
                 <td>{total}名</td>
                 <th>有所見者</th>
-                <td>{findings}名</td>
+                <td>
+                  {findings}名
+                  <span className="muted" style={{ marginLeft: 6, fontSize: 12 }}>
+                    （総合判定B・C・D）
+                  </span>
+                </td>
               </tr>
               <tr>
                 <th>有所見率</th>
