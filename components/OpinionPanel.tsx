@@ -47,7 +47,8 @@ export default function OpinionPanel({
       work_judgment: v.work_judgment || null,
       opinion: v.opinion || null,
       physician_name: v.physician_name.trim() || null,
-      issued_date: v.issued_date || null,
+      // 発行日は保存日を自動記録
+      issued_date: new Date().toISOString().slice(0, 10),
       published: v.published,
       created_by: user.user?.id,
     };
@@ -102,25 +103,18 @@ export default function OpinionPanel({
           placeholder="時間外労働の制限、業務内容の配慮 など。個人の詳細な健康情報は記載しないでください。"
         />
       </div>
-      <div className="form-row" style={{ display: "flex", gap: 16, flexWrap: "wrap" }}>
-        <div>
-          <label>発行日</label>
-          <input
-            type="date"
-            value={v.issued_date}
-            onChange={(e) => setV((p) => ({ ...p, issued_date: e.target.value }))}
-          />
-        </div>
-        <div>
-          <label>産業医名（敬称は付けません）</label>
-          <input
-            type="text"
-            value={v.physician_name}
-            onChange={(e) => setV((p) => ({ ...p, physician_name: e.target.value }))}
-            placeholder="上松弘典"
-            style={{ width: 200 }}
-          />
-        </div>
+      <div className="form-row">
+        <label>産業医名（敬称は付けません）</label>
+        <input
+          type="text"
+          value={v.physician_name}
+          onChange={(e) => setV((p) => ({ ...p, physician_name: e.target.value }))}
+          placeholder="上松弘典"
+          style={{ width: 200 }}
+        />
+        <p className="muted" style={{ margin: "4px 0 0" }}>
+          発行日は保存した日が自動で記録されます。
+        </p>
       </div>
       <div className="form-row checkbox-row">
         <input

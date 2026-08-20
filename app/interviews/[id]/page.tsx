@@ -46,6 +46,14 @@ export default async function InterviewDetailPage({ params }: { params: { id: st
   const isOffice = profile.role === "office";
   const isCompany = profile.role === "company" && profile.company_id === iv.company_id;
   const companyName = (iv as any).companies?.name ?? "";
+  // 面談予定日(ローカル日付)を実施日の既定値に使う
+  const scheduledDate = iv.scheduled_at
+    ? (() => {
+        const d = new Date(iv.scheduled_at);
+        const pad = (n: number) => n.toString().padStart(2, "0");
+        return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+      })()
+    : "";
 
   return (
     <>
@@ -125,7 +133,7 @@ export default async function InterviewDetailPage({ params }: { params: { id: st
           <>
             <div className="card">
               <h2>実施記録（office限定）</h2>
-              <InterviewRecordPanel interviewId={iv.id} />
+              <InterviewRecordPanel interviewId={iv.id} defaultDate={scheduledDate} />
             </div>
             <div className="card">
               <h2>事業者向け 意見書</h2>
@@ -134,7 +142,7 @@ export default async function InterviewDetailPage({ params }: { params: { id: st
                 companyId={iv.company_id}
                 initial={{
                   id: opinion?.id,
-                  interview_date: opinion?.interview_date ?? "",
+                  interview_date: opinion?.interview_date ?? scheduledDate,
                   work_judgment: opinion?.work_judgment ?? "",
                   opinion: opinion?.opinion ?? "",
                   issued_date: opinion?.issued_date ?? "",

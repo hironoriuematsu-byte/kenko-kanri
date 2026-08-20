@@ -6,7 +6,13 @@ import { createClient } from "@/lib/supabase/browser";
 
 // 実施記録+産業医非公開メモ(officeのみ)。
 // 列単位GRANTで保護されており、読み書きは必ずRPC経由(閲覧もログに記録される)
-export default function InterviewRecordPanel({ interviewId }: { interviewId: string }) {
+export default function InterviewRecordPanel({
+  interviewId,
+  defaultDate,
+}: {
+  interviewId: string;
+  defaultDate?: string; // 面談予定日(YYYY-MM-DD)。実施日の初期値に使う
+}) {
   const router = useRouter();
   const [loaded, setLoaded] = useState(false);
   const [conductedDate, setConductedDate] = useState("");
@@ -28,7 +34,8 @@ export default function InterviewRecordPanel({ interviewId }: { interviewId: str
         } else {
           const r = Array.isArray(data) ? data[0] : data;
           if (r) {
-            setConductedDate(r.conducted_date ?? "");
+            // 未入力なら面談予定日を既定値にする(変更可)
+            setConductedDate(r.conducted_date ?? defaultDate ?? "");
             setFindings(r.findings ?? "");
             setGuidance(r.guidance ?? "");
             setPrivateMemo(r.private_memo ?? "");
@@ -36,7 +43,7 @@ export default function InterviewRecordPanel({ interviewId }: { interviewId: str
         }
         setLoaded(true);
       });
-  }, [interviewId]);
+  }, [interviewId, defaultDate]);
 
   const onSubmit = async (e: FormEvent) => {
     e.preventDefault();
