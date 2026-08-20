@@ -3,13 +3,11 @@ import { notFound } from "next/navigation";
 import Header from "@/components/Header";
 import PrintButton from "@/components/PrintButton";
 import WorkJudgmentPanel from "@/components/WorkJudgmentPanel";
-import FollowupPanel from "@/components/FollowupPanel";
 import DeleteCheckupButton from "@/components/DeleteCheckupButton";
 import { requireProfile, homePathFor } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { formatDateJa } from "@/lib/fiscal";
-import { CHECKUP_TYPES, FOLLOWUP_STATUS, isFindingJudgment } from "@/lib/checkups";
-import { WORK_JUDGMENTS } from "@/lib/interviews";
+import { CHECKUP_TYPES, CHECKUP_WORK_JUDGMENTS, isFindingJudgment } from "@/lib/checkups";
 
 export const dynamic = "force-dynamic";
 
@@ -21,7 +19,7 @@ export default async function CheckupDetailPage({ params }: { params: { id: stri
   const { data: c } = await supabase
     .from("hm_checkups")
     .select(
-      "id, company_id, person_id, target_user_id, target_name, employee_no, birth_date, fiscal_year, checkup_type, checkup_date, overall_judgment, has_findings, work_judgment, work_judgment_note, work_judgment_date, followup_status, followup_note, companies(name)"
+      "id, company_id, person_id, target_user_id, target_name, employee_no, birth_date, fiscal_year, checkup_type, checkup_date, overall_judgment, has_findings, work_judgment, work_judgment_note, work_judgment_date, companies(name)"
     )
     .eq("id", params.id)
     .single();
@@ -144,7 +142,7 @@ export default async function CheckupDetailPage({ params }: { params: { id: stri
                 <td>
                   {c.work_judgment ? (
                     <>
-                      <strong>{WORK_JUDGMENTS[c.work_judgment]}</strong>
+                      <strong>{CHECKUP_WORK_JUDGMENTS[c.work_judgment]}</strong>
                       <span className="muted">
                         （{formatDateJa(c.work_judgment_date)}）
                       </span>
@@ -259,7 +257,7 @@ export default async function CheckupDetailPage({ params }: { params: { id: stri
                       <th>就業判定</th>
                       {series.map((s) => (
                         <td key={s.id}>
-                          {s.work_judgment ? WORK_JUDGMENTS[s.work_judgment] : "—"}
+                          {s.work_judgment ? CHECKUP_WORK_JUDGMENTS[s.work_judgment] : "—"}
                         </td>
                       ))}
                     </tr>
@@ -326,23 +324,6 @@ export default async function CheckupDetailPage({ params }: { params: { id: stri
           </div>
         )}
 
-        {(isOffice || isCompany) && (
-          <div className="card no-print">
-            <h2>事後措置フォロー</h2>
-            <p className="muted">
-              現在の状況:{" "}
-              {c.followup_status === "pending" ? (
-                <span className="badge orange">{FOLLOWUP_STATUS[c.followup_status]}</span>
-              ) : (
-                FOLLOWUP_STATUS[c.followup_status]
-              )}
-            </p>
-            <FollowupPanel
-              checkupId={c.id}
-              initial={{ status: c.followup_status, note: c.followup_note ?? "" }}
-            />
-          </div>
-        )}
       </main>
     </>
   );

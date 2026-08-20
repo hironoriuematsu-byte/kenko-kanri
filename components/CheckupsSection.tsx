@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import CheckupsTable, { type CheckupRow } from "@/components/CheckupsTable";
-import { isFindingJudgment } from "@/lib/checkups";
+import { isFindingJudgment, needsAttention } from "@/lib/checkups";
 
 // 健診一覧+集計(サーバーコンポーネント)。office/company共用
 export default async function CheckupsSection({
@@ -33,7 +33,7 @@ export default async function CheckupsSection({
     ? await supabase
         .from("hm_checkups")
         .select(
-          "id, target_name, employee_no, checkup_type, checkup_date, overall_judgment, has_findings, work_judgment, followup_status"
+          "id, target_name, employee_no, checkup_type, checkup_date, overall_judgment, has_findings, work_judgment, work_judgment_note, work_judgment_date"
         )
         .eq("company_id", companyId)
         .eq("fiscal_year", year)
@@ -66,7 +66,11 @@ export default async function CheckupsSection({
   }));
   const total = list.length;
   const findings = list.filter((c) => c.has_findings).length;
-  const pending = list.filter((c) => c.followup_status === "pending").length;
+  const attention = list.filter((c) => needsAttention(c.work_judgment)).length;
+  const held = list.filter((c) => c.work_judgment === "pending").length;
+  const restricted = list.filter(
+    (c) => c.work_judgment === "restricted" || c.work_judgment === "leave"
+  ).length;
   // 個人特定防止: 10名未満のグループは率を表示しない
   const rate = total >= 10 ? Math.round((findings / total) * 1000) / 10 : null;
 
@@ -118,9 +122,33 @@ export default async function CheckupsSection({
                     <span className="muted">10名未満のため非表示</span>
                   )}
                 </td>
-                <th>事後措置 未対応</th>
+                <th>就業判定 要対応</th>
                 <td>
-                  {pending > 0 ? <span className="badge orange">{pending}名</span> : "0名"}
+                  {attention > 0 ? (
+                    <span className="badge orange">{attention}名</span>
+                  ) : (
+                    "0名"
+                  )}
+                  {held > 0 && (
+                    <span className="muted" style={{ marginLeft: 6 }}>
+                      （うち判定保留 {held}名）
+                    </span>
+                  )}
+                </td>
+              </tr>
+              <tr>
+                <th>就業制限・要休業</th>
+                <td colSpan={3}>
+                  {restricted > 0 ? (
+                    <>
+                      <strong style={{ color: "var(--danger)" }}>{restricted}名</strong>
+                      <span className="muted" style={{ marginLeft: 8 }}>
+                        該当者の「医師の意見」欄をご確認のうえ、就業上の措置をご検討ください
+                      </span>
+                    </>
+                  ) : (
+                    "0名"
+                  )}
                 </td>
               </tr>
             </tbody>

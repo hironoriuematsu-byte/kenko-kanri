@@ -4,6 +4,41 @@ export const CHECKUP_TYPES: Record<string, string> = {
   special: "特殊健診",
 };
 
+// 健診の就業判定(面談の意見書とは別に「判定保留」を持つ)
+export const CHECKUP_WORK_JUDGMENTS: Record<string, string> = {
+  normal: "通常勤務可",
+  restricted: "就業制限が必要",
+  leave: "要休業",
+  pending: "判定保留",
+};
+
+// 医師の意見の定型文(チェックで付与でき、自由記入と併用できる)
+export const OPINION_PRESETS = ["但し受診が条件", "要産業医面談"];
+
+// 定型文＋自由記入 → 保存文字列
+export function buildOpinionNote(presets: string[], freeText: string): string {
+  return [...presets, freeText.trim()].filter(Boolean).join(" / ");
+}
+
+// 保存文字列 → 定型文＋自由記入
+export function parseOpinionNote(note: string | null | undefined): {
+  presets: string[];
+  freeText: string;
+} {
+  const parts = (note ?? "")
+    .split("/")
+    .map((s) => s.trim())
+    .filter(Boolean);
+  const presets = parts.filter((p) => OPINION_PRESETS.includes(p));
+  const freeText = parts.filter((p) => !OPINION_PRESETS.includes(p)).join(" / ");
+  return { presets, freeText };
+}
+
+// 就業判定が「要対応」(未判定・判定保留)か
+export function needsAttention(workJudgment: string | null | undefined): boolean {
+  return !workJudgment || workJudgment === "pending";
+}
+
 export const FOLLOWUP_STATUS: Record<string, string> = {
   none: "措置不要",
   pending: "受診勧奨",

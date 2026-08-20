@@ -38,7 +38,8 @@ export default async function CompanyDashboard() {
   const supabase = createClient();
   const [
     { data: company },
-    { count: followupPending },
+    { count: restrictedCount },
+    { count: attentionCount },
     { data: companyInfo },
   ] = await Promise.all([
     supabase.from("companies").select("id, name").eq("id", profile.company_id).single(),
@@ -46,7 +47,12 @@ export default async function CompanyDashboard() {
       .from("hm_checkups")
       .select("id", { count: "exact", head: true })
       .eq("company_id", profile.company_id)
-      .eq("followup_status", "pending"),
+      .in("work_judgment", ["restricted", "leave"]),
+    supabase
+      .from("hm_checkups")
+      .select("id", { count: "exact", head: true })
+      .eq("company_id", profile.company_id)
+      .eq("work_judgment", "pending"),
     supabase
       .from("hm_company_info")
       .select("address, tel")
@@ -65,10 +71,23 @@ export default async function CompanyDashboard() {
           )}
         </h1>
 
-        {(followupPending ?? 0) > 0 && (
+        {((restrictedCount ?? 0) > 0 || (attentionCount ?? 0) > 0) && (
           <div className="notice">
-            健診の事後措置が未対応の方が <strong>{followupPending}名</strong> います。
-            健康診断のページからご確認ください。
+            <strong>健康診断の就業判定について</strong>
+            <ul style={{ margin: "6px 0 0", paddingLeft: 20 }}>
+              {(restrictedCount ?? 0) > 0 && (
+                <li>
+                  就業制限・要休業の判定を受けた方が <strong>{restrictedCount}名</strong> います。
+                  健康診断管理の「医師の意見」欄をご確認のうえ、就業上の措置をご検討ください。
+                </li>
+              )}
+              {(attentionCount ?? 0) > 0 && (
+                <li>
+                  産業医が「判定保留」とした方が <strong>{attentionCount}名</strong> います。
+                  追加の情報提供や産業医面談の調整が必要な場合があります。
+                </li>
+              )}
+            </ul>
           </div>
         )}
 

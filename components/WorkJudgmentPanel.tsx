@@ -3,9 +3,14 @@
 import { FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/browser";
-import { WORK_JUDGMENTS } from "@/lib/interviews";
+import {
+  CHECKUP_WORK_JUDGMENTS,
+  OPINION_PRESETS,
+  buildOpinionNote,
+  parseOpinionNote,
+} from "@/lib/checkups";
 
-// 就業判定(医師の意見)の入力: officeのみ。RPC経由でログ記録
+// 就業判定(医師の意見)の入力: officeのみ。RPC経由でログ記録、判定日は保存日
 export default function WorkJudgmentPanel({
   checkupId,
   initial,
@@ -14,8 +19,10 @@ export default function WorkJudgmentPanel({
   initial: { judgment: string; note: string; date: string };
 }) {
   const router = useRouter();
+  const parsed = parseOpinionNote(initial.note);
   const [judgment, setJudgment] = useState(initial.judgment);
-  const [note, setNote] = useState(initial.note);
+  const [presets, setPresets] = useState<string[]>(parsed.presets);
+  const [freeText, setFreeText] = useState(parsed.freeText);
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -30,7 +37,7 @@ export default function WorkJudgmentPanel({
     const { error } = await supabase.rpc("hm_save_work_judgment", {
       p_id: checkupId,
       p_judgment: judgment,
-      p_note: note,
+      p_note: buildOpinionNote(presets, freeText),
       p_date: null,
     });
     if (error) {
@@ -49,7 +56,7 @@ export default function WorkJudgmentPanel({
           <label>就業区分の判定</label>
           <select value={judgment} onChange={(e) => setJudgment(e.target.value)}>
             <option value="">（未判定）</option>
-            {Object.entries(WORK_JUDGMENTS).map(([k, v]) => (
+            {Object.entries(CHECKUP_WORK_JUDGMENTS).map(([k, v]) => (
               <option key={k} value={k}>
                 {v}
               </option>
@@ -66,10 +73,38 @@ export default function WorkJudgmentPanel({
       </div>
       <div className="form-row">
         <label>医師の意見（企業側にも表示されます）</label>
+        <div style={{ marginBottom: 6 }}>
+          {OPINION_PRESETS.map((p) => (
+            <label
+              key={p}
+              htmlFor={`op-${p}`}
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 4,
+                fontSize: 14,
+                marginRight: 14,
+              }}
+            >
+              <input
+                id={`op-${p}`}
+                type="checkbox"
+                checked={presets.includes(p)}
+                onChange={(e) =>
+                  setPresets(
+                    e.target.checked ? [...presets, p] : presets.filter((x) => x !== p)
+                  )
+                }
+                style={{ width: 16, height: 16 }}
+              />
+              {p}
+            </label>
+          ))}
+        </div>
         <textarea
-          value={note}
-          onChange={(e) => setNote(e.target.value)}
-          placeholder="時間外労働の制限、業務転換 など"
+          value={freeText}
+          onChange={(e) => setFreeText(e.target.value)}
+          placeholder="自由記入（時間外労働の制限、業務転換 など）"
           style={{ minHeight: 80 }}
         />
       </div>
