@@ -1,12 +1,14 @@
 "use client";
 
-import { ChangeEvent, useState } from "react";
+import { ChangeEvent, useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/browser";
 import { makeStorageFileName } from "@/lib/storage";
 
 type FileRow = { id: string; file_name: string; storage_path: string };
 
-// 産業医巡視記録の添付(写真・資料)。アップロードはoffice、閲覧はcompanyも可
+const isImage = (name: string) => /\.(png|jpe?g|gif|webp|heic)$/i.test(name);
+
+// 産業医巡視記録の添付(現場写真・資料)。写真はサムネイルで確認できる
 export default function PatrolFilesPanel({
   patrolId,
   companyId,
@@ -19,8 +21,32 @@ export default function PatrolFilesPanel({
   canUpload: boolean;
 }) {
   const [files, setFiles] = useState<FileRow[]>(initialFiles);
+  const [urls, setUrls] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // 画像ファイルの表示用URLをまとめて発行する(1時間有効)
+  useEffect(() => {
+    const photos = files.filter((f) => isImage(f.file_name) && !urls[f.id]);
+    if (photos.length === 0) return;
+    const supabase = createClient();
+    supabase.storage
+      .from("hm-files")
+      .createSignedUrls(
+        photos.map((f) => f.storage_path),
+        3600
+      )
+      .then(({ data }) => {
+        if (!data) return;
+        setUrls((prev) => {
+          const next = { ...prev };
+          data.forEach((d, i) => {
+            if (d.signedUrl) next[photos[i].id] = d.signedUrl;
+          });
+          return next;
+        });
+      });
+  }, [files, urls]);
 
   const onUpload = async (e: ChangeEvent<HTMLInputElement>) => {
     const list = Array.from(e.target.files ?? []);
@@ -70,14 +96,15 @@ export default function PatrolFilesPanel({
     setBusy(false);
   };
 
-  const onDownload = async (f: FileRow) => {
+  const onOpen = async (f: FileRow) => {
     setError(null);
     const supabase = createClient();
+    // 画像は原寸表示、それ以外は元のファイル名でダウンロード
     const { data, error } = await supabase.storage
       .from("hm-files")
-      .createSignedUrl(f.storage_path, 60, { download: f.file_name });
+      .createSignedUrl(f.storage_path, 60, isImage(f.file_name) ? {} : { download: f.file_name });
     if (error || !data) {
-      setError("ダウンロードURLの発行に失敗しました。");
+      setError("表示用URLの発行に失敗しました。");
       return;
     }
     await supabase.rpc("hm_log_access", {
@@ -109,24 +136,100 @@ export default function PatrolFilesPanel({
     setFiles((prev) => prev.filter((x) => x.id !== f.id));
   };
 
+  const photos = files.filter((f) => isImage(f.file_name));
+  const docs = files.filter((f) => !isImage(f.file_name));
+
   return (
     <div>
-      {files.length > 0 ? (
+      {photos.length > 0 && (
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))",
+            gap: 12,
+            marginBottom: 14,
+          }}
+        >
+          {photos.map((f) => (
+            <figure key={f.id} style={{ margin: 0 }}>
+              <a
+                href="#"
+                onClick={(e) => {
+                  e.preventDefault();
+                  onOpen(f);
+                }}
+                title="クリックで拡大表示"
+              >
+                {urls[f.id] ? (
+                  /* eslint-disable-next-line @next/next/no-img-element */
+                  <img
+                    src={urls[f.id]}
+                    alt={f.file_name}
+                    style={{
+                      width: "100%",
+                      height: 140,
+                      objectFit: "cover",
+                      border: "1px solid var(--line)",
+                      borderRadius: 8,
+                      display: "block",
+                      background: "#f2f7f6",
+                    }}
+                  />
+                ) : (
+                  <div
+                    style={{
+                      width: "100%",
+                      height: 140,
+                      border: "1px solid var(--line)",
+                      borderRadius: 8,
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      color: "var(--muted)",
+                      fontSize: 12,
+                      background: "#f2f7f6",
+                    }}
+                  >
+                    読み込み中…
+                  </div>
+                )}
+              </a>
+              <figcaption
+                className="muted"
+                style={{ fontSize: 11, marginTop: 4, wordBreak: "break-all" }}
+              >
+                {f.file_name}
+                {canUpload && (
+                  <button
+                    className="btn danger no-print"
+                    style={{ padding: "1px 8px", fontSize: 11, marginLeft: 6 }}
+                    onClick={() => onDelete(f)}
+                  >
+                    削除
+                  </button>
+                )}
+              </figcaption>
+            </figure>
+          ))}
+        </div>
+      )}
+
+      {docs.length > 0 && (
         <ul style={{ paddingLeft: 20, margin: "0 0 12px" }}>
-          {files.map((f) => (
+          {docs.map((f) => (
             <li key={f.id} style={{ marginBottom: 4 }}>
               <a
                 href="#"
                 onClick={(e) => {
                   e.preventDefault();
-                  onDownload(f);
+                  onOpen(f);
                 }}
               >
                 {f.file_name}
               </a>
               {canUpload && (
                 <button
-                  className="btn danger"
+                  className="btn danger no-print"
                   style={{ padding: "1px 8px", fontSize: 11, marginLeft: 8 }}
                   onClick={() => onDelete(f)}
                 >
@@ -136,13 +239,13 @@ export default function PatrolFilesPanel({
             </li>
           ))}
         </ul>
-      ) : (
-        <p className="muted">写真・添付ファイルはありません。</p>
       )}
 
+      {files.length === 0 && <p className="muted">現場写真・添付ファイルはありません。</p>}
+
       {canUpload && (
-        <label className="btn secondary" style={{ display: "inline-block" }}>
-          {busy ? "アップロード中…" : "写真・ファイルを追加（複数可）"}
+        <label className="btn secondary no-print" style={{ display: "inline-block" }}>
+          {busy ? "アップロード中…" : "現場写真・ファイルを追加（複数可）"}
           <input
             type="file"
             multiple

@@ -87,8 +87,8 @@ export default async function PatrolDetailPage({ params }: { params: { id: strin
           </div>
         </div>
 
-        <div className="card no-print">
-          <h2>写真・添付ファイル</h2>
+        <div className="card">
+          <h2>現場写真・添付ファイル</h2>
           <PatrolFilesPanel
             patrolId={p.id}
             companyId={p.company_id}
