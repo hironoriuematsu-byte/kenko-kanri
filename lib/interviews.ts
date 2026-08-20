@@ -24,22 +24,19 @@ export const WORK_JUDGMENTS: Record<string, string> = {
   leave: "要休業",
 };
 
+// 面談予定は日付のみを扱う
 export function formatDateTimeJa(ts: string | null | undefined): string {
   if (!ts) return "未定";
   const d = new Date(ts);
   if (isNaN(d.getTime())) return ts;
-  const h = d.getHours();
-  const min = d.getMinutes().toString().padStart(2, "0");
-  return `${d.getFullYear()}年${d.getMonth() + 1}月${d.getDate()}日 ${h}:${min}`;
+  return `${d.getFullYear()}年${d.getMonth() + 1}月${d.getDate()}日`;
 }
 
-// timestamptz → <input type="datetime-local"> 用のローカル表記
+// timestamptz → <input type="date"> 用のローカル表記
 export function toDatetimeLocal(ts: string | null | undefined): string {
   if (!ts) return "";
   const d = new Date(ts);
   if (isNaN(d.getTime())) return "";
   const pad = (n: number) => n.toString().padStart(2, "0");
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(
-    d.getHours()
-  )}:${pad(d.getMinutes())}`;
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 }

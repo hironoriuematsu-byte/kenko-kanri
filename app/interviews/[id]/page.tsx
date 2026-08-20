@@ -77,7 +77,7 @@ export default async function InterviewDetailPage({ params }: { params: { id: st
                 <td>{companyName}</td>
               </tr>
               <tr>
-                <th>予定日時</th>
+                <th>予定日</th>
                 <td>{formatDateTimeJa(iv.scheduled_at)}</td>
               </tr>
               <tr>

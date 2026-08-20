@@ -80,7 +80,7 @@ export default async function OfficeDashboard() {
             <table className="list">
               <thead>
                 <tr>
-                  <th>予定日時</th>
+                  <th>予定日</th>
                   <th>企業</th>
                   <th>対象者</th>
                   <th>種別</th>

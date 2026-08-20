@@ -79,7 +79,10 @@ export default function InterviewForm({
     const { data: authUser } = await supabase.auth.getUser();
 
     const schedulePayload = {
-      scheduled_at: v.scheduled_local ? new Date(v.scheduled_local).toISOString() : null,
+      // 日付のみを保持する(時刻は正午扱いにしてタイムゾーンによる日付ずれを防ぐ)
+      scheduled_at: v.scheduled_local
+        ? new Date(`${v.scheduled_local}T12:00:00`).toISOString()
+        : null,
       method: v.method || null,
       location: v.location || null,
     };
@@ -263,9 +266,9 @@ export default function InterviewForm({
       )}
 
       <div className="form-row">
-        <label>予定日時</label>
+        <label>予定日</label>
         <input
-          type="datetime-local"
+          type="date"
           value={v.scheduled_local}
           onChange={(e) => set("scheduled_local", e.target.value)}
         />

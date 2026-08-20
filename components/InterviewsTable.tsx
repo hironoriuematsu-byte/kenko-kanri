@@ -29,7 +29,7 @@ export default function InterviewsTable({
     <table className="list">
       <thead>
         <tr>
-          <th>予定日時</th>
+          <th>予定日</th>
           {showTarget && <th>対象者</th>}
           <th>種別</th>
           <th>方法</th>
