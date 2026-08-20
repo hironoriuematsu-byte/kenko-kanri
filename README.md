@@ -42,6 +42,7 @@
    17. `supabase/migrations/0117_hm_judgment_setup.sql` …… 健診結果の自動判定一式（判定区分2026年4月1日改定）
    18. `supabase/migrations/0118_hm_followup_defaults.sql` …… 事後措置の既定値を総合判定に連動
    19. `supabase/migrations/0119_hm_checkup_person_link.sql` …… 健診結果の生年月日・カルテ紐付け
+   20. `supabase/migrations/0120_hm_interview_type_followup.sql` …… 面談種別に復職後フォローアップ面談を追加
 3. `0000_dev_base.sql` の末尾コメントに沿って、テストユーザー（office / company）とテスト企業を作成
 
 ### 2. ローカル/Vercelの環境変数
@@ -70,7 +71,7 @@ npm run dev
 ## 本運用への切替（重要）
 
 1. 本番（ストレスチェックWebと共用のSupabaseプロジェクト）のSQL Editorで
-   `supabase/migrations/0101〜0104, 0106〜0114, 0117〜0119` **のみ** を順に実行する
+   `supabase/migrations/0101〜0104, 0106〜0114, 0117〜0120` **のみ** を順に実行する
    （`dev_setup/` 配下のSQLは**絶対に実行しない**。本番にはcompanies/profilesが既にあるため）
 2. `0105_hm_stress_link_template.sql` を既存テーブル（results / interview_requests / profiles）の
    実際の列名に合わせて調整し、コメントを外して実行（ストレスチェック連携の有効化）

@@ -3,7 +3,8 @@ export const INTERVIEW_TYPES: Record<string, string> = {
   long_hours: "長時間労働面談",
   checkup_followup: "健診事後措置面談",
   return_to_work: "復職面談",
-  other: "その他相談",
+  return_followup: "復職後フォローアップ面談",
+  other: "その他・健康相談等",
 };
 
 export const INTERVIEW_METHODS: Record<string, string> = {
