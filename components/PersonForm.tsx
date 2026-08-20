@@ -3,6 +3,7 @@
 import { FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/browser";
+import DateTextInput from "@/components/DateTextInput";
 
 export type PersonInput = {
   id?: string;
@@ -117,10 +118,9 @@ export default function PersonForm({
         </div>
         <div>
           <label>生年月日</label>
-          <input
-            type="date"
+          <DateTextInput
             value={v.birth_date}
-            onChange={(e) => set("birth_date", e.target.value)}
+            onChange={(val) => set("birth_date", val)}
           />
         </div>
         <div style={{ flex: 1, minWidth: 160 }}>

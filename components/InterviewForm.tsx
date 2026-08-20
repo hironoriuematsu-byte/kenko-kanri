@@ -4,6 +4,7 @@ import { FormEvent, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/browser";
 import { INTERVIEW_TYPES, INTERVIEW_METHODS } from "@/lib/interviews";
+import DateTextInput from "@/components/DateTextInput";
 
 export type InterviewInput = {
   id?: string;
@@ -236,10 +237,9 @@ export default function InterviewForm({
             {!v.person_id && (
               <div>
                 <label>生年月日</label>
-                <input
-                  type="date"
+                <DateTextInput
                   value={v.birth_date}
-                  onChange={(e) => set("birth_date", e.target.value)}
+                  onChange={(val) => set("birth_date", val)}
                 />
               </div>
             )}
