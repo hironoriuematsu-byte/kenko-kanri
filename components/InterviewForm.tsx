@@ -243,7 +243,7 @@ export default function InterviewForm({
           </div>
           {!v.person_id && (
             <p className="muted" style={{ margin: "-8px 0 14px" }}>
-              カルテ未登録の方は、入力内容で個人カルテを自動作成します（生年月日は任意です）。
+              カルテ未登録の方は、入力内容で個人カルテを自動作成します。
             </p>
           )}
           <div className="form-row">
