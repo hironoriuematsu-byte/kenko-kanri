@@ -42,6 +42,25 @@ export default function PersonForm({
     setError(null);
     const supabase = createClient();
 
+    // 同一企業に同姓同名の方がいる場合は、区別のため生年月日を必須にする
+    if (!v.birth_date) {
+      let dupQuery = supabase
+        .from("hm_persons")
+        .select("id")
+        .eq("company_id", v.company_id)
+        .eq("full_name", v.full_name.trim())
+        .limit(1);
+      if (v.id) dupQuery = dupQuery.neq("id", v.id);
+      const { data: dup } = await dupQuery;
+      if (dup && dup.length > 0) {
+        setError(
+          "同一企業に同姓同名の方が登録されています。区別のため生年月日を入力してください。"
+        );
+        setBusy(false);
+        return;
+      }
+    }
+
     const payload = {
       company_id: v.company_id,
       user_id: v.user_id,

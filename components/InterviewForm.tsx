@@ -91,16 +91,30 @@ export default function InterviewForm({
     // 氏名を直接入力した場合もカルテに反映する:
     // 同姓同名のカルテがあればそれに紐付け、なければ自動作成する
     let personId = v.person_id;
+    let targetUserId = v.target_user_id;
     if (mode === "office" && !personId && v.target_name.trim()) {
       const name = v.target_name.trim();
       const { data: existing } = await supabase
         .from("hm_persons")
-        .select("id, user_id")
+        .select("id, user_id, birth_date")
         .eq("company_id", v.company_id)
-        .eq("full_name", name)
-        .limit(1);
-      if (existing && existing.length > 0) {
-        personId = existing[0].id;
+        .eq("full_name", name);
+
+      // 同姓同名がいる場合は生年月日で本人を特定する(未入力なら入力を求める)
+      if (existing && existing.length > 0 && !v.birth_date) {
+        setError(
+          "同一企業に同姓同名の方が登録されています。上の検索欄からカルテを選択するか、区別のため生年月日を入力してください。"
+        );
+        setBusy(false);
+        return;
+      }
+
+      const matched = (existing ?? []).find(
+        (p) => !v.birth_date || p.birth_date === v.birth_date
+      );
+      if (matched) {
+        personId = matched.id;
+        targetUserId = matched.user_id ?? targetUserId;
       } else {
         const { data: created, error: personErr } = await supabase
           .from("hm_persons")
@@ -134,7 +148,7 @@ export default function InterviewForm({
           ? {
               ...schedulePayload,
               person_id: personId,
-              target_user_id: v.target_user_id,
+              target_user_id: targetUserId,
               target_name: v.target_name.trim(),
               interview_type: v.interview_type,
             }
@@ -156,7 +170,7 @@ export default function InterviewForm({
         .insert({
           company_id: v.company_id,
           person_id: personId,
-          target_user_id: v.target_user_id,
+          target_user_id: targetUserId,
           target_name: v.target_name.trim(),
           interview_type: v.interview_type,
           ...schedulePayload,
