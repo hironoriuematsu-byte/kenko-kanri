@@ -38,28 +38,13 @@ export default function PersonForm({
 
   const onSubmit = async (e: FormEvent) => {
     e.preventDefault();
+    if (!v.birth_date) {
+      setError("生年月日を入力してください（例: 1975/4/1）。");
+      return;
+    }
     setBusy(true);
     setError(null);
     const supabase = createClient();
-
-    // 同一企業に同姓同名の方がいる場合は、区別のため生年月日を必須にする
-    if (!v.birth_date) {
-      let dupQuery = supabase
-        .from("hm_persons")
-        .select("id")
-        .eq("company_id", v.company_id)
-        .eq("full_name", v.full_name.trim())
-        .limit(1);
-      if (v.id) dupQuery = dupQuery.neq("id", v.id);
-      const { data: dup } = await dupQuery;
-      if (dup && dup.length > 0) {
-        setError(
-          "同一企業に同姓同名の方が登録されています。区別のため生年月日を入力してください。"
-        );
-        setBusy(false);
-        return;
-      }
-    }
 
     const payload = {
       company_id: v.company_id,
@@ -136,10 +121,11 @@ export default function PersonForm({
           />
         </div>
         <div>
-          <label>生年月日</label>
+          <label>生年月日 *</label>
           <DateTextInput
             value={v.birth_date}
             onChange={(val) => set("birth_date", val)}
+            required
           />
         </div>
         <div style={{ flex: 1, minWidth: 160 }}>

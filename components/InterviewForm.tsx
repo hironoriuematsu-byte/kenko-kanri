@@ -74,6 +74,10 @@ export default function InterviewForm({
       setError("対象者氏名を入力してください。");
       return;
     }
+    if (mode === "office" && !v.person_id && !v.birth_date) {
+      setError("生年月日を入力してください（例: 1975/4/1）。");
+      return;
+    }
     setBusy(true);
     setError(null);
     const supabase = createClient();
@@ -250,10 +254,11 @@ export default function InterviewForm({
             </div>
             {!v.person_id && (
               <div>
-                <label>生年月日</label>
+                <label>生年月日 *</label>
                 <DateTextInput
                   value={v.birth_date}
                   onChange={(val) => set("birth_date", val)}
+                  required
                 />
               </div>
             )}
