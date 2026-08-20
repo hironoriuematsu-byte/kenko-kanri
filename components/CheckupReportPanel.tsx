@@ -24,16 +24,25 @@ export type ReportCheckup = {
 };
 
 // 定期健康診断結果報告書(様式第6号)の記入用サマリと、健診結果一覧のCSV出力
+export type OfficeInfo = {
+  office_name: string;
+  address: string | null;
+  tel: string | null;
+  physician_name: string;
+};
+
 export default function CheckupReportPanel({
   companyName,
   fiscalYear,
   checkups,
   items,
+  officeInfo,
 }: {
   companyName: string;
   fiscalYear: number;
   checkups: ReportCheckup[];
   items: ReportItem[];
+  officeInfo?: OfficeInfo | null;
 }) {
   const [headcount, setHeadcount] = useState("");
 
@@ -50,10 +59,12 @@ export default function CheckupReportPanel({
   const summary = useMemo(() => summarizeByCategory(regularItems), [regularItems]);
 
   const examinedCount = regular.length;
-  const findingsCount = regular.filter((c) => c.has_findings).length;
-  const instructedCount = regular.filter(
-    (c) => c.work_judgment === "restricted" || c.work_judgment === "leave"
-  ).length;
+  // 所見のあった者: 総合判定 B・C・D
+  const gradeOf = (c: ReportCheckup) =>
+    (c.overall_judgment ?? "").trim().charAt(0).toUpperCase();
+  const findingsCount = regular.filter((c) => ["B", "C", "D"].includes(gradeOf(c))).length;
+  // 医師の指示人数: 総合判定 D
+  const instructedCount = regular.filter((c) => gradeOf(c) === "D").length;
   const heldCount = regular.filter((c) => c.work_judgment === "pending").length;
   const unjudgedCount = regular.filter((c) => !c.work_judgment).length;
   const lastDate = regular
@@ -76,10 +87,15 @@ export default function CheckupReportPanel({
       ["健診項目", "受診者数", "有所見者数"],
       ...summary.map((s) => [s.label, s.examined, s.findings]),
       [],
-      ["所見のあった者の数（合計）", findingsCount],
-      ["医師の指示人数（就業制限・要休業）", instructedCount],
+      ["所見のあった者の数（総合判定B・C・D）", findingsCount],
+      ["医師の指示人数（総合判定D）", instructedCount],
       ["判定保留", heldCount],
       ["就業判定 未入力", unjudgedCount],
+      [],
+      ["産業医氏名", officeInfo?.physician_name ?? "上松弘典"],
+      ["産業医所属機関の名称", officeInfo?.office_name ?? "うえまつ産業医事務所"],
+      ["産業医所属機関の所在地", officeInfo?.address ?? ""],
+      ...(officeInfo?.tel ? [["産業医所属機関の電話番号", officeInfo.tel]] : []),
     ];
     downloadCsv(`定期健診結果報告書_サマリ_${companyName}_${fiscalYear}年度.csv`, rows);
   };
@@ -109,6 +125,13 @@ export default function CheckupReportPanel({
     ];
 
     const rows: (string | number | null)[][] = [
+      [
+        `${companyName} ${fiscalYear}年度 健康診断結果一覧`,
+        `産業医: ${officeInfo?.physician_name ?? "上松弘典"}`,
+        `${officeInfo?.office_name ?? "うえまつ産業医事務所"}`,
+        `${officeInfo?.address ?? ""}`,
+      ],
+      [],
       header,
       ...checkups.map((c) => {
         const map = byCheckup.get(c.id);
@@ -216,12 +239,18 @@ export default function CheckupReportPanel({
             <th style={{ width: 220 }}>所見のあった者の数</th>
             <td>
               <strong>{findingsCount}</strong>名
+              <span className="muted" style={{ marginLeft: 8 }}>
+                （総合判定 B・C・D）
+              </span>
             </td>
           </tr>
           <tr>
-            <th>医師の指示人数（就業制限・要休業）</th>
+            <th>医師の指示人数</th>
             <td>
               <strong>{instructedCount}</strong>名
+              <span className="muted" style={{ marginLeft: 8 }}>
+                （総合判定 D）
+              </span>
             </td>
           </tr>
           <tr>
@@ -233,6 +262,16 @@ export default function CheckupReportPanel({
                   報告前に判定の確定をおすすめします
                 </span>
               )}
+            </td>
+          </tr>
+          <tr>
+            <th>産業医</th>
+            <td>
+              {officeInfo?.physician_name ?? "上松弘典"}（
+              {officeInfo?.office_name ?? "うえまつ産業医事務所"}）
+              <div className="muted">
+                {officeInfo?.address || "所在地が未登録です（事務所の設定から登録できます）"}
+              </div>
             </td>
           </tr>
         </tbody>

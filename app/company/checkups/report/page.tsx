@@ -6,6 +6,7 @@ import { requireProfile } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { getCheckupReportData } from "@/lib/checkupReportData";
 import { getFiscalYear } from "@/lib/fiscal";
+import { getOfficeInfo } from "@/lib/officeInfo";
 
 export const dynamic = "force-dynamic";
 
@@ -27,6 +28,8 @@ export default async function CompanyCheckupReportPage({
 
   const year = searchParams.year ? Number(searchParams.year) : getFiscalYear();
   const { checkups, items } = await getCheckupReportData(profile.company_id, year);
+
+  const officeInfo = await getOfficeInfo();
 
   await supabase.rpc("hm_log_access", {
     p_action: "report_summary",
@@ -60,6 +63,7 @@ export default async function CompanyCheckupReportPage({
             fiscalYear={year}
             checkups={checkups}
             items={items}
+            officeInfo={officeInfo}
           />
         </div>
       </main>

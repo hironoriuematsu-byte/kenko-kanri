@@ -5,6 +5,8 @@ import { requireProfile } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { formatDateJa } from "@/lib/fiscal";
 import { INTERVIEW_TYPES, formatDateTimeJa } from "@/lib/interviews";
+import OfficeInfoForm from "@/components/OfficeInfoForm";
+import { getOfficeInfo } from "@/lib/officeInfo";
 
 export const dynamic = "force-dynamic";
 
@@ -36,6 +38,7 @@ export default async function OfficeDashboard() {
         .eq("work_judgment", "pending"),
     ]);
 
+  const officeInfo = await getOfficeInfo();
   const today = new Date();
   const overdue = (interviews ?? []).filter(
     (i: any) => i.scheduled_at && new Date(i.scheduled_at) < today
@@ -117,6 +120,10 @@ export default async function OfficeDashboard() {
               健診結果の判定基準（A〜D）を設定する
             </Link>
           </p>
+          <p className="muted">
+            以下は帳票・CSV（定期健康診断結果報告書など）に記載されます。
+          </p>
+          <OfficeInfoForm initial={officeInfo} />
         </div>
 
         <div className="card">
