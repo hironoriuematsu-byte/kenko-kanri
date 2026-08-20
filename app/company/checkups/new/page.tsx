@@ -3,6 +3,7 @@ import Header from "@/components/Header";
 import CheckupForm from "@/components/CheckupForm";
 import { requireProfile } from "@/lib/auth";
 import { getJudgmentRules } from "@/lib/judgmentRules";
+import { getPersonCandidates } from "@/lib/personsForCompany";
 
 export const dynamic = "force-dynamic";
 
@@ -11,6 +12,7 @@ export default async function CompanyCheckupNewPage() {
   if (profile.role !== "company" || !profile.company_id) redirect("/");
 
   const rules = await getJudgmentRules();
+  const persons = await getPersonCandidates(profile.company_id);
 
   return (
     <>
@@ -22,6 +24,7 @@ export default async function CompanyCheckupNewPage() {
             companyId={profile.company_id}
             backHref="/company/checkups"
             rules={rules}
+            persons={persons}
           />
         </div>
       </main>

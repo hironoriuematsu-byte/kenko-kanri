@@ -21,7 +21,7 @@ export default async function CheckupDetailPage({ params }: { params: { id: stri
   const { data: c } = await supabase
     .from("hm_checkups")
     .select(
-      "id, company_id, target_user_id, target_name, employee_no, fiscal_year, checkup_type, checkup_date, overall_judgment, has_findings, work_judgment, work_judgment_note, work_judgment_date, followup_status, followup_note, companies(name)"
+      "id, company_id, person_id, target_user_id, target_name, employee_no, birth_date, fiscal_year, checkup_type, checkup_date, overall_judgment, has_findings, work_judgment, work_judgment_note, work_judgment_date, followup_status, followup_note, companies(name)"
     )
     .eq("id", params.id)
     .single();
@@ -39,7 +39,7 @@ export default async function CheckupDetailPage({ params }: { params: { id: stri
     .eq("checkup_id", c.id)
     .order("sort_order");
 
-  // 経年: 同一人物(アカウント紐付け or 同姓同名+同企業)の全年度
+  // 経年: 同一人物を カルテ紐付け → アカウント → 氏名(+生年月日) の順で特定する
   let historyQuery = supabase
     .from("hm_checkups")
     .select(
@@ -47,9 +47,15 @@ export default async function CheckupDetailPage({ params }: { params: { id: stri
     )
     .eq("company_id", c.company_id)
     .order("fiscal_year", { ascending: false });
-  historyQuery = c.target_user_id
-    ? historyQuery.eq("target_user_id", c.target_user_id)
-    : historyQuery.eq("target_name", c.target_name);
+  if (c.person_id) {
+    historyQuery = historyQuery.eq("person_id", c.person_id);
+  } else if (c.target_user_id) {
+    historyQuery = historyQuery.eq("target_user_id", c.target_user_id);
+  } else {
+    historyQuery = historyQuery.eq("target_name", c.target_name);
+    // 同姓同名対策: 生年月日があるものは生年月日でも絞り込む
+    if (c.birth_date) historyQuery = historyQuery.eq("birth_date", c.birth_date);
+  }
   const { data: allCheckups } = await historyQuery;
 
   const series = (allCheckups ?? []).slice(0, 6); // 直近6年分を横並び表示

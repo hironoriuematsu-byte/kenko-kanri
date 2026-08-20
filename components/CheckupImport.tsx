@@ -11,6 +11,7 @@ import {
   readCsvFile,
   normalizeDate,
 } from "@/lib/checkups";
+import { matchPerson, type PersonCandidate } from "@/lib/personMatch";
 import {
   LEGAL_ITEMS,
   findLegalItemByHeader,
@@ -31,11 +32,13 @@ export default function CheckupImport({
   backHref,
   rules,
   autoJudgeDefault,
+  persons = [],
 }: {
   companyId: string;
   backHref: string;
   rules: JudgmentRule[];
   autoJudgeDefault: boolean;
+  persons?: PersonCandidate[];
 }) {
   const router = useRouter();
   const [fiscalYear, setFiscalYear] = useState(getFiscalYear());
@@ -49,6 +52,7 @@ export default function CheckupImport({
   const [nameCol, setNameCol] = useState<number>(-1);
   const [empNoCol, setEmpNoCol] = useState<number>(-1);
   const [sexCol, setSexCol] = useState<number>(-1);
+  const [birthCol, setBirthCol] = useState<number>(-1);
   const [dateCol, setDateCol] = useState<number>(-1);
   const [judgmentCol, setJudgmentCol] = useState<number>(-1);
   const [colModes, setColModes] = useState<Record<number, ColumnMode>>({});
@@ -80,6 +84,7 @@ export default function CheckupImport({
       setNameCol(find(["氏名", "名前", "社員名"]));
       setEmpNoCol(find(["社員番号", "社員No", "従業員番号", "職員番号"]));
       setSexCol(find(["性別", "性"]));
+      setBirthCol(find(["生年月日", "生年"]));
       setDateCol(find(["健診日", "受診日", "実施日"]));
       setJudgmentCol(find(["総合判定", "総合", "判定区分"]));
       // 見出しから法定項目を自動推定
@@ -96,7 +101,7 @@ export default function CheckupImport({
     }
   };
 
-  const baseCols = [nameCol, empNoCol, sexCol, dateCol, judgmentCol];
+  const baseCols = [nameCol, empNoCol, sexCol, birthCol, dateCol, judgmentCol];
 
   const readSex = (r: string[]): "male" | "female" | null => {
     if (sexCol < 0) return null;
@@ -178,10 +183,23 @@ export default function CheckupImport({
         // 自動判定ONのときは、最も重い項目判定を総合判定とする
         const autoOverall = autoJudge ? worstGrade(autoGrades) : null;
 
+        const targetName = (r[nameCol] ?? "").trim();
+        const employeeNo = empNoCol >= 0 ? (r[empNoCol] ?? "").trim() : "";
+        const birthDate = birthCol >= 0 ? normalizeDate(r[birthCol] ?? "") : null;
+        // 社員番号・生年月日・氏名で個人カルテに突合する
+        const person = matchPerson(persons, {
+          name: targetName,
+          employeeNo,
+          birthDate,
+        });
+
         return {
-          target_name: (r[nameCol] ?? "").trim(),
-          employee_no: empNoCol >= 0 ? (r[empNoCol] ?? "").trim() : "",
+          target_name: targetName,
+          employee_no: employeeNo,
           sex: sex ?? "",
+          birth_date: birthDate ?? "",
+          person_id: person?.id ?? "",
+          target_user_id: person?.user_id ?? "",
           checkup_date: dateCol >= 0 ? normalizeDate(r[dateCol] ?? "") : null,
           overall_judgment: autoOverall ?? csvOverall,
           items: merged,
@@ -312,6 +330,15 @@ export default function CheckupImport({
               <tr>
                 <th>性別（自動判定に使用）</th>
                 <td>{colSelect(sexCol, setSexCol)}</td>
+              </tr>
+              <tr>
+                <th>生年月日（本人特定に使用）</th>
+                <td>
+                  {colSelect(birthCol, setBirthCol)}
+                  <span className="muted" style={{ marginLeft: 8 }}>
+                    同姓同名の方がいる場合に、社員番号とあわせて本人を特定します
+                  </span>
+                </td>
               </tr>
               <tr>
                 <th>健診日</th>

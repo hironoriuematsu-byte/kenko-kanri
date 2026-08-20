@@ -55,8 +55,16 @@ export default async function KartePage({ params }: { params: { personId: string
         .eq("target_user_id", person.user_id)
     : null;
 
-  const [files, documents, checkupsA, checkupsB, interviewsA, interviewsB, interviewsC] =
-    await Promise.all([
+  const [
+    files,
+    documents,
+    checkupsA,
+    checkupsB,
+    interviewsA,
+    interviewsB,
+    interviewsC,
+    checkupsC,
+  ] = await Promise.all([
       supabase
         .from("hm_person_files")
         .select("id, category, file_name, storage_path, note, visibility, uploaded_by, created_at")
@@ -83,6 +91,12 @@ export default async function KartePage({ params }: { params: { personId: string
         .from("hm_interviews")
         .select("id, interview_type, scheduled_at, status")
         .eq("person_id", person.id),
+      supabase
+        .from("hm_checkups")
+        .select(
+          "id, fiscal_year, checkup_type, checkup_date, overall_judgment, has_findings, work_judgment"
+        )
+        .eq("person_id", person.id),
     ]);
 
   const dedupe = <T extends { id: string }>(...lists: (T[] | null | undefined)[]) => {
@@ -98,9 +112,11 @@ export default async function KartePage({ params }: { params: { personId: string
     }
     return out;
   };
-  const checkups = dedupe((checkupsA as any).data, (checkupsB as any).data).sort(
-    (a: any, b: any) => b.fiscal_year - a.fiscal_year
-  );
+  const checkups = dedupe(
+    (checkupsC as any).data,
+    (checkupsA as any).data,
+    (checkupsB as any).data
+  ).sort((a: any, b: any) => b.fiscal_year - a.fiscal_year);
   const interviews = dedupe(
     (interviewsC as any).data,
     (interviewsA as any).data,

@@ -5,6 +5,7 @@ import Link from "next/link";
 import { requireProfile } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { getJudgmentRules } from "@/lib/judgmentRules";
+import { getPersonCandidates } from "@/lib/personsForCompany";
 
 export const dynamic = "force-dynamic";
 
@@ -25,6 +26,7 @@ export default async function OfficeCheckupImportPage({
   if (!company) notFound();
 
   const rules = await getJudgmentRules();
+  const persons = await getPersonCandidates(company.id);
 
   return (
     <>
@@ -39,6 +41,7 @@ export default async function OfficeCheckupImportPage({
             companyId={company.id}
             backHref={`/office/${company.id}/checkups`}
             rules={rules}
+            persons={persons}
             autoJudgeDefault
           />
         </div>

@@ -5,6 +5,8 @@ import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/browser";
 import { getFiscalYear } from "@/lib/fiscal";
 import { CHECKUP_TYPES, DEFAULT_FINDINGS_JUDGMENTS } from "@/lib/checkups";
+import { matchPerson, type PersonCandidate } from "@/lib/personMatch";
+import DateTextInput from "@/components/DateTextInput";
 import {
   LEGAL_ITEMS,
   judgeItem,
@@ -21,14 +23,17 @@ export default function CheckupForm({
   companyId,
   backHref,
   rules,
+  persons = [],
 }: {
   companyId: string;
   backHref: string;
   rules: JudgmentRule[];
+  persons?: PersonCandidate[];
 }) {
   const router = useRouter();
   const [targetName, setTargetName] = useState("");
   const [employeeNo, setEmployeeNo] = useState("");
+  const [birthDate, setBirthDate] = useState("");
   const [sex, setSex] = useState<"" | "male" | "female">("");
   const [fiscalYear, setFiscalYear] = useState(getFiscalYear());
   const [checkupType, setCheckupType] = useState("regular");
@@ -65,6 +70,12 @@ export default function CheckupForm({
     setBusy(true);
     setError(null);
     const supabase = createClient();
+    // 社員番号・生年月日・氏名で個人カルテに突合する
+    const person = matchPerson(persons, {
+      name: targetName,
+      employeeNo,
+      birthDate: birthDate || null,
+    });
     const { error } = await supabase.rpc("hm_import_checkups", {
       p_company_id: companyId,
       p_fiscal_year: fiscalYear,
@@ -74,6 +85,9 @@ export default function CheckupForm({
         {
           target_name: targetName,
           employee_no: employeeNo,
+          birth_date: birthDate,
+          person_id: person?.id ?? "",
+          target_user_id: person?.user_id ?? "",
           sex,
           checkup_date: checkupDate || null,
           overall_judgment: autoOverall ?? overall.trim().toUpperCase(),
@@ -123,6 +137,10 @@ export default function CheckupForm({
             onChange={(e) => setEmployeeNo(e.target.value)}
             style={{ width: 140 }}
           />
+        </div>
+        <div>
+          <label>生年月日（本人特定に使用）</label>
+          <DateTextInput value={birthDate} onChange={setBirthDate} />
         </div>
         <div>
           <label>性別（自動判定に使用）</label>
