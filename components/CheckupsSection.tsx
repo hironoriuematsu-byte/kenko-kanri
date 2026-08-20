@@ -76,16 +76,23 @@ export default async function CheckupsSection({
 
   return (
     <div>
-      {canEdit && (
-        <p style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-          <Link className="btn orange" href={`${basePath}/import`}>
-            CSV一括取込
+      <p style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+        {canEdit && (
+          <>
+            <Link className="btn orange" href={`${basePath}/import`}>
+              CSV一括取込
+            </Link>
+            <Link className="btn secondary" href={`${basePath}/new`}>
+              ＋ 個別入力
+            </Link>
+          </>
+        )}
+        {year && (
+          <Link className="btn" href={`${basePath}/report?year=${year}`}>
+            定期健診結果報告書のサマリ・CSV出力
           </Link>
-          <Link className="btn secondary" href={`${basePath}/new`}>
-            ＋ 個別入力
-          </Link>
-        </p>
-      )}
+        )}
+      </p>
 
       {years.length > 0 && (
         <p style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
