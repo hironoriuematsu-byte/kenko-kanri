@@ -58,6 +58,7 @@ export default async function EditInterviewPage({ params }: { params: { id: stri
               person_id: iv.person_id,
               target_user_id: iv.target_user_id,
               target_name: iv.target_name,
+              birth_date: "",
               interview_type: iv.interview_type,
               scheduled_local: toDatetimeLocal(iv.scheduled_at),
               method: iv.method ?? "",

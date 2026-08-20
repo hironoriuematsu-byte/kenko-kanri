@@ -44,6 +44,7 @@ export default async function NewInterviewPage({
               person_id: null,
               target_user_id: null,
               target_name: "",
+              birth_date: "",
               interview_type: "high_stress",
               scheduled_local: "",
               method: "",

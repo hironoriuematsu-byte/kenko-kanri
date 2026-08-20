@@ -37,6 +37,10 @@ export default function PersonForm({
 
   const onSubmit = async (e: FormEvent) => {
     e.preventDefault();
+    if (!v.birth_date) {
+      setError("生年月日を入力してください。");
+      return;
+    }
     setBusy(true);
     setError(null);
     const supabase = createClient();
@@ -116,11 +120,12 @@ export default function PersonForm({
           />
         </div>
         <div>
-          <label>生年月日</label>
+          <label>生年月日 *</label>
           <input
             type="date"
             value={v.birth_date}
             onChange={(e) => set("birth_date", e.target.value)}
+            required
           />
         </div>
         <div style={{ flex: 1, minWidth: 160 }}>

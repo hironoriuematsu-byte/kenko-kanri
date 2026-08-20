@@ -11,6 +11,7 @@ export type InterviewInput = {
   person_id: string | null;
   target_user_id: string | null;
   target_name: string;
+  birth_date: string; // カルテ未登録の対象者を新規作成する際に必須
   interview_type: string;
   scheduled_local: string; // datetime-local形式
   method: string;
@@ -50,6 +51,10 @@ export default function InterviewForm({
       setError("対象者氏名を入力してください。");
       return;
     }
+    if (mode === "office" && !v.person_id && !v.birth_date) {
+      setError("カルテ未登録の方は生年月日を入力してください（カルテを自動作成します）。");
+      return;
+    }
     setBusy(true);
     setError(null);
     const supabase = createClient();
@@ -80,6 +85,7 @@ export default function InterviewForm({
           .insert({
             company_id: v.company_id,
             full_name: name,
+            birth_date: v.birth_date || null,
             created_by: authUser.user?.id,
           })
           .select("id")
@@ -180,16 +186,34 @@ export default function InterviewForm({
               ))}
             </select>
           </div>
-          <div className="form-row">
-            <label>対象者氏名 *</label>
-            <input
-              type="text"
-              value={v.target_name}
-              onChange={(e) => set("target_name", e.target.value)}
-              placeholder="山田 太郎"
-              required
-            />
+          <div className="form-row" style={{ display: "flex", gap: 16, flexWrap: "wrap" }}>
+            <div style={{ flex: 1, minWidth: 200 }}>
+              <label>対象者氏名 *</label>
+              <input
+                type="text"
+                value={v.target_name}
+                onChange={(e) => set("target_name", e.target.value)}
+                placeholder="山田 太郎"
+                required
+              />
+            </div>
+            {!v.person_id && (
+              <div>
+                <label>生年月日 *</label>
+                <input
+                  type="date"
+                  value={v.birth_date}
+                  onChange={(e) => set("birth_date", e.target.value)}
+                  required
+                />
+              </div>
+            )}
           </div>
+          {!v.person_id && (
+            <p className="muted" style={{ margin: "-8px 0 14px" }}>
+              カルテ未登録の方は、入力内容で個人カルテを自動作成します（生年月日は必須です）。
+            </p>
+          )}
           <div className="form-row">
             <label>面談種別 *</label>
             <select
