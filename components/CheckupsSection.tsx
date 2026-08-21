@@ -69,6 +69,12 @@ export default async function CheckupsSection({
   const findings = list.filter((c) =>
     ["B", "C", "D"].includes((c.overall_judgment ?? "").trim().charAt(0).toUpperCase())
   ).length;
+  // 医師の指示人数は総合判定 D で集計する
+  const instructed = list.filter(
+    (c) => (c.overall_judgment ?? "").trim().charAt(0).toUpperCase() === "D"
+  ).length;
+  const instructedRate =
+    total >= 10 ? Math.round((instructed / total) * 1000) / 10 : null;
   const attention = list.filter((c) => needsAttention(c.work_judgment)).length;
   const held = list.filter((c) => c.work_judgment === "pending").length;
   const restricted = list.filter(
@@ -120,7 +126,7 @@ export default async function CheckupsSection({
               <tr>
                 <th>受診者数</th>
                 <td>{total}名</td>
-                <th>有所見者</th>
+                <th>有所見者数</th>
                 <td>
                   {findings}名
                   <span className="muted" style={{ marginLeft: 6, fontSize: 12 }}>
@@ -133,6 +139,23 @@ export default async function CheckupsSection({
                 <td>
                   {rate !== null ? (
                     `${rate}%`
+                  ) : (
+                    <span className="muted">10名未満のため非表示</span>
+                  )}
+                </td>
+                <th>医師の指示人数</th>
+                <td>
+                  {instructed}名
+                  <span className="muted" style={{ marginLeft: 6, fontSize: 12 }}>
+                    （総合判定D）
+                  </span>
+                </td>
+              </tr>
+              <tr>
+                <th>医師の指示人数率</th>
+                <td>
+                  {instructedRate !== null ? (
+                    `${instructedRate}%`
                   ) : (
                     <span className="muted">10名未満のため非表示</span>
                   )}
