@@ -42,7 +42,11 @@ export default async function CompanyDashboard() {
     { count: attentionCount },
     { data: companyInfo },
   ] = await Promise.all([
-    supabase.from("companies").select("id, name").eq("id", profile.company_id).single(),
+    supabase
+      .from("companies")
+      .select("id, name, hm_enabled")
+      .eq("id", profile.company_id)
+      .single(),
     supabase
       .from("hm_checkups")
       .select("id", { count: "exact", head: true })
@@ -59,6 +63,28 @@ export default async function CompanyDashboard() {
       .eq("company_id", profile.company_id)
       .maybeSingle(),
   ]);
+
+  // 健康管理Webをご契約いただいていない企業(ストレスチェックのみのご利用)は、
+  // ストレスチェックWebの「企業管理」で hm_enabled が false のままになっている。
+  if (company && !company.hm_enabled) {
+    return (
+      <>
+        <Header profile={profile} />
+        <main className="container">
+          <div className="card">
+            <h2>このアカウントではご利用いただけません</h2>
+            <p>
+              健康管理Webは、産業医契約を締結いただいている企業向けのサービスです。
+              ストレスチェックに関する業務は、従来どおりストレスチェックWebをご利用ください。
+            </p>
+            <p className="muted">
+              ご利用をご希望の場合は、産業医事務所までお問い合わせください。
+            </p>
+          </div>
+        </main>
+      </>
+    );
+  }
 
   return (
     <>

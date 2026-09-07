@@ -21,7 +21,13 @@ export default async function OfficeDashboard() {
     { count: unjudgedCount },
     { count: heldCount },
   ] = await Promise.all([
-      supabase.from("companies").select("id, name").order("name"),
+      // 企業台帳はストレスチェックWebと共有している。健康管理Webも
+      // ご契約いただいている企業(hm_enabled = true)だけを表示する。
+      supabase
+        .from("companies")
+        .select("id, name")
+        .eq("hm_enabled", true)
+        .order("name"),
       supabase
         .from("hm_interviews")
         .select("id, target_name, interview_type, scheduled_at, status, companies(name)")
@@ -144,8 +150,9 @@ export default async function OfficeDashboard() {
             </div>
           ) : (
             <p className="muted">
-              企業が登録されていません。開発用DBの場合は 0000_dev_base.sql
-              のコメントに沿ってテストデータを作成してください。
+              健康管理Webをご利用いただく企業がありません。ストレスチェックWebの
+              「企業管理」で、対象の企業の「健康管理Web 併用する」にチェックを入れると
+              ここに表示されます。
             </p>
           )}
         </div>
