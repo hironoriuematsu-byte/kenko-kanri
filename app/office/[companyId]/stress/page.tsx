@@ -72,11 +72,10 @@ export default async function StressPage({
 
         {notConnected ? (
           <div className="notice">
-            ストレスチェック連携が未設定です。開発環境では{" "}
+            ストレスチェック連携が未設定です。本番環境ではストレスチェックWebのリポジトリにある{" "}
+            <code>supabase/hm-stress-link.sql</code> を、開発環境では{" "}
             <code>supabase/dev_setup/0002_dev_stress_mock.sql</code>{" "}
-            を、本番では実テーブルの列名を確認のうえ{" "}
-            <code>supabase/migrations/0105_hm_stress_link_template.sql</code>{" "}
-            を調整してSQL Editorで実行してください。
+            をSQL Editorで実行してください。
           </div>
         ) : (
           <>

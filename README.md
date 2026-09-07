@@ -13,7 +13,7 @@
 | Phase 1 | 基盤（認証・ロール・企業共用）＋ 安全衛生委員会議事録（作成・共有・添付・印刷/PDF） | ✅ 実装済み |
 | Phase 2 | 面談管理（予定・実施記録・非公開メモ・意見書PDF） | ✅ 実装済み |
 | Phase 3 | 健康診断結果（CSV取込・有所見・就業判定・事後措置・経年・個人票） | ✅ 実装済み |
-| Phase 4 | 統合ビュー・ダッシュボード・集計・ストレスチェック連携 | ✅ 実装済み（本番連携は移行時に0105を調整） |
+| Phase 4 | 統合ビュー・ダッシュボード・集計・ストレスチェック連携 | ✅ 実装済み（本番はstresリポジトリの `hm-stress-link.sql` で接続） |
 | Phase 5 | 従業員カルテ（書類共有・産業医文書作成・履歴集約） | ✅ 実装済み |
 
 ## セットアップ手順（開発用・無料Supabaseプロジェクト）
@@ -72,19 +72,36 @@ npm run dev
 
 ## 本運用への切替（重要）
 
-1. 本番（ストレスチェックWebと共用のSupabaseプロジェクト）のSQL Editorで
-   `supabase/migrations/0101〜0104, 0106〜0114, 0117〜0122` **のみ** を順に実行する
-   （`dev_setup/` 配下のSQLは**絶対に実行しない**。本番にはcompanies/profilesが既にあるため）
-2. `0105_hm_stress_link_template.sql` を既存テーブル（results / interview_requests / profiles）の
-   実際の列名に合わせて調整し、コメントを外して実行（ストレスチェック連携の有効化）
-3. Vercelの環境変数を本番プロジェクトのURL/keyに差し替えてRedeploy
-4. 既存テーブル・既存ポリシー・既存関数は一切変更しない（追加のみ・読み取りのみ）
+ストレスチェックWeb（`hironoriuematsu-byte/stres`）と同じSupabaseプロジェクトに同居し、
+ストレスチェックのデータは**読み取りのみ**参照します。依存の向きは
+**健康管理Web → ストレスチェックWeb の一方向のみ**です。
+詳細はストレスチェックWeb側の連携仕様書を参照してください。
+
+適用は次の順序で行います（すべて本番のSQL Editorで1回だけ実行）。
+
+| # | 実行するもの | リポジトリ |
+|---|---|---|
+| 1 | `supabase/migrations/0016_hm_link.sql` | stres（profilesの別名列・`companies.hm_enabled` を追加） |
+| 2 | `supabase/migrations/0101〜0104, 0106〜0114, 0117〜0122` | kenko-kanri（本リポジトリ） |
+| 3 | `supabase/hm-stress-link.sql` | stres（連携用の読み取り関数3つ） |
+| 4 | Vercel環境変数 `NEXT_PUBLIC_KENKO_URL` を設定 | stres側のVercel |
+| 5 | 企業管理で対象企業の「健康管理Web」にチェック | ストレスチェックWebの画面 |
+
+注意点:
+
+- `dev_setup/` 配下のSQLは**絶対に実行しない**（本番にはcompanies/profilesが既にあるため）
+- ストレスチェック連携の関数は、stresリポジトリの `supabase/hm-stress-link.sql` を使う
+  （本リポジトリの旧テンプレート `0105_...` は削除済み）
+- Vercelの環境変数を本番プロジェクトのURL/keyに差し替えてRedeploy
+- ヘッダーにストレスチェックWebへのリンクを出す場合は `NEXT_PUBLIC_STRESS_URL` を設定する
+- 既存テーブル・既存ポリシー・既存関数は一切変更しない（追加のみ・読み取りのみ）
+- ストレスチェック側の `profiles` の `user_id / name / emp_id / dept` は列名を変更しない
+  （0016の別名列の定義が壊れるため）
 
 ## 今後の改善候補（TODO）
 
 - 面談予定のメール通知（Resendキー設定後に有効化。本文に健康情報を書かない原則を踏襲）
 - companyロールの招待フロー（既存 /api/invite の仕組みを流用）
-- ストレスチェックWebヘッダーからの相互リンク設置（ストレスチェックWeb側の変更）
 
 ## データベース方針
 

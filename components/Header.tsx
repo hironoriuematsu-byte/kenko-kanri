@@ -12,6 +12,9 @@ const ROLE_LABEL: Record<string, string> = {
 };
 
 export default function Header({ profile }: { profile: Profile }) {
+  // ストレスチェックWebへの導線は、URLが設定されているときだけ表示する
+  const stressUrl = process.env.NEXT_PUBLIC_STRESS_URL;
+
   return (
     <header className="site-header no-print">
       <AutoLogout />
@@ -32,9 +35,11 @@ export default function Header({ profile }: { profile: Profile }) {
           </span>
         </Link>
         <div className="header-right">
-          <a href="https://stres.vercel.app" target="_blank" rel="noopener noreferrer">
-            ストレスチェックWeb ↗
-          </a>
+          {stressUrl && (
+            <a href={stressUrl} target="_blank" rel="noopener noreferrer">
+              ストレスチェックWeb ↗
+            </a>
+          )}
           <span>
             {profile.full_name ?? "—"}（{ROLE_LABEL[profile.role] ?? profile.role}）
           </span>
