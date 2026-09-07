@@ -45,6 +45,8 @@ export default async function OfficeDashboard() {
     ]);
 
   const officeInfo = await getOfficeInfo();
+  // ストレスチェックWebへの導線は、URLが設定されているときだけ表示する
+  const stressUrl = process.env.NEXT_PUBLIC_STRESS_URL;
   const today = new Date();
   const overdue = (interviews ?? []).filter(
     (i: any) => i.scheduled_at && new Date(i.scheduled_at) < today
@@ -153,6 +155,18 @@ export default async function OfficeDashboard() {
               健康管理Webをご利用いただく企業がありません。ストレスチェックWebの
               「企業管理」で、対象の企業の「健康管理Web 併用する」にチェックを入れると
               ここに表示されます。
+            </p>
+          )}
+
+          {/* 企業台帳はストレスチェックWebと共有しているため、登録はあちらに一本化している */}
+          {stressUrl && (
+            <p className="muted" style={{ marginTop: 14 }}>
+              企業の追加・名称変更、ご担当者の招待は{" "}
+              <a href={`${stressUrl}/office`} target="_blank" rel="noopener noreferrer">
+                ストレスチェックWeb ↗
+              </a>{" "}
+              の「企業管理」「ユーザー管理」で行えます。ログインは共有しているため、
+              そのままご利用いただけます。健康管理Webのみをご利用の企業も、同じ手順で登録できます。
             </p>
           )}
         </div>
