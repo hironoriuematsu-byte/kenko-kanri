@@ -156,6 +156,11 @@ export default function CheckupsTable({
       setBusy(false);
       return;
     }
+    if (Number(data ?? 0) === 0) {
+      setError("対象が0名でした。判定は変更されていません。");
+      setBusy(false);
+      return;
+    }
     setMessage(
       `${data}名の就業判定を「${CHECKUP_WORK_JUDGMENTS[value]}」で登録しました（判定日は本日）。`
     );
@@ -175,8 +180,22 @@ export default function CheckupsTable({
     await runBulkJudgment(normalTargets.map((r) => r.id), "normal", null);
   };
 
+  // 就業制限項目(R)の該当者を、選択の手順なしでそのまま判定する
+  const onRestrictionBulk = async () => {
+    if (restrictionRows.length === 0) return;
+    const ok = window.confirm(
+      `就業制限項目（R）に該当する ${restrictionRows.length}名を、まとめて「就業制限が必要」で判定します。\n` +
+        `すでに判定済みの方も、この判定で上書きされます。\n判定日は本日として記録されます。よろしいですか？`
+    );
+    if (!ok) return;
+    await runBulkJudgment(restrictionRows.map((r) => r.id), "restricted", null);
+  };
+
   const onSelectedBulk = async () => {
-    if (selected.size === 0) return;
+    if (selected.size === 0) {
+      setError("対象が選択されていません。一覧のチェックボックス、または上の選択ボタンで対象を選んでください。");
+      return;
+    }
     const note = buildOpinionNote(bulkPresets, bulkFree);
     const ok = window.confirm(
       `選択した ${selected.size}名を「${CHECKUP_WORK_JUDGMENTS[judgment]}」で判定します。\n${
@@ -336,19 +355,23 @@ export default function CheckupsTable({
               A・B・Cの未判定 {normalTargets.length}名を「通常勤務可」で一括判定
             </button>
             {restrictionRows.length > 0 && (
-              // 判定済みでも選べるようにする(先に「通常勤務可」で一括判定した方を
+              // 判定済みの方も対象にする(先に「通常勤務可」で一括判定した方を
               // あらためて就業制限に変更できるようにするため)
+              <button
+                className="btn orange"
+                onClick={onRestrictionBulk}
+                disabled={busy}
+              >
+                就業制限項目（R）の {restrictionRows.length}名を「就業制限が必要」で一括判定
+              </button>
+            )}
+            {restrictionRows.length > 0 && (
               <button
                 className="btn secondary"
                 onClick={() => setSelected(new Set(restrictionRows.map((r) => r.id)))}
                 disabled={busy}
-                style={{ borderColor: "var(--danger)", color: "var(--danger)" }}
               >
-                就業制限項目（R）を選択（{restrictionRows.length}名
-                {restrictionRows.some((r) => !r.work_judgment)
-                  ? `・うち未判定${restrictionRows.filter((r) => !r.work_judgment).length}名`
-                  : ""}
-                ）
+                就業制限項目（R）を選択（{restrictionRows.length}名）
               </button>
             )}
             {severeRows.length > 0 && (
