@@ -7,7 +7,14 @@ import DeleteCheckupButton from "@/components/DeleteCheckupButton";
 import { requireProfile, homePathFor } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { formatDateJa } from "@/lib/fiscal";
-import { CHECKUP_TYPES, CHECKUP_WORK_JUDGMENTS, isFindingJudgment } from "@/lib/checkups";
+import {
+  CHECKUP_TYPES,
+  CHECKUP_WORK_JUDGMENTS,
+  isFindingJudgment,
+  isRestrictionJudgment,
+} from "@/lib/checkups";
+import { getJudgmentRules } from "@/lib/judgmentRules";
+import { gradeFromValue } from "@/lib/gradeFromValue";
 
 export const dynamic = "force-dynamic";
 
@@ -19,7 +26,7 @@ export default async function CheckupDetailPage({ params }: { params: { id: stri
   const { data: c } = await supabase
     .from("hm_checkups")
     .select(
-      "id, company_id, person_id, target_user_id, target_name, employee_no, birth_date, fiscal_year, checkup_type, checkup_date, overall_judgment, has_findings, work_judgment, work_judgment_note, work_judgment_date, companies(name)"
+      "id, company_id, person_id, target_user_id, target_name, employee_no, birth_date, sex, fiscal_year, checkup_type, checkup_date, overall_judgment, has_findings, work_judgment, work_judgment_note, work_judgment_date, companies(name)"
     )
     .eq("id", params.id)
     .single();
@@ -36,6 +43,10 @@ export default async function CheckupDetailPage({ params }: { params: { id: stri
     .select("id, item_name, value, judgment")
     .eq("checkup_id", c.id)
     .order("sort_order");
+
+  // 就業制限の検討水準(R)を測定値から確かめるための判定基準
+  const rules = await getJudgmentRules();
+  const sex = ((c as { sex?: string }).sex as "male" | "female" | null) ?? null;
 
   // 経年: 同一人物を カルテ紐付け → アカウント → 氏名(+生年月日) の順で特定する
   let historyQuery = supabase
@@ -174,21 +185,37 @@ export default async function CheckupDetailPage({ params }: { params: { id: stri
               </thead>
               <tbody>
                 {(items ?? []).map((it) => {
-                  const finding = isFindingJudgment(it.judgment);
+                  // 就業制限の検討水準(R)は測定値で決まるため、健診機関の判定に
+                  // かかわらず値から確かめる
+                  const restriction = isRestrictionJudgment(
+                    gradeFromValue(it.item_name, it.value, sex, rules)
+                  );
+                  const finding = restriction || isFindingJudgment(it.judgment);
                   return (
                     <tr key={it.id} style={finding ? { background: "var(--orange-light)" } : {}}>
                       <td>
                         {it.item_name}
-                        {finding && (
-                          <span className="badge orange" style={{ marginLeft: 6 }}>
-                            有所見
+                        {restriction ? (
+                          <span
+                            className="badge"
+                            style={{ marginLeft: 6, background: "#fde8e8", color: "var(--danger)" }}
+                          >
+                            就業制限の検討
                           </span>
+                        ) : (
+                          finding && (
+                            <span className="badge orange" style={{ marginLeft: 6 }}>
+                              有所見
+                            </span>
+                          )
                         )}
                       </td>
                       <td>{it.value ?? "—"}</td>
                       <td>
                         {finding ? (
-                          <strong style={{ color: "var(--danger)" }}>{it.judgment}</strong>
+                          <strong style={{ color: "var(--danger)" }}>
+                            {restriction ? `${it.judgment ?? ""}${it.judgment ? " / " : ""}R` : it.judgment}
+                          </strong>
                         ) : (
                           (it.judgment ?? "—")
                         )}

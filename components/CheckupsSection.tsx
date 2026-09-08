@@ -5,7 +5,7 @@ import RecentImports from "@/components/RecentImports";
 import { isFindingJudgment, isRestrictionJudgment, needsAttention } from "@/lib/checkups";
 import { getJudgmentRules } from "@/lib/judgmentRules";
 import { fetchCheckupItems } from "@/lib/checkupItems";
-import { findLegalItemByHeader, judgeItem, splitBloodPressure, worstGrade } from "@/lib/judgment";
+import { gradeFromValue } from "@/lib/gradeFromValue";
 
 // 健診一覧+集計(サーバーコンポーネント)。office/company共用
 export default async function CheckupsSection({
@@ -58,38 +58,25 @@ export default async function CheckupsSection({
     (checkups ?? []).map((c) => [c.id, (c.sex as "male" | "female" | null) ?? null])
   );
 
-  const gradeOf = (
-    itemName: string,
-    value: string | null,
-    sex: "male" | "female" | null
-  ): string | null => {
-    if (!value || rules.length === 0) return null;
-    const key = findLegalItemByHeader(itemName);
-    if (!key) return null;
-    // 「142/90」形式の血圧は収縮期・拡張期に分けて判定する
-    if (key === "sbp" || key === "dbp") {
-      const bp = splitBloodPressure(value);
-      if (bp.sbp != null && bp.dbp != null) {
-        return worstGrade([
-          judgeItem("sbp", String(bp.sbp), sex, rules),
-          judgeItem("dbp", String(bp.dbp), sex, rules),
-        ]);
-      }
-    }
-    return judgeItem(key, value, sex, rules);
-  };
+  const gradeOf = (itemName: string, value: string | null, sex: "male" | "female" | null) =>
+    gradeFromValue(itemName, value, sex, rules);
 
   const findingsByCheckup = new Map<
     string,
     { item_name: string; judgment: string | null; computed?: boolean }[]
   >();
   for (const it of items) {
+    // 就業制限の検討水準(R)は測定値そのもので決まるため、健診機関の判定が
+    // 入っている項目でも必ず値から確かめる(例: 健診機関がDでも随時血糖300以上ならR)
+    const g = gradeOf(it.item_name, it.value, sexById.get(it.checkup_id) ?? null);
     let judgment = it.judgment;
     let computed = false;
-    if (!isFindingJudgment(judgment)) {
+    if (isRestrictionJudgment(g)) {
+      judgment = "R";
+      computed = true;
+    } else if (!isFindingJudgment(judgment)) {
       // 判定が無い(または有所見に当たらない)項目は、事務所基準で判定してみる
       if (judgment) continue;
-      const g = gradeOf(it.item_name, it.value, sexById.get(it.checkup_id) ?? null);
       if (!isFindingJudgment(g)) continue;
       judgment = g;
       computed = true;
