@@ -90,6 +90,21 @@ export default async function CompanyDashboard() {
     <>
       <Header profile={profile} />
       <main className="container">
+        {/* 氏名はストレスチェックWeb側のプロフィールで登録する(操作記録の特定に必要) */}
+        {(!profile.full_name || profile.full_name === "未設定") && process.env.NEXT_PUBLIC_STRESS_URL && (
+          <div className="notice">
+            お名前が未登録です。操作記録で確認できるよう、
+            <a
+              href={`${process.env.NEXT_PUBLIC_STRESS_URL}/company`}
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              ストレスチェックWeb ↗
+            </a>
+            でご登録をお願いします。
+          </div>
+        )}
+
         <h1 className="page-title" style={{ marginBottom: 4 }}>
           {company?.name ?? "自社"} ダッシュボード{" "}
           {companyInfo?.address && (
