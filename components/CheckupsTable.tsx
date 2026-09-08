@@ -32,23 +32,27 @@ export type CheckupRow = {
 // 一覧の「就業判定」欄で未判定に戻すときの選択肢の値
 const CLEAR = "__clear__";
 
-// 有所見項目を判定(D・C など)ごとにまとめる。重い判定から順に並べる
-function groupFindings(items: { item_name: string; judgment: string | null }[]) {
-  const byGrade = new Map<string, { item_name: string; judgment: string | null }[]>();
+type FindingItem = { item_name: string; judgment: string | null };
+
+// 有所見項目を C と D(過去データのEを含む)に振り分ける
+function splitFindings(items: FindingItem[]) {
+  const c: FindingItem[] = [];
+  const d: FindingItem[] = [];
   for (const it of items) {
-    const grade = (it.judgment ?? "").trim().charAt(0).toUpperCase() || "—";
-    const arr = byGrade.get(grade) ?? [];
-    arr.push(it);
-    byGrade.set(grade, arr);
+    if (isSevereJudgment(it.judgment)) d.push(it);
+    else c.push(it);
   }
-  const order = ["E", "D", "C"];
-  return Array.from(byGrade.entries())
-    .sort((a, b) => {
-      const ia = order.indexOf(a[0]);
-      const ib = order.indexOf(b[0]);
-      return (ia < 0 ? order.length : ia) - (ib < 0 ? order.length : ib);
+  return { c, d };
+}
+
+// 項目名の並び(判定が C2 のように2文字以上のときは括弧で添える)
+function findingLabel(items: FindingItem[]) {
+  return items
+    .map((it) => {
+      const j = (it.judgment ?? "").trim();
+      return j.length > 1 ? `${it.item_name}(${j})` : it.item_name;
     })
-    .map(([grade, list]) => ({ grade, items: list }));
+    .join("、");
 }
 
 // 就業判定の表示色
@@ -403,7 +407,8 @@ export default function CheckupsTable({
               <th>種別</th>
               <th>健診日</th>
               <th>総合判定</th>
-              <th>有所見項目</th>
+              <th>有所見項目（C）</th>
+              <th>有所見項目（D）</th>
               <th style={{ minWidth: 130 }}>就業判定</th>
               <th style={{ minWidth: 200 }}>医師の意見</th>
             </tr>
@@ -412,6 +417,9 @@ export default function CheckupsTable({
             {rows.map((c) => {
               const attention = needsAttention(c.work_judgment);
               const opinion = parseOpinionNote(c.work_judgment_note);
+              const findings = splitFindings(c.findingItems ?? []);
+              // 項目別の判定が取り込まれていない(総合判定のみの)記録
+              const noItemFindings = findings.c.length === 0 && findings.d.length === 0 && c.has_findings;
               return (
                 <tr key={c.id} style={attention ? { background: "#fffaf5" } : {}}>
                   {showCheckbox && (
@@ -441,34 +449,24 @@ export default function CheckupsTable({
                       "—"
                     )}
                   </td>
+                  {/* 有所見項目は C と D で列を分ける。項目別判定が無い記録は、
+                      総合判定に合わせてどちらかの列に「有所見」と表示する */}
                   <td style={{ fontSize: 13 }}>
-                    {c.findingItems && c.findingItems.length > 0 ? (
-                      groupFindings(c.findingItems).map((g) => (
-                        <div key={g.grade} style={{ marginBottom: 3 }}>
-                          <span
-                            className="badge"
-                            style={
-                              g.grade === "C"
-                                ? { background: "var(--orange-light)", color: "var(--orange)" }
-                                : { background: "#fde8e8", color: "var(--danger)" }
-                            }
-                          >
-                            {g.grade}
-                          </span>{" "}
-                          {g.items.map((it, i) => (
-                            <span key={i}>
-                              {i > 0 && "、"}
-                              {it.item_name}
-                              {/* C2 のように判定が2文字以上のときは、そのまま添える */}
-                              {it.judgment && it.judgment.trim().length > 1 ? `(${it.judgment.trim()})` : ""}
-                            </span>
-                          ))}
-                        </div>
-                      ))
-                    ) : c.has_findings ? (
+                    {findings.c.length > 0 ? (
+                      findingLabel(findings.c)
+                    ) : noItemFindings && !isSevereJudgment(c.overall_judgment) ? (
                       <span className="badge orange">有所見</span>
                     ) : (
-                      "—"
+                      <span className="muted">—</span>
+                    )}
+                  </td>
+                  <td style={{ fontSize: 13, color: findings.d.length > 0 ? "var(--danger)" : undefined }}>
+                    {findings.d.length > 0 ? (
+                      <strong>{findingLabel(findings.d)}</strong>
+                    ) : noItemFindings && isSevereJudgment(c.overall_judgment) ? (
+                      <span className="badge orange">有所見</span>
+                    ) : (
+                      <span className="muted">—</span>
                     )}
                   </td>
                   <td>
