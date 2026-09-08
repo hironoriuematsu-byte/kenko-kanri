@@ -4,6 +4,7 @@ import CheckupsTable, { type CheckupRow } from "@/components/CheckupsTable";
 import RecentImports from "@/components/RecentImports";
 import { isFindingJudgment, needsAttention } from "@/lib/checkups";
 import { getJudgmentRules } from "@/lib/judgmentRules";
+import { fetchCheckupItems } from "@/lib/checkupItems";
 import { findLegalItemByHeader, judgeItem, splitBloodPressure, worstGrade } from "@/lib/judgment";
 
 // 健診一覧+集計(サーバーコンポーネント)。office/company共用
@@ -46,14 +47,9 @@ export default async function CheckupsSection({
 
   // 有所見の検査項目を一覧に表示するため、該当年度分の項目をまとめて取得
   const ids = (checkups ?? []).map((c) => c.id);
-  const { data: items } =
-    ids.length > 0
-      ? await supabase
-          .from("hm_checkup_items")
-          .select("checkup_id, item_name, value, judgment, sort_order")
-          .in("checkup_id", ids)
-          .order("sort_order")
-      : { data: [] };
+  // 受診者が多いと項目は数千行になる。分割して全件取得する
+  // (取得漏れがあると、有所見項目が「有所見」だけの表示になってしまう)
+  const items = await fetchCheckupItems(ids);
 
   // 健診機関の判定が項目ごとに入っていない場合に備え、事務所の判定基準で
   // 補って表示する(どの項目がC・Dなのかを一覧で確認できるようにするため)
@@ -87,7 +83,7 @@ export default async function CheckupsSection({
     string,
     { item_name: string; judgment: string | null; computed?: boolean }[]
   >();
-  for (const it of items ?? []) {
+  for (const it of items) {
     let judgment = it.judgment;
     let computed = false;
     if (!isFindingJudgment(judgment)) {

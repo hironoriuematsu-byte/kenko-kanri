@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import type { ReportCheckup } from "@/components/CheckupReportPanel";
 import type { ReportItem } from "@/lib/checkupReport";
+import { fetchCheckupItems } from "@/lib/checkupItems";
 
 // 報告書サマリ用に、年度内の健診結果と検査項目をまとめて取得する
 export async function getCheckupReportData(companyId: string, year: number) {
@@ -16,17 +17,11 @@ export async function getCheckupReportData(companyId: string, year: number) {
     .order("target_name");
 
   const ids = (checkups ?? []).map((c) => c.id);
-  const { data: items } =
-    ids.length > 0
-      ? await supabase
-          .from("hm_checkup_items")
-          .select("checkup_id, item_name, value, judgment, sort_order")
-          .in("checkup_id", ids)
-          .order("sort_order")
-      : { data: [] };
+  // 受診者が多いと項目は数千行になる。分割して全件取得する(集計漏れの防止)
+  const items = await fetchCheckupItems(ids);
 
   return {
     checkups: (checkups as ReportCheckup[]) ?? [],
-    items: (items as ReportItem[]) ?? [],
+    items: items as ReportItem[],
   };
 }
