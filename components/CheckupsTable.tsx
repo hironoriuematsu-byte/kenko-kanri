@@ -114,6 +114,15 @@ export default function CheckupsTable({
   );
   const attentionRows = useMemo(() => rows.filter((r) => needsAttention(r.work_judgment)), [rows]);
   const judgedRows = useMemo(() => rows.filter((r) => r.work_judgment), [rows]);
+  // 判定区分ごとの該当者(区分ごとに一括で取り消せるようにする)
+  const judgedByValue = useMemo(() => {
+    const m = new Map<string, CheckupRow[]>();
+    for (const r of judgedRows) {
+      const key = r.work_judgment!;
+      m.set(key, [...(m.get(key) ?? []), r]);
+    }
+    return m;
+  }, [judgedRows]);
   const hasComputed = useMemo(
     () => rows.some((r) => (r.findingItems ?? []).some((it) => it.computed)),
     [rows]
@@ -349,16 +358,46 @@ export default function CheckupsTable({
                 要対応（未判定・判定保留）を選択（{attentionRows.length}名）
               </button>
             )}
-            {judgedRows.length > 0 && (
-              <button
-                className="btn secondary"
-                onClick={() => setSelected(new Set(judgedRows.map((r) => r.id)))}
-                disabled={busy}
-              >
-                判定済みを選択（{judgedRows.length}名）
-              </button>
-            )}
           </div>
+
+          {judgedRows.length > 0 && (
+            <div style={{ marginTop: 12, paddingTop: 12, borderTop: "1px solid var(--teal)" }}>
+              <strong style={{ color: "var(--teal-dark)", fontSize: 13 }}>判定の取り消し</strong>
+              <p className="muted" style={{ margin: "4px 0 8px" }}>
+                判定区分ごとに、まとめて未判定に戻せます。判定日と「医師の意見」も一緒に消えます。
+              </p>
+              <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+                {Object.entries(CHECKUP_WORK_JUDGMENTS).map(([key, label]) => {
+                  const targets = judgedByValue.get(key) ?? [];
+                  if (targets.length === 0) return null;
+                  return (
+                    <button
+                      key={key}
+                      className="btn secondary"
+                      onClick={() =>
+                        clearJudgment(
+                          targets.map((r) => r.id),
+                          `「${label}」の ${targets.length}名`
+                        )
+                      }
+                      disabled={busy}
+                    >
+                      「{label}」{targets.length}名を取り消す
+                    </button>
+                  );
+                })}
+                <button
+                  className="btn secondary"
+                  onClick={() =>
+                    clearJudgment(judgedRows.map((r) => r.id), `判定済みの ${judgedRows.length}名すべて`)
+                  }
+                  disabled={busy}
+                >
+                  判定済み {judgedRows.length}名すべてを取り消す
+                </button>
+              </div>
+            </div>
+          )}
 
           {selected.size > 0 && (
             <div
