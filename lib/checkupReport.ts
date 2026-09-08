@@ -13,7 +13,8 @@ export const REPORT_CATEGORIES: {
   { key: "hearing4000", label: "聴力検査（4000Hz）", itemKeys: ["hearing4000"] },
   { key: "hearing_other", label: "聴力検査（その他の方法）", namePattern: /聴力.*(その他|簡易|会話)/ },
   { key: "chest_xray", label: "胸部エックス線検査", namePattern: /胸部|エックス線|ｘ線|x線|レントゲン/i },
-  { key: "sputum", label: "喀痰検査", namePattern: /喀痰|かくたん/ },
+  // 喀痰検査は集計・出力しない(定期健診では実施されないことが多く、
+  // 欄が常に0名で並ぶため省略する)
   { key: "bp", label: "血圧", itemKeys: ["sbp", "dbp"], namePattern: /血圧/ },
   {
     key: "anemia",
