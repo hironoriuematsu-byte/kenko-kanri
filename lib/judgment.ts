@@ -51,16 +51,29 @@ export const LEGAL_ITEMS: {
   { key: "glucose", label: "空腹時血糖(FPG)", unit: "mg/dL", aliases: ["空腹時血糖", "fpg", "血糖", "glu"] },
   { key: "casual_glucose", label: "随時血糖", unit: "mg/dL", aliases: ["随時血糖", "随時"] },
   { key: "hba1c", label: "HbA1c(NGSP)", unit: "%", aliases: ["hba1c", "ヘモグロビンa1c"] },
-  { key: "hb", label: "血色素量(Hb)", unit: "g/dL", sexSpecific: true, aliases: ["血色素", "ヘモグロビン", "hb"] },
+  {
+    key: "hb",
+    label: "血色素量(Hb)",
+    unit: "g/dL",
+    sexSpecific: true,
+    aliases: ["血色素", "血液素量", "ヘモグロビン", "hgb", "hb"],
+  },
   { key: "urine_glucose", label: "尿糖", aliases: ["尿糖"] },
   { key: "urine_protein", label: "尿蛋白", aliases: ["尿蛋白", "尿たん白", "尿タンパク"] },
 ];
 
+// 見出しの表記ゆれを吸収する。
+// NFKC正規化により、半角カナ(ﾍﾓｸﾞﾛﾋﾞﾝ)は全角カナ(ヘモグロビン)に、
+// 全角英数(ＢＭＩ)は半角(BMI)に揃う。健診機関のCSVは半角カナが多い。
+function normalizeHeader(s: string): string {
+  return s.normalize("NFKC").toLowerCase().replace(/[\s　()（）]/g, "");
+}
+
 export function findLegalItemByHeader(header: string): string | null {
-  const h = header.toLowerCase().replace(/[\s　()（）]/g, "");
+  const h = normalizeHeader(header);
   // 「HbA1c」を「Hb」より優先するため、別名の長い順に判定する
   const candidates = LEGAL_ITEMS.flatMap((it) =>
-    it.aliases.map((a) => ({ key: it.key, alias: a.toLowerCase().replace(/[\s　]/g, "") }))
+    it.aliases.map((a) => ({ key: it.key, alias: normalizeHeader(a) }))
   ).sort((a, b) => b.alias.length - a.alias.length);
   for (const c of candidates) {
     if (h.includes(c.alias)) return c.key;
