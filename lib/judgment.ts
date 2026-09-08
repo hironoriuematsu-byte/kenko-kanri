@@ -119,7 +119,8 @@ export function parseNumber(value: string): number | null {
 export function normalizeQualitative(value: string): string {
   const v = value.trim().replace(/[\s　]/g, "").replace(/[＋]/g, "+").replace(/[－ー−]/g, "-");
   if (/^\(?-\)?$|^陰性$/.test(v)) return "-";
-  if (/^\(?±\)?$|^擬陽性$|^疑陽性$/.test(v)) return "±";
+  // ± は健診機関により「±」「(±)」「+-」「(+-)」「-+」などの表記がある
+  if (/^\(?±\)?$|^\(?\+-\)?$|^\(?-\+\)?$|^擬陽性$|^疑陽性$/.test(v)) return "±";
   const m = v.match(/^\(?(\d)?\+{1,4}\)?$/);
   if (m) {
     const plusCount = (v.match(/\+/g) ?? []).length;
@@ -150,8 +151,10 @@ export function judgeItem(
     for (const r of applicable) {
       if (r.match_text && normalizeQualitative(r.match_text) === v) hits.push(r.grade);
     }
-    // 3+以上など基準にない強陽性は最も重い判定に寄せる
-    if (hits.length === 0 && /\+/.test(v)) {
+    // 4+以上など基準にない強陽性は最も重い判定に寄せる。
+    // 「+」を含むだけの表記(± の別記法など)を巻き込まないよう、
+    // 陽性のみの表記に限る
+    if (hits.length === 0 && /^\(?\d?\+{1,4}\)?$/.test(v)) {
       const worst = worstGrade(applicable.map((r) => r.grade));
       if (worst) hits.push(worst);
     }
