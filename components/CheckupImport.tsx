@@ -16,6 +16,7 @@ import {
   LEGAL_ITEMS,
   findLegalItemByHeader,
   judgeItem,
+  overallGrade,
   splitBloodPressure,
   worstGrade,
   type Grade,
@@ -183,7 +184,8 @@ export default function CheckupImport({
         const csvOverall =
           judgmentCol >= 0 ? (r[judgmentCol] ?? "").trim().toUpperCase() : "";
         // 自動判定ONのときは、最も重い項目判定を総合判定とする
-        const autoOverall = autoJudge ? worstGrade(autoGrades) : null;
+        // (Rは就業制限の検討を表す印のため、総合判定としてはDに読み替える)
+        const autoOverall = autoJudge ? overallGrade(worstGrade(autoGrades)) : null;
 
         const targetName = (r[nameCol] ?? "").trim();
         const employeeNo = empNoCol >= 0 ? (r[empNoCol] ?? "").trim() : "";

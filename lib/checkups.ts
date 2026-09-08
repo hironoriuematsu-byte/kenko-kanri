@@ -47,19 +47,29 @@ export const FOLLOWUP_STATUS: Record<string, string> = {
 };
 
 // 有所見とみなす総合判定・項目判定(取込時の既定値)
-export const DEFAULT_FINDINGS_JUDGMENTS = ["C", "D", "E"];
+export const DEFAULT_FINDINGS_JUDGMENTS = ["C", "D", "E", "R"];
 
-// 判定文字が有所見に当たるか(C/D/E で始まるものを有所見扱い)
+// 判定文字が有所見に当たるか(C/D/E/R で始まるものを有所見扱い)
 export function isFindingJudgment(judgment: string | null | undefined): boolean {
   if (!judgment) return false;
-  return /^[CDE]/i.test(judgment.trim());
+  return /^[CDER]/i.test(judgment.trim());
+}
+
+// 就業制限の検討が必要な水準(R)か。
+// 厚生労働科学研究「健康診断の有所見者に対して、健康管理を行う事を目的とした、
+// 産業医による就業上の意見に関する実態調査、およびコンセンサス調査」で
+// コンセンサスが得られた値を超えたことを表す。
+export function isRestrictionJudgment(judgment: string | null | undefined): boolean {
+  if (!judgment) return false;
+  return /^R/i.test(judgment.trim());
 }
 
 // 産業医が個別に就業判定すべき重度判定(D)か
 // ※ 過去に健診機関の判定でEが入っているデータも同様に扱う
+//   Rは就業制限の検討が必要な水準のため、当然に個別判定の対象とする
 export function isSevereJudgment(judgment: string | null | undefined): boolean {
   if (!judgment) return false;
-  return /^[DE]/i.test(judgment.trim());
+  return /^[DER]/i.test(judgment.trim());
 }
 
 // シンプルなCSVパーサ(ダブルクォート・改行・BOM対応)

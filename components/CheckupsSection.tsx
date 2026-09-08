@@ -2,7 +2,7 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import CheckupsTable, { type CheckupRow } from "@/components/CheckupsTable";
 import RecentImports from "@/components/RecentImports";
-import { isFindingJudgment, needsAttention } from "@/lib/checkups";
+import { isFindingJudgment, isRestrictionJudgment, needsAttention } from "@/lib/checkups";
 import { getJudgmentRules } from "@/lib/judgmentRules";
 import { fetchCheckupItems } from "@/lib/checkupItems";
 import { findLegalItemByHeader, judgeItem, splitBloodPressure, worstGrade } from "@/lib/judgment";
@@ -114,6 +114,10 @@ export default async function CheckupsSection({
   ).length;
   const instructedRate =
     total >= 10 ? Math.round((instructed / total) * 1000) / 10 : null;
+  // 就業制限の検討が必要な水準(R)の項目を持つ方
+  const restrictionCount = list.filter((c) =>
+    c.findingItems.some((it) => isRestrictionJudgment(it.judgment))
+  ).length;
   const attention = list.filter((c) => needsAttention(c.work_judgment)).length;
   const held = list.filter((c) => c.work_judgment === "pending").length;
   const restricted = list.filter(
@@ -213,6 +217,21 @@ export default async function CheckupsSection({
                     <span className="muted" style={{ marginLeft: 6 }}>
                       （うち判定保留 {held}名）
                     </span>
+                  )}
+                </td>
+              </tr>
+              <tr>
+                <th>就業制限項目（R）</th>
+                <td colSpan={3}>
+                  {restrictionCount > 0 ? (
+                    <>
+                      <strong style={{ color: "var(--danger)" }}>{restrictionCount}名</strong>
+                      <span className="muted" style={{ marginLeft: 8 }}>
+                        就業上の措置を検討する水準の項目があります（一覧の「就業制限項目（R）」欄）
+                      </span>
+                    </>
+                  ) : (
+                    "0名"
                   )}
                 </td>
               </tr>

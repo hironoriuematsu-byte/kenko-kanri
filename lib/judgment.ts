@@ -7,16 +7,24 @@ export type JudgmentRule = {
   item_label: string;
   unit: string | null;
   sex: "all" | "male" | "female";
-  grade: "B" | "C" | "D";
+  grade: "B" | "C" | "D" | "R";
   min_value: number | null;
   max_value: number | null;
   match_text: string | null;
   sort_order: number;
 };
 
-export type Grade = "A" | "B" | "C" | "D";
+// R = 就業制限の検討が必要な水準(厚生労働科学研究のコンセンサス値)。
+// A〜Dの延長ではなく「就業上の措置を検討する段階」を表すため、最も重く扱う。
+export type Grade = "A" | "B" | "C" | "D" | "R";
 
-const ORDER: Record<Grade, number> = { A: 0, B: 1, C: 2, D: 3 };
+const ORDER: Record<Grade, number> = { A: 0, B: 1, C: 2, D: 3, R: 4 };
+
+// 総合判定はA〜Dで表すため、Rは総合判定としてはDに読み替える
+export function overallGrade(grade: Grade | null): Exclude<Grade, "R"> | null {
+  if (!grade) return null;
+  return grade === "R" ? "D" : grade;
+}
 
 export function worstGrade(grades: (Grade | null | undefined)[]): Grade | null {
   let worst: Grade | null = null;
@@ -51,6 +59,13 @@ export const LEGAL_ITEMS: {
   { key: "glucose", label: "空腹時血糖(FPG)", unit: "mg/dL", aliases: ["空腹時血糖", "fpg", "血糖", "glu"] },
   { key: "casual_glucose", label: "随時血糖", unit: "mg/dL", aliases: ["随時血糖", "随時"] },
   { key: "hba1c", label: "HbA1c(NGSP)", unit: "%", aliases: ["hba1c", "ヘモグロビンa1c"] },
+  {
+    key: "cre",
+    label: "クレアチニン",
+    unit: "mg/dL",
+    sexSpecific: true,
+    aliases: ["クレアチニン", "cre", "crea", "creatinine"],
+  },
   {
     key: "rbc",
     label: "赤血球数",

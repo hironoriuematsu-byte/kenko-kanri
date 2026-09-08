@@ -10,6 +10,7 @@ import {
   CHECKUP_WORK_JUDGMENTS,
   OPINION_PRESETS,
   buildOpinionNote,
+  isRestrictionJudgment,
   isSevereJudgment,
   needsAttention,
   parseOpinionNote,
@@ -34,15 +35,17 @@ export type CheckupRow = {
 // 一覧の「就業判定」欄で未判定に戻すときの選択肢の値
 const CLEAR = "__clear__";
 
-// 有所見項目を C と D(過去データのEを含む)に振り分ける
+// 有所見項目を C / D(過去データのEを含む) / R(就業制限の検討)に振り分ける
 function splitFindings(items: FindingItem[]) {
   const c: FindingItem[] = [];
   const d: FindingItem[] = [];
+  const r: FindingItem[] = [];
   for (const it of items) {
-    if (isSevereJudgment(it.judgment)) d.push(it);
+    if (isRestrictionJudgment(it.judgment)) r.push(it);
+    else if (isSevereJudgment(it.judgment)) d.push(it);
     else c.push(it);
   }
-  return { c, d };
+  return { c, d, r };
 }
 
 // 項目名の並び
@@ -89,9 +92,21 @@ export default function CheckupsTable({
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
 
-  const normalTargets = useMemo(
-    () => rows.filter((r) => !r.work_judgment && !isSevereJudgment(r.overall_judgment)),
+  // 就業制限の検討が必要な水準(R)の項目を持つ方
+  const restrictionRows = useMemo(
+    () => rows.filter((r) => (r.findingItems ?? []).some((it) => isRestrictionJudgment(it.judgment))),
     [rows]
+  );
+  const restrictionIds = useMemo(() => new Set(restrictionRows.map((r) => r.id)), [restrictionRows]);
+
+  // 「通常勤務可」で一括判定してよい方(総合判定D以上とR該当は個別に判定する)
+  const normalTargets = useMemo(
+    () =>
+      rows.filter(
+        (r) =>
+          !r.work_judgment && !isSevereJudgment(r.overall_judgment) && !restrictionIds.has(r.id)
+      ),
+    [rows, restrictionIds]
   );
   const severeRows = useMemo(
     () => rows.filter((r) => isSevereJudgment(r.overall_judgment)),
@@ -305,11 +320,25 @@ export default function CheckupsTable({
           <strong style={{ color: "var(--teal-dark)", fontSize: 14 }}>就業判定の一括入力</strong>
           <p className="muted" style={{ margin: "4px 0 10px" }}>
             判定日は実行した当日が自動で記録されます。1名ずつは一覧の「就業判定」欄から選択できます。
+            就業制限項目（R）に該当する方は「通常勤務可」の一括判定の対象から外れます。
           </p>
           <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
             <button className="btn" onClick={onNormalBulk} disabled={busy || normalTargets.length === 0}>
               A・B・Cの未判定 {normalTargets.length}名を「通常勤務可」で一括判定
             </button>
+            {restrictionRows.length > 0 && (
+              <button
+                className="btn secondary"
+                onClick={() =>
+                  setSelected(new Set(restrictionRows.filter((r) => !r.work_judgment).map((r) => r.id)))
+                }
+                disabled={busy}
+                style={{ borderColor: "var(--danger)", color: "var(--danger)" }}
+              >
+                就業制限項目（R）の未判定を選択（
+                {restrictionRows.filter((r) => !r.work_judgment).length}名）
+              </button>
+            )}
             {severeRows.length > 0 && (
               <button className="btn secondary" onClick={onSelectSevereUnjudged} disabled={busy}>
                 Dの未判定を選択（{severeRows.filter((r) => !r.work_judgment).length}名）
@@ -416,6 +445,7 @@ export default function CheckupsTable({
               <th>総合判定</th>
               <th>有所見項目（C）</th>
               <th>有所見項目（D）</th>
+              <th>就業制限項目（R）</th>
               <th style={{ minWidth: 130 }}>就業判定</th>
               <th style={{ minWidth: 200 }}>医師の意見</th>
             </tr>
@@ -472,6 +502,14 @@ export default function CheckupsTable({
                       <strong>{findingLabel(findings.d)}</strong>
                     ) : noItemFindings && isSevereJudgment(c.overall_judgment) ? (
                       <span className="badge orange">有所見</span>
+                    ) : (
+                      <span className="muted">—</span>
+                    )}
+                  </td>
+                  {/* 就業制限の検討が必要な水準(R)。コンセンサス値を超えた項目 */}
+                  <td style={{ fontSize: 13 }}>
+                    {findings.r.length > 0 ? (
+                      <strong style={{ color: "var(--danger)" }}>{findingLabel(findings.r)}</strong>
                     ) : (
                       <span className="muted">—</span>
                     )}

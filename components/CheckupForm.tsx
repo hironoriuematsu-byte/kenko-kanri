@@ -10,6 +10,7 @@ import DateTextInput from "@/components/DateTextInput";
 import {
   LEGAL_ITEMS,
   judgeItem,
+  overallGrade,
   splitBloodPressure,
   worstGrade,
   type Grade,
@@ -63,7 +64,8 @@ export default function CheckupForm({
     return judgeItem(row.itemKey, row.value, sex || null, rules);
   };
 
-  const autoOverall = autoJudge ? worstGrade(items.map(judgeRow)) : null;
+  // Rは就業制限の検討を表す印のため、総合判定としてはDに読み替える
+  const autoOverall = autoJudge ? overallGrade(worstGrade(items.map(judgeRow))) : null;
 
   const onSubmit = async (e: FormEvent) => {
     e.preventDefault();

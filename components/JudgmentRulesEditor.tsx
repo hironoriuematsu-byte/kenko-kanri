@@ -157,6 +157,7 @@ export default function JudgmentRulesEditor({ initial }: { initial: JudgmentRule
                         <option value="B">B</option>
                         <option value="C">C</option>
                         <option value="D">D</option>
+                        <option value="R">R（就業制限の検討）</option>
                       </select>
                     </td>
                     <td>
