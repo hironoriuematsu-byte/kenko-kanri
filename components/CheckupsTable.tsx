@@ -29,6 +29,9 @@ export type CheckupRow = {
   findingItems?: { item_name: string; judgment: string | null }[];
 };
 
+// 一覧の「就業判定」欄で未判定に戻すときの選択肢の値
+const CLEAR = "__clear__";
+
 // 就業判定の表示色
 const judgmentStyle = (j: string | null): React.CSSProperties => {
   if (!j) return { color: "var(--danger)", fontWeight: 700 };
@@ -69,6 +72,7 @@ export default function CheckupsTable({
     [rows]
   );
   const attentionRows = useMemo(() => rows.filter((r) => needsAttention(r.work_judgment)), [rows]);
+  const judgedRows = useMemo(() => rows.filter((r) => r.work_judgment), [rows]);
 
   const toggle = (id: string) =>
     setSelected((prev) => {
@@ -134,7 +138,35 @@ export default function CheckupsTable({
 
   const onSelectAttention = () => setSelected(new Set(attentionRows.map((r) => r.id)));
 
+  // 就業判定の取り消し(未判定に戻す)。判定日・医師の意見も一緒に消える
+  const clearJudgment = async (ids: string[], label: string) => {
+    const ok = window.confirm(
+      `${label}の就業判定を取り消し、未判定の状態に戻します。\n` +
+        `判定日と「医師の意見」も一緒に消えます。よろしいですか？`
+    );
+    if (!ok) return;
+    setBusy(true);
+    setError(null);
+    setMessage(null);
+    const supabase = createClient();
+    const { data, error } = await supabase.rpc("hm_clear_work_judgment", { p_ids: ids });
+    if (error) {
+      setError(`判定の取り消しに失敗しました: ${error.message}`);
+      setBusy(false);
+      return;
+    }
+    setMessage(`${data}名の就業判定を取り消しました(未判定に戻りました)。`);
+    setSelected(new Set());
+    setBusy(false);
+    router.refresh();
+  };
+
   const onRowJudgment = async (id: string, value: string) => {
+    if (value === CLEAR) {
+      const target = rows.find((r) => r.id === id);
+      await clearJudgment([id], target?.target_name ?? "この方");
+      return;
+    }
     setBusy(true);
     setError(null);
     setMessage(null);
@@ -258,6 +290,15 @@ export default function CheckupsTable({
                 要対応（未判定・判定保留）を選択（{attentionRows.length}名）
               </button>
             )}
+            {judgedRows.length > 0 && (
+              <button
+                className="btn secondary"
+                onClick={() => setSelected(new Set(judgedRows.map((r) => r.id)))}
+                disabled={busy}
+              >
+                判定済みを選択（{judgedRows.length}名）
+              </button>
+            )}
           </div>
 
           {selected.size > 0 && (
@@ -299,6 +340,13 @@ export default function CheckupsTable({
                 </div>
                 <button className="btn orange" onClick={onSelectedBulk} disabled={busy}>
                   {busy ? "処理中…" : "選択者をまとめて判定"}
+                </button>
+                <button
+                  className="btn secondary"
+                  onClick={() => clearJudgment(Array.from(selected), `選択した ${selected.size}名`)}
+                  disabled={busy}
+                >
+                  判定を取り消す
                 </button>
               </div>
             </div>
@@ -404,6 +452,7 @@ export default function CheckupsTable({
                             {v}
                           </option>
                         ))}
+                        {c.work_judgment && <option value={CLEAR}>― 判定を取り消す（未判定に戻す）</option>}
                       </select>
                     ) : (
                       <span style={judgmentStyle(c.work_judgment)}>

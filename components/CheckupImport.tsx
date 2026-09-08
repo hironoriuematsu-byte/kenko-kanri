@@ -59,6 +59,8 @@ export default function CheckupImport({
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [done, setDone] = useState<number | null>(null);
+  const [batchId, setBatchId] = useState<string | null>(null); // 取込の取り消しに使う
+  const [undone, setUndone] = useState(false);
 
   const header = rows?.[0] ?? [];
   const dataRows = useMemo(() => (rows ? rows.slice(1) : []), [rows]);
@@ -220,8 +222,39 @@ export default function CheckupImport({
       setBusy(false);
       return;
     }
-    setDone(data as number);
+    // 取込RPCは件数と取込ID(取り消しに使う)を返す
+    const result = (data ?? {}) as { count?: number; batch_id?: string };
+    setDone(result.count ?? 0);
+    setBatchId(result.batch_id ?? null);
     setBusy(false);
+  };
+
+  // 直前の取込をまとめて取り消す(列の選び違い・年度の誤りなどの修正用)
+  const undoImport = async () => {
+    if (!batchId) return;
+    const ok = window.confirm(
+      `いま取り込んだ ${done}名分の健診記録を削除します。\n` +
+        `この操作は元に戻せません。よろしいですか？`
+    );
+    if (!ok) return;
+    const reason = window.prompt("取り消す理由を入力してください（監査ログに記録されます）:", "取込内容の誤り");
+    if (!reason) return;
+
+    setBusy(true);
+    setError(null);
+    const supabase = createClient();
+    const { error } = await supabase.rpc("hm_delete_import_batch", {
+      p_batch: batchId,
+      p_reason: reason,
+    });
+    if (error) {
+      setError(`取り消しに失敗しました: ${error.message}`);
+      setBusy(false);
+      return;
+    }
+    setUndone(true);
+    setBusy(false);
+    router.refresh();
   };
 
   const colSelect = (value: number, onChange: (n: number) => void) => (
@@ -245,9 +278,25 @@ export default function CheckupImport({
           <strong>{done}名分</strong>の健診結果を取り込みました。
           {autoJudge && "（総合判定は事務所基準で自動判定しました）"}
         </p>
-        <button className="btn" onClick={() => router.push(backHref)}>
-          健診一覧へ戻る
-        </button>
+        {undone ? (
+          <p className="muted">この取込を取り消しました。</p>
+        ) : (
+          <p className="muted">
+            列の選び方や年度を誤った場合は、この取込をまとめて取り消せます
+            （健診一覧の「最近の取込」からも取り消せます）。
+          </p>
+        )}
+        {error && <p className="error-message">{error}</p>}
+        <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+          <button className="btn" onClick={() => router.push(backHref)}>
+            健診一覧へ戻る
+          </button>
+          {batchId && !undone && (
+            <button className="btn danger" onClick={undoImport} disabled={busy}>
+              {busy ? "処理中…" : "この取込を取り消す"}
+            </button>
+          )}
+        </div>
       </div>
     );
   }

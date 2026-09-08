@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import CheckupsTable, { type CheckupRow } from "@/components/CheckupsTable";
+import RecentImports from "@/components/RecentImports";
 import { isFindingJudgment, needsAttention } from "@/lib/checkups";
 
 // 健診一覧+集計(サーバーコンポーネント)。office/company共用
@@ -102,6 +103,9 @@ export default async function CheckupsSection({
           </Link>
         )}
       </p>
+
+      {/* 取込ミスの取り消しは実施者のみ(canDelete)。個別入力の記録は対象外 */}
+      {canDelete && <RecentImports companyId={companyId} />}
 
       {years.length > 0 && (
         <p style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
