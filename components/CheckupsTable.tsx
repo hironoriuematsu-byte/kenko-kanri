@@ -336,16 +336,19 @@ export default function CheckupsTable({
               A・B・Cの未判定 {normalTargets.length}名を「通常勤務可」で一括判定
             </button>
             {restrictionRows.length > 0 && (
+              // 判定済みでも選べるようにする(先に「通常勤務可」で一括判定した方を
+              // あらためて就業制限に変更できるようにするため)
               <button
                 className="btn secondary"
-                onClick={() =>
-                  setSelected(new Set(restrictionRows.filter((r) => !r.work_judgment).map((r) => r.id)))
-                }
+                onClick={() => setSelected(new Set(restrictionRows.map((r) => r.id)))}
                 disabled={busy}
                 style={{ borderColor: "var(--danger)", color: "var(--danger)" }}
               >
-                就業制限項目（R）の未判定を選択（
-                {restrictionRows.filter((r) => !r.work_judgment).length}名）
+                就業制限項目（R）を選択（{restrictionRows.length}名
+                {restrictionRows.some((r) => !r.work_judgment)
+                  ? `・うち未判定${restrictionRows.filter((r) => !r.work_judgment).length}名`
+                  : ""}
+                ）
               </button>
             )}
             {severeRows.length > 0 && (

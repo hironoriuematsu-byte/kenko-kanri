@@ -36,6 +36,7 @@ export default async function OfficeCheckupsPage({
         <div className="card">
           <CheckupsSection
             companyId={company.id}
+            companyName={company.name}
             basePath={`/office/${company.id}/checkups`}
             selectedYear={searchParams.year ? Number(searchParams.year) : undefined}
             canEdit

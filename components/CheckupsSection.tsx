@@ -3,6 +3,8 @@ import { createClient } from "@/lib/supabase/server";
 import CheckupsTable, { type CheckupRow } from "@/components/CheckupsTable";
 import RecentImports from "@/components/RecentImports";
 import RecomputeJudgments from "@/components/RecomputeJudgments";
+import WorkJudgmentReportButton from "@/components/WorkJudgmentReportButton";
+import { getOfficeInfo } from "@/lib/officeInfo";
 import { isFindingJudgment, isRestrictionJudgment, needsAttention } from "@/lib/checkups";
 import { getJudgmentRules } from "@/lib/judgmentRules";
 import { fetchCheckupItems } from "@/lib/checkupItems";
@@ -11,6 +13,7 @@ import { gradeFromValue } from "@/lib/gradeFromValue";
 // 健診一覧+集計(サーバーコンポーネント)。office/company共用
 export default async function CheckupsSection({
   companyId,
+  companyName,
   basePath,
   selectedYear,
   canEdit,
@@ -18,6 +21,7 @@ export default async function CheckupsSection({
   canJudge = false,
 }: {
   companyId: string;
+  companyName: string;
   basePath: string;
   selectedYear?: number;
   canEdit: boolean;
@@ -25,6 +29,7 @@ export default async function CheckupsSection({
   canJudge?: boolean;
 }) {
   const supabase = createClient();
+  const officeInfo = await getOfficeInfo();
 
   const { data: yearRows } = await supabase
     .from("hm_checkups")
@@ -128,9 +133,18 @@ export default async function CheckupsSection({
           </>
         )}
         {year && (
-          <Link className="btn" href={`${basePath}/report?year=${year}`}>
-            定期健診結果報告書のサマリ・CSV出力
-          </Link>
+          <>
+            {/* 事業者が就業上の措置を検討するための一覧 */}
+            <WorkJudgmentReportButton
+              companyName={companyName}
+              fiscalYear={year}
+              rows={list as CheckupRow[]}
+              officeInfo={officeInfo}
+            />
+            <Link className="btn" href={`${basePath}/report?year=${year}`}>
+              定期健診結果報告書のサマリ・CSV出力
+            </Link>
+          </>
         )}
       </p>
 
