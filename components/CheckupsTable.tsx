@@ -15,6 +15,8 @@ import {
   parseOpinionNote,
 } from "@/lib/checkups";
 
+export type FindingItem = { item_name: string; judgment: string | null; computed?: boolean };
+
 export type CheckupRow = {
   id: string;
   target_name: string;
@@ -26,13 +28,11 @@ export type CheckupRow = {
   work_judgment: string | null;
   work_judgment_note: string | null;
   work_judgment_date: string | null;
-  findingItems?: { item_name: string; judgment: string | null }[];
+  findingItems?: FindingItem[];
 };
 
 // 一覧の「就業判定」欄で未判定に戻すときの選択肢の値
 const CLEAR = "__clear__";
-
-type FindingItem = { item_name: string; judgment: string | null };
 
 // 有所見項目を C と D(過去データのEを含む)に振り分ける
 function splitFindings(items: FindingItem[]) {
@@ -45,12 +45,15 @@ function splitFindings(items: FindingItem[]) {
   return { c, d };
 }
 
-// 項目名の並び(判定が C2 のように2文字以上のときは括弧で添える)
+// 項目名の並び
+//   判定が C2 のように2文字以上のときは括弧で添える
+//   事務所基準で補って判定した項目には * を付ける(欄外に注記)
 function findingLabel(items: FindingItem[]) {
   return items
     .map((it) => {
       const j = (it.judgment ?? "").trim();
-      return j.length > 1 ? `${it.item_name}(${j})` : it.item_name;
+      const mark = it.computed ? "*" : "";
+      return j.length > 1 ? `${it.item_name}(${j})${mark}` : `${it.item_name}${mark}`;
     })
     .join("、");
 }
@@ -96,6 +99,10 @@ export default function CheckupsTable({
   );
   const attentionRows = useMemo(() => rows.filter((r) => needsAttention(r.work_judgment)), [rows]);
   const judgedRows = useMemo(() => rows.filter((r) => r.work_judgment), [rows]);
+  const hasComputed = useMemo(
+    () => rows.some((r) => (r.findingItems ?? []).some((it) => it.computed)),
+    [rows]
+  );
 
   const toggle = (id: string) =>
     setSelected((prev) => {
@@ -565,6 +572,12 @@ export default function CheckupsTable({
           </tbody>
         </table>
       </div>
+
+      {hasComputed && (
+        <p className="muted" style={{ fontSize: 12, marginTop: 6 }}>
+          * 健診機関の項目別判定が入っていない項目について、事務所の判定基準で判定した結果です。
+        </p>
+      )}
     </div>
   );
 }

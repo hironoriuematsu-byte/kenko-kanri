@@ -3,6 +3,8 @@ import { createClient } from "@/lib/supabase/server";
 import CheckupsTable, { type CheckupRow } from "@/components/CheckupsTable";
 import RecentImports from "@/components/RecentImports";
 import { isFindingJudgment, needsAttention } from "@/lib/checkups";
+import { getJudgmentRules } from "@/lib/judgmentRules";
+import { findLegalItemByHeader, judgeItem, splitBloodPressure, worstGrade } from "@/lib/judgment";
 
 // 健診一覧+集計(サーバーコンポーネント)。office/company共用
 export default async function CheckupsSection({
@@ -34,7 +36,7 @@ export default async function CheckupsSection({
     ? await supabase
         .from("hm_checkups")
         .select(
-          "id, target_name, employee_no, checkup_type, checkup_date, overall_judgment, has_findings, work_judgment, work_judgment_note, work_judgment_date"
+          "id, target_name, employee_no, sex, checkup_type, checkup_date, overall_judgment, has_findings, work_judgment, work_judgment_note, work_judgment_date"
         )
         .eq("company_id", companyId)
         .eq("fiscal_year", year)
@@ -48,16 +50,56 @@ export default async function CheckupsSection({
     ids.length > 0
       ? await supabase
           .from("hm_checkup_items")
-          .select("checkup_id, item_name, judgment, sort_order")
+          .select("checkup_id, item_name, value, judgment, sort_order")
           .in("checkup_id", ids)
           .order("sort_order")
       : { data: [] };
 
-  const findingsByCheckup = new Map<string, { item_name: string; judgment: string | null }[]>();
+  // 健診機関の判定が項目ごとに入っていない場合に備え、事務所の判定基準で
+  // 補って表示する(どの項目がC・Dなのかを一覧で確認できるようにするため)
+  const rules = await getJudgmentRules();
+  const sexById = new Map<string, "male" | "female" | null>(
+    (checkups ?? []).map((c) => [c.id, (c.sex as "male" | "female" | null) ?? null])
+  );
+
+  const gradeOf = (
+    itemName: string,
+    value: string | null,
+    sex: "male" | "female" | null
+  ): string | null => {
+    if (!value || rules.length === 0) return null;
+    const key = findLegalItemByHeader(itemName);
+    if (!key) return null;
+    // 「142/90」形式の血圧は収縮期・拡張期に分けて判定する
+    if (key === "sbp" || key === "dbp") {
+      const bp = splitBloodPressure(value);
+      if (bp.sbp != null && bp.dbp != null) {
+        return worstGrade([
+          judgeItem("sbp", String(bp.sbp), sex, rules),
+          judgeItem("dbp", String(bp.dbp), sex, rules),
+        ]);
+      }
+    }
+    return judgeItem(key, value, sex, rules);
+  };
+
+  const findingsByCheckup = new Map<
+    string,
+    { item_name: string; judgment: string | null; computed?: boolean }[]
+  >();
   for (const it of items ?? []) {
-    if (!isFindingJudgment(it.judgment)) continue;
+    let judgment = it.judgment;
+    let computed = false;
+    if (!isFindingJudgment(judgment)) {
+      // 判定が無い(または有所見に当たらない)項目は、事務所基準で判定してみる
+      if (judgment) continue;
+      const g = gradeOf(it.item_name, it.value, sexById.get(it.checkup_id) ?? null);
+      if (!isFindingJudgment(g)) continue;
+      judgment = g;
+      computed = true;
+    }
     const arr = findingsByCheckup.get(it.checkup_id) ?? [];
-    arr.push({ item_name: it.item_name, judgment: it.judgment });
+    arr.push({ item_name: it.item_name, judgment, computed });
     findingsByCheckup.set(it.checkup_id, arr);
   }
 
