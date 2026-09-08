@@ -32,6 +32,25 @@ export type CheckupRow = {
 // 一覧の「就業判定」欄で未判定に戻すときの選択肢の値
 const CLEAR = "__clear__";
 
+// 有所見項目を判定(D・C など)ごとにまとめる。重い判定から順に並べる
+function groupFindings(items: { item_name: string; judgment: string | null }[]) {
+  const byGrade = new Map<string, { item_name: string; judgment: string | null }[]>();
+  for (const it of items) {
+    const grade = (it.judgment ?? "").trim().charAt(0).toUpperCase() || "—";
+    const arr = byGrade.get(grade) ?? [];
+    arr.push(it);
+    byGrade.set(grade, arr);
+  }
+  const order = ["E", "D", "C"];
+  return Array.from(byGrade.entries())
+    .sort((a, b) => {
+      const ia = order.indexOf(a[0]);
+      const ib = order.indexOf(b[0]);
+      return (ia < 0 ? order.length : ia) - (ib < 0 ? order.length : ib);
+    })
+    .map(([grade, list]) => ({ grade, items: list }));
+}
+
 // 就業判定の表示色
 const judgmentStyle = (j: string | null): React.CSSProperties => {
   if (!j) return { color: "var(--danger)", fontWeight: 700 };
@@ -424,11 +443,27 @@ export default function CheckupsTable({
                   </td>
                   <td style={{ fontSize: 13 }}>
                     {c.findingItems && c.findingItems.length > 0 ? (
-                      c.findingItems.map((it, i) => (
-                        <span key={i} className="badge orange" style={{ marginRight: 4 }}>
-                          {it.item_name}
-                          {it.judgment ? `(${it.judgment})` : ""}
-                        </span>
+                      groupFindings(c.findingItems).map((g) => (
+                        <div key={g.grade} style={{ marginBottom: 3 }}>
+                          <span
+                            className="badge"
+                            style={
+                              g.grade === "C"
+                                ? { background: "var(--orange-light)", color: "var(--orange)" }
+                                : { background: "#fde8e8", color: "var(--danger)" }
+                            }
+                          >
+                            {g.grade}
+                          </span>{" "}
+                          {g.items.map((it, i) => (
+                            <span key={i}>
+                              {i > 0 && "、"}
+                              {it.item_name}
+                              {/* C2 のように判定が2文字以上のときは、そのまま添える */}
+                              {it.judgment && it.judgment.trim().length > 1 ? `(${it.judgment.trim()})` : ""}
+                            </span>
+                          ))}
+                        </div>
                       ))
                     ) : c.has_findings ? (
                       <span className="badge orange">有所見</span>
