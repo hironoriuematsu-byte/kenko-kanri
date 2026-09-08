@@ -52,6 +52,13 @@ export const LEGAL_ITEMS: {
   { key: "casual_glucose", label: "随時血糖", unit: "mg/dL", aliases: ["随時血糖", "随時"] },
   { key: "hba1c", label: "HbA1c(NGSP)", unit: "%", aliases: ["hba1c", "ヘモグロビンa1c"] },
   {
+    key: "rbc",
+    label: "赤血球数",
+    unit: "×10^4/μL",
+    sexSpecific: true,
+    aliases: ["赤血球数", "赤血球", "rbc"],
+  },
+  {
     key: "hb",
     label: "血色素量(Hb)",
     unit: "g/dL",
@@ -134,8 +141,11 @@ export function judgeItem(
       if (worst) hits.push(worst);
     }
   } else {
-    const num = parseNumber(rawValue);
+    let num = parseNumber(rawValue);
     if (num == null) return null;
+    // 赤血球数は ×10^4/μL(例: 450)で扱う。×10^6/μL(例: 4.50)で
+    // 報告されることがあるため、桁が明らかに違う場合は換算する
+    if (itemKey === "rbc" && num < 100) num = num * 100;
     for (const r of applicable) {
       const okMin = r.min_value == null || num >= r.min_value;
       const okMax = r.max_value == null || num <= r.max_value;
