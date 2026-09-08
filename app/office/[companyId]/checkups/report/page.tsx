@@ -4,6 +4,7 @@ import Header from "@/components/Header";
 import CheckupReportPanel from "@/components/CheckupReportPanel";
 import { requireProfile } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
+import { getJudgmentRules } from "@/lib/judgmentRules";
 import { getCheckupReportData } from "@/lib/checkupReportData";
 import { getFiscalYear } from "@/lib/fiscal";
 import { getOfficeInfo } from "@/lib/officeInfo";
@@ -33,6 +34,8 @@ export default async function OfficeCheckupReportPage({
   const { checkups, items } = await getCheckupReportData(company.id, year);
 
   const officeInfo = await getOfficeInfo();
+  // 就業制限(R)を測定値から確かめるために使う
+  const rules = await getJudgmentRules();
 
   await supabase.rpc("hm_log_access", {
     p_action: "report_summary",
@@ -58,6 +61,7 @@ export default async function OfficeCheckupReportPage({
             checkups={checkups}
             items={items}
             officeInfo={officeInfo}
+            rules={rules}
           />
         </div>
       </main>
