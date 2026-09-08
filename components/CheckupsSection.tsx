@@ -2,6 +2,7 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import CheckupsTable, { type CheckupRow } from "@/components/CheckupsTable";
 import RecentImports from "@/components/RecentImports";
+import RecomputeJudgments from "@/components/RecomputeJudgments";
 import { isFindingJudgment, isRestrictionJudgment, needsAttention } from "@/lib/checkups";
 import { getJudgmentRules } from "@/lib/judgmentRules";
 import { fetchCheckupItems } from "@/lib/checkupItems";
@@ -133,8 +134,13 @@ export default async function CheckupsSection({
         )}
       </p>
 
-      {/* 取込ミスの取り消しは実施者のみ(canDelete)。個別入力の記録は対象外 */}
-      {canDelete && <RecentImports companyId={companyId} />}
+      {/* 取込ミスの取り消し・判定の再計算は実施者のみ(canDelete) */}
+      {canDelete && (
+        <div style={{ display: "flex", gap: 10, alignItems: "flex-start", flexWrap: "wrap" }}>
+          <RecentImports companyId={companyId} />
+          {year && <RecomputeJudgments companyId={companyId} fiscalYear={year} rules={rules} />}
+        </div>
+      )}
 
       {years.length > 0 && (
         <p style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
