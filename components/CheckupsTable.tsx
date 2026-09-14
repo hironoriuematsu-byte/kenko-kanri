@@ -64,6 +64,25 @@ function findingLabel(items: FindingItem[]) {
     .join("、");
 }
 
+// 健診日を「2025年」「10月17日」の2行で表示する(1列に収める)
+function dateLines(dateStr: string | null | undefined): [string, string] | null {
+  if (!dateStr) return null;
+  const d = new Date(dateStr + (dateStr.length === 10 ? "T00:00:00" : ""));
+  if (isNaN(d.getTime())) return [dateStr, ""];
+  return [`${d.getFullYear()}年`, `${d.getMonth() + 1}月${d.getDate()}日`];
+}
+
+// 一覧の絞り込み(有所見D・就業制限Rの方だけを確認できるようにする)
+type ViewFilter = "all" | "d" | "r" | "dr";
+const VIEW_LABEL: Record<ViewFilter, string> = {
+  all: "すべて",
+  d: "有所見項目（D）あり",
+  r: "就業制限項目（R）あり",
+  dr: "DまたはRあり",
+};
+
+const nowrap: React.CSSProperties = { whiteSpace: "nowrap" };
+
 // 就業判定の表示色
 const judgmentStyle = (j: string | null): React.CSSProperties => {
   if (!j) return { color: "var(--danger)", fontWeight: 700 };
@@ -145,6 +164,35 @@ export default function CheckupsTable({
     [rows]
   );
 
+  // 有所見項目(D)を持つ方。項目別判定が無い記録は総合判定がD以上なら該当とする
+  const dRows = useMemo(
+    () =>
+      rows.filter(
+        (r) =>
+          isSevereJudgment(r.overall_judgment) ||
+          (r.findingItems ?? []).some(
+            (it) => isSevereJudgment(it.judgment) && !isRestrictionJudgment(it.judgment)
+          )
+      ),
+    [rows]
+  );
+  const dIds = useMemo(() => new Set(dRows.map((r) => r.id)), [dRows]);
+
+  // 一覧の絞り込み(有所見D・就業制限Rの方を特に注意して確認できるようにする)
+  const [view, setView] = useState<ViewFilter>("all");
+  const visibleRows = useMemo(() => {
+    if (view === "d") return rows.filter((r) => dIds.has(r.id));
+    if (view === "r") return rows.filter((r) => restrictionIds.has(r.id));
+    if (view === "dr") return rows.filter((r) => dIds.has(r.id) || restrictionIds.has(r.id));
+    return rows;
+  }, [rows, view, dIds, restrictionIds]);
+  const viewCounts: Record<ViewFilter, number> = {
+    all: rows.length,
+    d: dRows.length,
+    r: restrictionRows.length,
+    dr: rows.filter((r) => dIds.has(r.id) || restrictionIds.has(r.id)).length,
+  };
+
   const toggle = (id: string) =>
     setSelected((prev) => {
       const next = new Set(prev);
@@ -153,10 +201,13 @@ export default function CheckupsTable({
       return next;
     });
 
+  // 全選択は、絞り込んで表示中の方だけを対象にする
   const toggleAll = () =>
-    setSelected((prev) =>
-      prev.size === rows.length ? new Set() : new Set(rows.map((r) => r.id))
-    );
+    setSelected((prev) => {
+      const ids = visibleRows.map((r) => r.id);
+      const allSelected = ids.length > 0 && ids.every((id) => prev.has(id));
+      return allSelected ? new Set() : new Set(ids);
+    });
 
   const runBulkJudgment = async (ids: string[], value: string, note: string | null) => {
     setBusy(true);
@@ -506,6 +557,39 @@ export default function CheckupsTable({
       {error && <p className="error-message">{error}</p>}
       {message && <p style={{ color: "var(--teal-dark)", fontSize: 13 }}>{message}</p>}
 
+      {/* 表示の絞り込み: 有所見(D)・就業制限(R)の方だけを確認できるようにする */}
+      <div
+        style={{
+          display: "flex",
+          gap: 8,
+          flexWrap: "wrap",
+          alignItems: "center",
+          margin: "8px 0",
+        }}
+      >
+        <span className="muted" style={{ fontSize: 13 }}>表示:</span>
+        {(Object.keys(VIEW_LABEL) as ViewFilter[]).map((k) => {
+          const active = view === k;
+          const danger = k !== "all";
+          return (
+            <button
+              key={k}
+              className={active ? (danger ? "btn orange" : "btn") : "btn secondary"}
+              style={{ padding: "4px 12px", fontSize: 13 }}
+              onClick={() => setView(k)}
+              aria-pressed={active}
+            >
+              {VIEW_LABEL[k]}（{viewCounts[k]}名）
+            </button>
+          );
+        })}
+        {view !== "all" && (
+          <span className="muted" style={{ fontSize: 12 }}>
+            {VIEW_LABEL[view]}の {visibleRows.length}名を表示中。上の一括判定は絞り込みに関係なく全員が対象です。
+          </span>
+        )}
+      </div>
+
       <div style={{ overflowX: "auto" }}>
         <table className="list">
           <thead>
@@ -514,27 +598,63 @@ export default function CheckupsTable({
                 <th style={{ width: 34 }}>
                   <input
                     type="checkbox"
-                    checked={rows.length > 0 && selected.size === rows.length}
+                    checked={
+                      visibleRows.length > 0 && visibleRows.every((r) => selected.has(r.id))
+                    }
                     onChange={toggleAll}
                     aria-label="全選択"
                   />
                 </th>
               )}
-              <th>社員番号</th>
-              <th>氏名</th>
-              <th>種別</th>
-              <th>健診日</th>
-              <th>総合判定</th>
-              <th>有所見項目（C）</th>
-              <th>有所見項目（D）</th>
-              <th>就業制限項目（R）</th>
-              <th style={{ minWidth: 130 }}>就業判定</th>
-              <th style={{ minWidth: 200 }}>医師の意見</th>
-              <th style={{ minWidth: 110 }}>受診勧奨</th>
+              <th style={nowrap}>
+                社員
+                <br />
+                番号
+              </th>
+              <th style={nowrap}>氏名</th>
+              <th style={nowrap}>種別</th>
+              <th style={nowrap}>健診日</th>
+              <th style={nowrap}>
+                総合
+                <br />
+                判定
+              </th>
+              {/* 有所見(C)(D)・就業制限(R)は3行の見出しで高さをそろえる */}
+              <th style={nowrap}>
+                有所見
+                <br />
+                項目
+                <br />
+                （C）
+              </th>
+              <th style={nowrap}>
+                有所見
+                <br />
+                項目
+                <br />
+                （D）
+              </th>
+              <th style={nowrap}>
+                就業制限
+                <br />
+                項目
+                <br />
+                （R）
+              </th>
+              <th style={{ minWidth: 130, ...nowrap }}>就業判定</th>
+              <th style={{ minWidth: 200, ...nowrap }}>医師の意見</th>
+              <th style={{ minWidth: 110, ...nowrap }}>受診勧奨</th>
             </tr>
           </thead>
           <tbody>
-            {rows.map((c) => {
+            {visibleRows.length === 0 && (
+              <tr>
+                <td colSpan={showCheckbox ? 12 : 11} className="muted" style={{ textAlign: "center" }}>
+                  {view === "all" ? "健診記録がありません。" : `${VIEW_LABEL[view]}の方はいません。`}
+                </td>
+              </tr>
+            )}
+            {visibleRows.map((c) => {
               const attention = needsAttention(c.work_judgment);
               const opinion = parseOpinionNote(c.work_judgment_note);
               const findings = splitFindings(c.findingItems ?? []);
@@ -552,11 +672,11 @@ export default function CheckupsTable({
                       />
                     </td>
                   )}
-                  <td>{c.employee_no || "—"}</td>
-                  <td>
+                  <td style={nowrap}>{c.employee_no || "—"}</td>
+                  <td style={nowrap}>
                     <Link href={`/checkup/${c.id}`}>{c.target_name}</Link>
                   </td>
-                  <td>
+                  <td style={nowrap}>
                     {CHECKUP_TYPES[c.checkup_type] ?? c.checkup_type}
                     {c.special_kind && (
                       <div className="muted" style={{ fontSize: 11 }}>
@@ -564,7 +684,19 @@ export default function CheckupsTable({
                       </div>
                     )}
                   </td>
-                  <td>{formatDateJa(c.checkup_date)}</td>
+                  {/* 健診日は「2025年」「10月17日」の2行で1列に収める */}
+                  <td style={nowrap}>
+                    {(() => {
+                      const lines = dateLines(c.checkup_date);
+                      if (!lines) return "—";
+                      return (
+                        <>
+                          <div>{lines[0]}</div>
+                          {lines[1] && <div>{lines[1]}</div>}
+                        </>
+                      );
+                    })()}
+                  </td>
                   <td>
                     {c.overall_judgment ? (
                       isSevereJudgment(c.overall_judgment) ? (
