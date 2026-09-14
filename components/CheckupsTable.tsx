@@ -38,8 +38,9 @@ export type CheckupRow = {
 // 一覧の「就業判定」欄で未判定に戻すときの選択肢の値
 const CLEAR = "__clear__";
 
-// 「要就業制限」で一括判定するときの自由記入の初期値
-const RESTRICTED_DEFAULT_NOTE = "時間外労働月45時間以内";
+// 「要就業制限」で一括判定するときの初期値(定型文のチェックと自由記入)
+const RESTRICTED_DEFAULT_PRESETS = ["但し受診が条件", "要産業医面談"];
+const RESTRICTED_DEFAULT_NOTE = "有所見項目（D）と就業制限項目（R）につき医療機関受診";
 // 「Dの未判定を選択」から「通常勤務可」で一括判定するときの自由記入の初期値
 const SEVERE_DEFAULT_NOTE = "有所見項目（D）につき医療機関受診";
 const DEFAULT_NOTES = [RESTRICTED_DEFAULT_NOTE, SEVERE_DEFAULT_NOTE];
@@ -82,8 +83,8 @@ function dateLines(dateStr: string | null | undefined): [string, string] | null 
 type ViewFilter = "all" | "d" | "r" | "dr";
 const VIEW_LABEL: Record<ViewFilter, string> = {
   all: "すべて",
-  d: "有所見項目（D）あり",
   r: "就業制限項目（R）あり",
+  d: "有所見項目（D）あり",
   dr: "DまたはRあり",
 };
 
@@ -123,17 +124,22 @@ export default function CheckupsTable({
   };
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [judgment, setJudgment] = useState("restricted");
-  const [bulkPresets, setBulkPresets] = useState<string[]>([]);
-  // 「要就業制限」の一括判定では、自由記入の初期値を「時間外労働月45時間以内」にする
+  // 一括判定の初期の区分は「要就業制限」なので、定型文と自由記入もその初期値にしておく
+  const [bulkPresets, setBulkPresets] = useState<string[]>(RESTRICTED_DEFAULT_PRESETS);
   const [bulkFree, setBulkFree] = useState(RESTRICTED_DEFAULT_NOTE);
 
-  // 判定区分を切り替えたとき、自由記入が初期値のまま(または空)なら区分に合わせて入れ替える。
-  // 手で書き換えた内容はそのまま残す
+  const samePresets = (a: string[], b: string[]) =>
+    a.length === b.length && a.every((p) => b.includes(p));
+
+  // 判定区分を切り替えたとき、自由記入・定型文が初期値のまま(または空)なら区分に合わせて
+  // 入れ替える。手で書き換えた内容はそのまま残す
   const changeJudgment = (value: string) => {
     setJudgment(value);
-    const untouched = bulkFree.trim() === "" || DEFAULT_NOTES.includes(bulkFree);
-    if (!untouched) return;
-    setBulkFree(value === "restricted" ? RESTRICTED_DEFAULT_NOTE : "");
+    const noteUntouched = bulkFree.trim() === "" || DEFAULT_NOTES.includes(bulkFree);
+    if (noteUntouched) setBulkFree(value === "restricted" ? RESTRICTED_DEFAULT_NOTE : "");
+    const presetsUntouched =
+      bulkPresets.length === 0 || samePresets(bulkPresets, RESTRICTED_DEFAULT_PRESETS);
+    if (presetsUntouched) setBulkPresets(value === "restricted" ? RESTRICTED_DEFAULT_PRESETS : []);
   };
   const [editingNote, setEditingNote] = useState<string | null>(null);
   const [noteDraft, setNoteDraft] = useState<{ presets: string[]; freeText: string }>({
@@ -248,7 +254,7 @@ export default function CheckupsTable({
       `${data}名の就業判定を「${CHECKUP_WORK_JUDGMENTS[value]}」で登録しました（判定日は本日）。`
     );
     setSelected(new Set());
-    setBulkPresets([]);
+    setBulkPresets(judgment === "restricted" ? RESTRICTED_DEFAULT_PRESETS : []);
     setBulkFree(judgment === "restricted" ? RESTRICTED_DEFAULT_NOTE : "");
     setBusy(false);
     router.refresh();
@@ -282,13 +288,15 @@ export default function CheckupsTable({
   const onSelectSevereUnjudged = () => {
     setSelected(new Set(severeRows.filter((r) => !r.work_judgment).map((r) => r.id)));
     setJudgment("normal");
+    setBulkPresets([]);
     setBulkFree(SEVERE_DEFAULT_NOTE);
   };
 
-  // 「就業制限項目（R）を選択」: 要就業制限(時間外労働月45時間以内)で判定する前提で初期値を入れる
+  // 「就業制限項目（R）を選択」: 要就業制限(但し受診が条件・要産業医面談)で判定する前提で初期値を入れる
   const onSelectRestriction = () => {
     setSelected(new Set(restrictionRows.map((r) => r.id)));
     setJudgment("restricted");
+    setBulkPresets(RESTRICTED_DEFAULT_PRESETS);
     setBulkFree(RESTRICTED_DEFAULT_NOTE);
   };
 
@@ -431,10 +439,13 @@ export default function CheckupsTable({
             判定日は実行した当日が自動で記録されます。1名ずつは一覧の「就業判定」欄から選択できます。
             就業制限項目（R）に該当する方は「通常勤務可」の一括判定の対象から外れます。
           </p>
-          <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
+          <div style={{ marginBottom: 10 }}>
             <button className="btn" onClick={onNormalBulk} disabled={busy || normalTargets.length === 0}>
               A・B・Cの未判定 {normalTargets.length}名を「通常勤務可」で一括判定
             </button>
+          </div>
+          {/* 左: 就業制限項目(R)の選択、右: 有所見項目(D)の選択 */}
+          <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
             {restrictionRows.length > 0 && (
               <button className="btn secondary" onClick={onSelectRestriction} disabled={busy}>
                 就業制限項目（R）を選択（{restrictionRows.length}名）
@@ -442,7 +453,7 @@ export default function CheckupsTable({
             )}
             {severeRows.length > 0 && (
               <button className="btn secondary" onClick={onSelectSevereUnjudged} disabled={busy}>
-                Dの未判定を選択（{severeRows.filter((r) => !r.work_judgment).length}名）
+                有所見項目（D）の未判定を選択（{severeRows.filter((r) => !r.work_judgment).length}名）
               </button>
             )}
           </div>
