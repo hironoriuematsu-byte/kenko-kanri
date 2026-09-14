@@ -40,6 +40,9 @@ const CLEAR = "__clear__";
 
 // 「要就業制限」で一括判定するときの自由記入の初期値
 const RESTRICTED_DEFAULT_NOTE = "時間外労働月45時間以内";
+// 「Dの未判定を選択」から「通常勤務可」で一括判定するときの自由記入の初期値
+const SEVERE_DEFAULT_NOTE = "有所見項目（D）につき医療機関受診";
+const DEFAULT_NOTES = [RESTRICTED_DEFAULT_NOTE, SEVERE_DEFAULT_NOTE];
 
 // 有所見項目を C / D(過去データのEを含む) / R(就業制限の検討)に振り分ける
 function splitFindings(items: FindingItem[]) {
@@ -124,14 +127,13 @@ export default function CheckupsTable({
   // 「要就業制限」の一括判定では、自由記入の初期値を「時間外労働月45時間以内」にする
   const [bulkFree, setBulkFree] = useState(RESTRICTED_DEFAULT_NOTE);
 
-  // 判定区分を切り替えたとき、自由記入が初期値のまま(または空)なら区分に合わせて入れ替える
+  // 判定区分を切り替えたとき、自由記入が初期値のまま(または空)なら区分に合わせて入れ替える。
+  // 手で書き換えた内容はそのまま残す
   const changeJudgment = (value: string) => {
     setJudgment(value);
-    if (value === "restricted") {
-      if (bulkFree.trim() === "") setBulkFree(RESTRICTED_DEFAULT_NOTE);
-    } else if (bulkFree === RESTRICTED_DEFAULT_NOTE) {
-      setBulkFree("");
-    }
+    const untouched = bulkFree.trim() === "" || DEFAULT_NOTES.includes(bulkFree);
+    if (!untouched) return;
+    setBulkFree(value === "restricted" ? RESTRICTED_DEFAULT_NOTE : "");
   };
   const [editingNote, setEditingNote] = useState<string | null>(null);
   const [noteDraft, setNoteDraft] = useState<{ presets: string[]; freeText: string }>({
@@ -162,7 +164,6 @@ export default function CheckupsTable({
     () => rows.filter((r) => isSevereJudgment(r.overall_judgment)),
     [rows]
   );
-  const attentionRows = useMemo(() => rows.filter((r) => needsAttention(r.work_judgment)), [rows]);
   const judgedRows = useMemo(() => rows.filter((r) => r.work_judgment), [rows]);
   // 判定区分ごとの該当者(区分ごとに一括で取り消せるようにする)
   const judgedByValue = useMemo(() => {
@@ -277,10 +278,19 @@ export default function CheckupsTable({
     await runBulkJudgment(Array.from(selected), judgment, note || null);
   };
 
-  const onSelectSevereUnjudged = () =>
+  // 「Dの未判定を選択」: 通常勤務可(医療機関受診を条件)で判定する前提で初期値を入れる
+  const onSelectSevereUnjudged = () => {
     setSelected(new Set(severeRows.filter((r) => !r.work_judgment).map((r) => r.id)));
+    setJudgment("normal");
+    setBulkFree(SEVERE_DEFAULT_NOTE);
+  };
 
-  const onSelectAttention = () => setSelected(new Set(attentionRows.map((r) => r.id)));
+  // 「就業制限項目（R）を選択」: 要就業制限(時間外労働月45時間以内)で判定する前提で初期値を入れる
+  const onSelectRestriction = () => {
+    setSelected(new Set(restrictionRows.map((r) => r.id)));
+    setJudgment("restricted");
+    setBulkFree(RESTRICTED_DEFAULT_NOTE);
+  };
 
   // 就業判定の取り消し(未判定に戻す)。判定日・医師の意見も一緒に消える
   const clearJudgment = async (ids: string[], label: string) => {
@@ -426,22 +436,13 @@ export default function CheckupsTable({
               A・B・Cの未判定 {normalTargets.length}名を「通常勤務可」で一括判定
             </button>
             {restrictionRows.length > 0 && (
-              <button
-                className="btn secondary"
-                onClick={() => setSelected(new Set(restrictionRows.map((r) => r.id)))}
-                disabled={busy}
-              >
+              <button className="btn secondary" onClick={onSelectRestriction} disabled={busy}>
                 就業制限項目（R）を選択（{restrictionRows.length}名）
               </button>
             )}
             {severeRows.length > 0 && (
               <button className="btn secondary" onClick={onSelectSevereUnjudged} disabled={busy}>
                 Dの未判定を選択（{severeRows.filter((r) => !r.work_judgment).length}名）
-              </button>
-            )}
-            {attentionRows.length > 0 && (
-              <button className="btn secondary" onClick={onSelectAttention} disabled={busy}>
-                要対応（未判定・判定保留）を選択（{attentionRows.length}名）
               </button>
             )}
           </div>
@@ -524,13 +525,6 @@ export default function CheckupsTable({
                 </div>
                 <button className="btn orange" onClick={onSelectedBulk} disabled={busy}>
                   {busy ? "処理中…" : "選択者をまとめて判定"}
-                </button>
-                <button
-                  className="btn secondary"
-                  onClick={() => clearJudgment(Array.from(selected), `選択した ${selected.size}名`)}
-                  disabled={busy}
-                >
-                  判定を取り消す
                 </button>
               </div>
             </div>
