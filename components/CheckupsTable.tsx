@@ -39,11 +39,11 @@ export type CheckupRow = {
 const CLEAR = "__clear__";
 
 // 「要就業制限」で一括判定するときの初期値(定型文のチェックと自由記入)
-const RESTRICTED_DEFAULT_PRESETS = ["但し受診が条件", "要産業医面談"];
-const RESTRICTED_DEFAULT_NOTE = "有所見項目（D）と就業制限項目（R）につき医療機関受診";
-// 「有所見項目（D）の未判定を選択」から「通常勤務可」で一括判定するときの初期値
+const RESTRICTED_DEFAULT_PRESETS = ["要産業医面談", "時間外労働月45時間以内"];
+const RESTRICTED_DEFAULT_NOTE = "要医療項目（D）と就業制限項目（R）につき医療機関受診";
+// 「要医療項目（D）の未判定を選択」から「通常勤務可」で一括判定するときの初期値
 const SEVERE_DEFAULT_PRESETS = ["但し受診が条件"];
-const SEVERE_DEFAULT_NOTE = "有所見項目（D）につき医療機関受診";
+const SEVERE_DEFAULT_NOTE = "要医療項目（D）につき医療機関受診";
 const DEFAULT_NOTES = [RESTRICTED_DEFAULT_NOTE, SEVERE_DEFAULT_NOTE];
 
 // 有所見項目を C / D(過去データのEを含む) / R(就業制限の検討)に振り分ける
@@ -85,7 +85,7 @@ type ViewFilter = "all" | "d" | "r" | "dr";
 const VIEW_LABEL: Record<ViewFilter, string> = {
   all: "すべて",
   r: "就業制限項目（R）あり",
-  d: "有所見項目（D）あり",
+  d: "要医療項目（D）あり",
   dr: "DまたはRあり",
 };
 
@@ -188,7 +188,7 @@ export default function CheckupsTable({
     [rows]
   );
 
-  // 有所見項目(D)を持つ方。項目別判定が無い記録は総合判定がD以上なら該当とする
+  // 要医療項目(D)を持つ方。項目別判定が無い記録は総合判定がD以上なら該当とする
   const dRows = useMemo(
     () =>
       rows.filter(
@@ -447,7 +447,7 @@ export default function CheckupsTable({
               A・B・Cの未判定 {normalTargets.length}名を「通常勤務可」で一括判定
             </button>
           </div>
-          {/* 左: 就業制限項目(R)の選択、右: 有所見項目(D)の選択 */}
+          {/* 左: 就業制限項目(R)の選択、右: 要医療項目(D)の選択 */}
           <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
             {restrictionRows.length > 0 && (
               <button className="btn secondary" onClick={onSelectRestriction} disabled={busy}>
@@ -456,7 +456,7 @@ export default function CheckupsTable({
             )}
             {severeRows.length > 0 && (
               <button className="btn secondary" onClick={onSelectSevereUnjudged} disabled={busy}>
-                有所見項目（D）の未判定を選択（{severeRows.filter((r) => !r.work_judgment).length}名）
+                要医療項目（D）の未判定を選択（{severeRows.filter((r) => !r.work_judgment).length}名）
               </button>
             )}
           </div>
@@ -628,7 +628,7 @@ export default function CheckupsTable({
                 （C）
               </th>
               <th style={nowrap}>
-                有所見
+                要医療
                 <br />
                 項目
                 <br />

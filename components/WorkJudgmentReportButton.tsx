@@ -61,12 +61,13 @@ export default function WorkJudgmentReportButton({
         "健診日",
         "総合判定",
         "有所見項目(C)",
-        "有所見項目(D)",
+        "要医療項目(D)",
         "就業制限項目(R)",
         "就業判定",
         "判定日",
         "医師の意見",
         "受診勧奨",
+        "産業医面談",
       ],
       ...rows.map((r) => [
         r.employee_no ?? "",
@@ -81,6 +82,8 @@ export default function WorkJudgmentReportButton({
         r.work_judgment_date ?? "",
         r.work_judgment_note ?? "",
         FOLLOWUP_STATUS[r.followup_status ?? "none"] ?? "",
+        // 要就業制限の方は産業医面談の対象として「要」を記入する
+        r.work_judgment === "restricted" ? "要" : "",
       ]),
       [],
       [

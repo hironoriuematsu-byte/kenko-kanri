@@ -157,7 +157,7 @@ export default function CheckupReportPanel({
         "健診日",
         "総合判定",
         "有所見項目(C)",
-        "有所見項目(D)",
+        "要医療項目(D)",
         "就業制限項目(R)",
         "就業判定",
         "判定日",

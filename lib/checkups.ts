@@ -13,7 +13,7 @@ export const CHECKUP_WORK_JUDGMENTS: Record<string, string> = {
 };
 
 // 医師の意見の定型文(チェックで付与でき、自由記入と併用できる)
-export const OPINION_PRESETS = ["但し受診が条件", "要産業医面談"];
+export const OPINION_PRESETS = ["但し受診が条件", "要産業医面談", "時間外労働月45時間以内"];
 
 // 定型文＋自由記入 → 保存文字列
 export function buildOpinionNote(presets: string[], freeText: string): string {
