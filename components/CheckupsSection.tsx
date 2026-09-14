@@ -49,7 +49,7 @@ export default async function CheckupsSection({
   const roundQuery = rounds.length > 1 ? `&round=${round}` : "";
 
   const listCols =
-    "id, target_name, employee_no, sex, checkup_type, special_kind, checkup_date, overall_judgment, has_findings, work_judgment, work_judgment_note, work_judgment_date, followup_status";
+    "id, target_name, employee_no, sex, birth_date, checkup_type, special_kind, checkup_date, overall_judgment, has_findings, work_judgment, work_judgment_note, work_judgment_date, followup_status";
   const fetchList = (cols: string) =>
     supabase
       .from("hm_checkups")
@@ -59,8 +59,11 @@ export default async function CheckupsSection({
       .eq("round", round)
       .order("employee_no", { ascending: true, nullsFirst: false })
       .order("target_name");
-  // 判定条件(work_judgment_condition)は 0132 で追加。未適用の環境では列なしで取得する
-  let listRes = year ? await fetchList(`${listCols}, work_judgment_condition`) : null;
+  // 判定条件(0132)・フリガナ/所属(0133)は後から追加した列。未適用の環境では列なしで取得する
+  let listRes = year
+    ? await fetchList(`${listCols}, work_judgment_condition, target_name_kana, department`)
+    : null;
+  if (listRes?.error) listRes = await fetchList(`${listCols}, work_judgment_condition`);
   if (listRes?.error) listRes = await fetchList(listCols);
   const checkups = (listRes?.data ?? []) as unknown as (CheckupRow & { sex: string | null })[];
 

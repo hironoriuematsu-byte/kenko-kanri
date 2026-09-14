@@ -25,6 +25,9 @@ export type FindingItem = { item_name: string; judgment: string | null; computed
 export type CheckupRow = {
   id: string;
   target_name: string;
+  target_name_kana?: string | null; // フリガナ
+  department?: string | null; // 所属(部署)
+  birth_date?: string | null; // 同姓同名の区別に表示する
   employee_no: string | null;
   sex?: string | null; // 受診勧奨の文章(貧血の受診先)に使う
   checkup_type: string;
@@ -780,8 +783,21 @@ export default function CheckupsTable({
                     </td>
                   )}
                   <td style={nowrap}>{c.employee_no || "—"}</td>
+                  {/* 氏名の下にフリガナ・生年月日・所属を小さく出し、同姓同名を見分けられるようにする */}
                   <td style={nowrap}>
+                    {c.target_name_kana && (
+                      <div className="muted" style={{ fontSize: 10, lineHeight: 1.2 }}>
+                        {c.target_name_kana}
+                      </div>
+                    )}
                     <Link href={`/checkup/${c.id}`}>{c.target_name}</Link>
+                    {(c.birth_date || c.department) && (
+                      <div className="muted" style={{ fontSize: 11 }}>
+                        {c.birth_date ? formatDateJa(c.birth_date) : ""}
+                        {c.birth_date && c.department ? " / " : ""}
+                        {c.department ?? ""}
+                      </div>
+                    )}
                   </td>
                   <td style={nowrap}>
                     {CHECKUP_TYPES[c.checkup_type] ?? c.checkup_type}

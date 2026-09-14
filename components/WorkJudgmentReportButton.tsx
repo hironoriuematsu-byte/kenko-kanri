@@ -61,6 +61,10 @@ export default function WorkJudgmentReportButton({
       [
         "社員番号",
         "氏名",
+        "フリガナ",
+        "生年月日",
+        "性別",
+        "所属",
         "健診種別",
         "健診日",
         "総合判定",
@@ -77,6 +81,11 @@ export default function WorkJudgmentReportButton({
       ...rows.map((r) => [
         r.employee_no ?? "",
         r.target_name,
+        // フリガナ・生年月日・性別・所属: 同姓同名の区別と、他機関の様式に合わせるため
+        r.target_name_kana ?? "",
+        r.birth_date ?? "",
+        r.sex === "male" ? "男" : r.sex === "female" ? "女" : "",
+        r.department ?? "",
         CHECKUP_TYPES[r.checkup_type] ?? r.checkup_type,
         r.checkup_date ?? "",
         r.overall_judgment ?? "",

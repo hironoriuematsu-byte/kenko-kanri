@@ -28,8 +28,11 @@ export default async function CheckupDetailPage({ params }: { params: { id: stri
     "id, company_id, person_id, target_user_id, target_name, employee_no, birth_date, sex, fiscal_year, checkup_type, checkup_date, overall_judgment, has_findings, work_judgment, work_judgment_note, work_judgment_date, companies(name)";
   const fetchDetail = (cols: string) =>
     supabase.from("hm_checkups").select(cols).eq("id", params.id).single();
-  // 判定条件(work_judgment_condition)は 0132 で追加。未適用の環境では列なしで取得する
-  let detailRes = await fetchDetail(`${detailCols}, work_judgment_condition`);
+  // 判定条件(0132)・フリガナ/所属(0133)は後から追加した列。未適用の環境では列なしで取得する
+  let detailRes = await fetchDetail(
+    `${detailCols}, work_judgment_condition, target_name_kana, department`
+  );
+  if (detailRes.error) detailRes = await fetchDetail(`${detailCols}, work_judgment_condition`);
   if (detailRes.error) detailRes = await fetchDetail(detailCols);
   const c = detailRes.data as unknown as {
     id: string;
@@ -49,6 +52,8 @@ export default async function CheckupDetailPage({ params }: { params: { id: stri
     work_judgment_note: string | null;
     work_judgment_date: string | null;
     work_judgment_condition?: string | null;
+    target_name_kana?: string | null;
+    department?: string | null;
     companies: { name: string } | { name: string }[] | null;
   } | null;
   if (!c) notFound();
@@ -148,9 +153,26 @@ export default async function CheckupDetailPage({ params }: { params: { id: stri
             <tbody>
               <tr>
                 <th style={{ width: 140 }}>氏名</th>
-                <td>{c.target_name}</td>
+                <td>
+                  {c.target_name_kana && (
+                    <div className="muted" style={{ fontSize: 11, lineHeight: 1.2 }}>
+                      {c.target_name_kana}
+                    </div>
+                  )}
+                  {c.target_name}
+                </td>
                 <th style={{ width: 140 }}>社員番号</th>
                 <td>{c.employee_no || "—"}</td>
+              </tr>
+              <tr>
+                <th>生年月日 / 性別</th>
+                <td>
+                  {c.birth_date ? formatDateJa(c.birth_date) : "—"}
+                  {" / "}
+                  {c.sex === "male" ? "男" : c.sex === "female" ? "女" : "—"}
+                </td>
+                <th>所属</th>
+                <td>{c.department || "—"}</td>
               </tr>
               <tr>
                 <th>年度 / 種別</th>

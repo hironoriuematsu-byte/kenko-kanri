@@ -59,6 +59,8 @@ export default function CheckupImport({
   const [rows, setRows] = useState<string[][] | null>(null);
   const [fileName, setFileName] = useState("");
   const [nameCol, setNameCol] = useState<number>(-1);
+  const [kanaCol, setKanaCol] = useState<number>(-1); // フリガナ
+  const [deptCol, setDeptCol] = useState<number>(-1); // 所属(部署)
   const [empNoCol, setEmpNoCol] = useState<number>(-1);
   const [sexCol, setSexCol] = useState<number>(-1);
   const [birthCol, setBirthCol] = useState<number>(-1);
@@ -90,9 +92,20 @@ export default function CheckupImport({
       setRows(parsed);
       setFileName(file.name);
       const h = parsed[0];
-      const find = (words: string[]) =>
-        h.findIndex((c) => words.some((w) => c.replace(/\s/g, "").includes(w)));
-      setNameCol(find(["氏名", "名前", "社員名"]));
+      const find = (words: string[], exclude?: RegExp) =>
+        h.findIndex((c) => {
+          const s = c.replace(/\s/g, "").normalize("NFKC");
+          if (exclude && exclude.test(s)) return false;
+          return words.some((w) => s.includes(w));
+        });
+      // 氏名は漢字の列を優先し、カナの列(氏名カナ・フリガナ)は「フリガナ」として別に取り込む
+      const isKana = /カナ|かな|ｶﾅ|フリガナ|ふりがな|ﾌﾘｶﾞﾅ|kana/i;
+      const nameIdx = find(["氏名", "名前", "社員名", "受診者名"], isKana);
+      const kanaIdx = find(["フリガナ", "ふりがな", "ﾌﾘｶﾞﾅ", "氏名カナ", "氏名かな", "カナ氏名", "かな氏名", "カナ", "かな", "ｶﾅ"]);
+      // 漢字の氏名列が無ければ、カナの列を氏名として使う
+      setNameCol(nameIdx >= 0 ? nameIdx : kanaIdx);
+      setKanaCol(nameIdx >= 0 ? kanaIdx : -1);
+      setDeptCol(find(["所属", "部署", "部門", "部課", "職場"]));
       setEmpNoCol(find(["社員番号", "社員No", "従業員番号", "職員番号"]));
       setSexCol(find(["性別", "性"]));
       setBirthCol(find(["生年月日", "生年"]));
@@ -112,7 +125,7 @@ export default function CheckupImport({
     }
   };
 
-  const baseCols = [nameCol, empNoCol, sexCol, birthCol, dateCol, judgmentCol];
+  const baseCols = [nameCol, kanaCol, deptCol, empNoCol, sexCol, birthCol, dateCol, judgmentCol];
 
   const readSex = (r: string[]): "male" | "female" | null => {
     if (sexCol < 0) return null;
@@ -250,6 +263,8 @@ export default function CheckupImport({
 
         return {
           target_name: targetName,
+          target_name_kana: kanaCol >= 0 ? (r[kanaCol] ?? "").trim() : "",
+          department: deptCol >= 0 ? (r[deptCol] ?? "").trim() : "",
           employee_no: employeeNo,
           sex: sex ?? "",
           birth_date: birthDate ?? "",
@@ -460,7 +475,25 @@ export default function CheckupImport({
             <tbody>
               <tr>
                 <th style={{ width: 180 }}>氏名（必須）</th>
-                <td>{colSelect(nameCol, setNameCol)}</td>
+                <td>
+                  {colSelect(nameCol, setNameCol)}
+                  <span className="muted" style={{ marginLeft: 8 }}>
+                    漢字の氏名の列を選んでください（カナしか無い場合はカナの列でも可）
+                  </span>
+                </td>
+              </tr>
+              <tr>
+                <th>フリガナ</th>
+                <td>
+                  {colSelect(kanaCol, setKanaCol)}
+                  <span className="muted" style={{ marginLeft: 8 }}>
+                    報告書に氏名と並べて出力します
+                  </span>
+                </td>
+              </tr>
+              <tr>
+                <th>所属（部署）</th>
+                <td>{colSelect(deptCol, setDeptCol)}</td>
               </tr>
               <tr>
                 <th>社員番号</th>

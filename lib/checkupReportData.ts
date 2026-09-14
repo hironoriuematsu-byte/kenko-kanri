@@ -20,8 +20,9 @@ export async function getCheckupReportData(companyId: string, year: number, roun
     if (round) query = query.eq("round", round);
     return query;
   };
-  // 判定条件(work_judgment_condition)は 0132 で追加。未適用の環境では列なしで取得する
-  let res = await fetch(`${baseCols}, work_judgment_condition`);
+  // 判定条件(0132)・フリガナ/所属(0133)は後から追加した列。未適用の環境では列なしで取得する
+  let res = await fetch(`${baseCols}, work_judgment_condition, target_name_kana, department`);
+  if (res.error) res = await fetch(`${baseCols}, work_judgment_condition`);
   if (res.error) res = await fetch(baseCols);
   const checkups = res.data as unknown as ReportCheckup[] | null;
 

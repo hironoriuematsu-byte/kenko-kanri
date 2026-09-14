@@ -33,6 +33,8 @@ export default function CheckupForm({
 }) {
   const router = useRouter();
   const [targetName, setTargetName] = useState("");
+  const [targetNameKana, setTargetNameKana] = useState("");
+  const [department, setDepartment] = useState("");
   const [employeeNo, setEmployeeNo] = useState("");
   const [birthDate, setBirthDate] = useState("");
   const [sex, setSex] = useState<"" | "male" | "female">("");
@@ -90,6 +92,8 @@ export default function CheckupForm({
       p_rows: [
         {
           target_name: targetName,
+          target_name_kana: targetNameKana,
+          department,
           employee_no: employeeNo,
           birth_date: birthDate,
           person_id: person?.id ?? "",
@@ -133,6 +137,22 @@ export default function CheckupForm({
             value={targetName}
             onChange={(e) => setTargetName(e.target.value)}
             required
+          />
+        </div>
+        <div style={{ flex: 1, minWidth: 160 }}>
+          <label>フリガナ</label>
+          <input
+            type="text"
+            value={targetNameKana}
+            onChange={(e) => setTargetNameKana(e.target.value)}
+          />
+        </div>
+        <div style={{ flex: 1, minWidth: 160 }}>
+          <label>所属（部署）</label>
+          <input
+            type="text"
+            value={department}
+            onChange={(e) => setDepartment(e.target.value)}
           />
         </div>
         <div>

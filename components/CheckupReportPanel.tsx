@@ -21,6 +21,8 @@ import {
 export type ReportCheckup = {
   id: string;
   target_name: string;
+  target_name_kana?: string | null; // フリガナ
+  department?: string | null; // 所属(部署)
   employee_no: string | null;
   birth_date: string | null;
   sex: string | null;
@@ -159,6 +161,10 @@ export default function CheckupReportPanel({
       [
         "社員番号",
         "氏名",
+        "フリガナ",
+        "生年月日",
+        "性別",
+        "所属",
         "健診種別",
         "健診日",
         "総合判定",
@@ -175,6 +181,10 @@ export default function CheckupReportPanel({
       ...checkups.map((c) => [
         c.employee_no ?? "",
         c.target_name,
+        c.target_name_kana ?? "",
+        c.birth_date ?? "",
+        c.sex === "male" ? "男" : c.sex === "female" ? "女" : "",
+        c.department ?? "",
         CHECKUP_TYPES[c.checkup_type] ?? c.checkup_type,
         c.checkup_date ?? "",
         c.overall_judgment ?? "",
@@ -208,8 +218,10 @@ export default function CheckupReportPanel({
     const header = [
       "社員番号",
       "氏名",
+      "フリガナ",
       "生年月日",
       "性別",
+      "所属",
       "健診種別",
       "健診日",
       "総合判定",
@@ -236,8 +248,10 @@ export default function CheckupReportPanel({
         return [
           c.employee_no ?? "",
           c.target_name,
+          c.target_name_kana ?? "",
           c.birth_date ?? "",
           c.sex === "male" ? "男" : c.sex === "female" ? "女" : "",
+          c.department ?? "",
           CHECKUP_TYPES[c.checkup_type] ?? c.checkup_type,
           c.checkup_date ?? "",
           c.overall_judgment ?? "",
