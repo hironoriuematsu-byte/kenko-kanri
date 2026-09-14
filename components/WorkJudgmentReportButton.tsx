@@ -3,7 +3,6 @@
 import {
   CHECKUP_TYPES,
   CHECKUP_WORK_JUDGMENTS,
-  FOLLOWUP_STATUS,
   isFindingJudgment,
   isRestrictionJudgment,
   isSevereJudgment,
@@ -81,7 +80,8 @@ export default function WorkJudgmentReportButton({
         r.work_judgment ? CHECKUP_WORK_JUDGMENTS[r.work_judgment] : "未判定",
         r.work_judgment_date ?? "",
         r.work_judgment_note ?? "",
-        FOLLOWUP_STATUS[r.followup_status ?? "none"] ?? "",
+        // 受診勧奨が必要な方(受診勧奨・勧奨済・受診済)は「要」、措置不要は空欄
+        r.followup_status && r.followup_status !== "none" ? "要" : "",
         // 要就業制限の方は産業医面談の対象として「要」を記入する
         r.work_judgment === "restricted" ? "要" : "",
       ]),
