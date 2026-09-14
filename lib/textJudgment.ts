@@ -232,19 +232,46 @@ export const CHEST_XRAY_D_WORDS = [
   "癌", "がん", "ガン", "転移", "結核", "無気肺", "肺炎", "胸膜炎",
 ];
 
+// 「陳旧性」の所見は治癒後の変化のため、D の語句を含んでいても B とする
+//   (例: 陳旧性肺結核 → B、陳旧性炎症性変化 → B)
+const OLD_CHANGE_WORDS = ["陳旧性", "陳旧"];
+
+// 所見は「、」「・」「/」「;」改行などで区切られていることが多いので、区切りごとに判定する。
+// 「陳旧性肺結核、右胸水」のような場合は、陳旧性の部分は B、胸水の部分は D になり、全体では D
+function splitChestXrayFindings(text: string): string[] {
+  return text
+    .normalize("NFKC")
+    .split(/[\n\r,、，;；/／・]+/)
+    .map((s) => s.trim())
+    .filter((s) => s !== "");
+}
+
+function isOldChange(segment: string): boolean {
+  const t = normalizeFinding(segment);
+  return OLD_CHANGE_WORDS.some((w) => t.includes(normalizeFinding(w)));
+}
+
+function hasDWord(segment: string): boolean {
+  const t = normalizeFinding(segment);
+  return CHEST_XRAY_D_WORDS.some((w) => t.includes(normalizeFinding(w)));
+}
+
 export function judgeChestXrayText(text: string): Grade | null {
   if (text == null) return null;
   if (isNormalFinding(text)) return "A";
-  const t = normalizeFinding(text);
-  for (const w of CHEST_XRAY_D_WORDS) {
-    if (t.includes(normalizeFinding(w))) return "D";
+  let worst: Grade = "B";
+  for (const seg of splitChestXrayFindings(text)) {
+    if (isNormalFinding(seg)) continue;
+    if (isOldChange(seg)) continue; // 陳旧性は B
+    if (hasDWord(seg)) worst = "D";
   }
-  return "B";
+  return worst;
 }
 
-// 胸部X線で D とした根拠の語句(画面表示用)
+// 胸部X線で D とした根拠の語句(画面表示用)。陳旧性の部分は除く
 export function chestXrayDWords(text: string): string[] {
-  const t = normalizeFinding(text);
+  const segs = splitChestXrayFindings(text).filter((s) => !isOldChange(s));
+  const t = normalizeFinding(segs.join("、"));
   return CHEST_XRAY_D_WORDS.filter((w) => t.includes(normalizeFinding(w)));
 }
 
