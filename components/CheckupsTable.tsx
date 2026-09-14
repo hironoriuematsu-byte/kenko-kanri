@@ -5,6 +5,7 @@ import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/browser";
 import { formatDateJa } from "@/lib/fiscal";
+import { referralNote } from "@/lib/referral";
 import {
   CHECKUP_TYPES,
   CHECKUP_WORK_JUDGMENTS,
@@ -25,6 +26,7 @@ export type CheckupRow = {
   id: string;
   target_name: string;
   employee_no: string | null;
+  sex?: string | null; // 受診勧奨の文章(貧血の受診先)に使う
   checkup_type: string;
   checkup_date: string | null;
   overall_judgment: string | null;
@@ -47,18 +49,8 @@ const RESTRICTED_DEFAULT_PRESETS = ["要産業医面談", "時間外労働月45�
 // (「受診が条件」は医師の意見ではなく判定条件として付ける)
 const SEVERE_DEFAULT_PRESETS: string[] = [];
 
-// 一括判定のとき、従業員ごとに「医師の意見」の先頭に入れる文章。
-//   その方の要医療項目(D)・就業制限項目(R)の項目名を並べる
-//   例: 「γ-GTP、HbA1cにつき医療機関受診」。該当項目が無ければ空
-function referralNote(items: FindingItem[]): string {
-  const names: string[] = [];
-  for (const it of items) {
-    if (isSevereJudgment(it.judgment) || isRestrictionJudgment(it.judgment)) {
-      if (!names.includes(it.item_name)) names.push(it.item_name);
-    }
-  }
-  return names.length > 0 ? `${names.join("、")}につき医療機関受診` : "";
-}
+// 一括判定のとき、従業員ごとに「医師の意見」の先頭に入れる文章は lib/referral.ts の
+// referralNote で作る(例: 「肝機能異常あり内科（消化器内科）受診」)
 
 // 有所見項目を C / D(過去データのEを含む) / R(就業制限の検討)に振り分ける
 function splitFindings(items: FindingItem[]) {
@@ -343,7 +335,8 @@ export default function CheckupsTable({
     const referralIds: string[] = [];
     for (const id of ids) {
       const row = rows.find((r) => r.id === id);
-      const referral = referralNote(row?.findingItems ?? []);
+      const sex = row?.sex === "male" || row?.sex === "female" ? row.sex : null;
+      const referral = referralNote(row?.findingItems ?? [], sex);
       if (referral) referralIds.push(id);
       notes[id] = [referral, common].filter(Boolean).join(" / ");
     }
@@ -352,7 +345,7 @@ export default function CheckupsTable({
     const ok = window.confirm(
       `選択した ${selected.size}名を「${CHECKUP_WORK_JUDGMENTS[judgment]}」で判定します。\n` +
         (referralIds.length > 0
-          ? `医師の意見: 要医療項目（D）・就業制限項目（R）のある ${referralIds.length}名には、その項目名につき医療機関受診 が入ります。\n`
+          ? `医師の意見: 要医療項目（D）・就業制限項目（R）のある ${referralIds.length}名には、「肝機能異常あり内科（消化器内科）受診」のような受診勧奨の文章が入ります。\n`
           : "") +
         (conditionIds && conditionIds.length > 0
           ? `判定条件: その ${conditionIds.length}名は「受診が条件」の条件付きの通常勤務可になります。\n`
@@ -637,7 +630,7 @@ export default function CheckupsTable({
                 <div style={{ flex: 1, minWidth: 220 }}>
                   <label className="muted" style={{ display: "block", fontSize: 12 }}>
                     医師の意見（選択者に共通で入ります）。要医療項目（D）・就業制限項目（R）のある方には、
-                    その項目名で「○○につき医療機関受診」が自動で先頭に入ります
+                    「肝機能異常あり内科（消化器内科）受診」のような受診勧奨の文章が自動で先頭に入ります
                   </label>
                   <div style={{ marginBottom: 4 }}>
                     {OPINION_PRESETS.map((p) =>
