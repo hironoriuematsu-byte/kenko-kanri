@@ -84,8 +84,8 @@ function dateLines(dateStr: string | null | undefined): [string, string] | null 
 type ViewFilter = "all" | "d" | "r" | "dr";
 const VIEW_LABEL: Record<ViewFilter, string> = {
   all: "すべて",
-  r: "就業制限項目（R）あり",
   d: "要医療項目（D）あり",
+  r: "就業制限項目（R）あり",
   dr: "DまたはRあり",
 };
 
@@ -447,16 +447,16 @@ export default function CheckupsTable({
               A・B・Cの未判定 {normalTargets.length}名を「通常勤務可」で一括判定
             </button>
           </div>
-          {/* 左: 就業制限項目(R)の選択、右: 要医療項目(D)の選択 */}
+          {/* 左: 要医療項目(D)の選択、右: 就業制限項目(R)の選択 */}
           <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
-            {restrictionRows.length > 0 && (
-              <button className="btn secondary" onClick={onSelectRestriction} disabled={busy}>
-                就業制限項目（R）を選択（{restrictionRows.length}名）
-              </button>
-            )}
             {severeRows.length > 0 && (
               <button className="btn secondary" onClick={onSelectSevereUnjudged} disabled={busy}>
                 要医療項目（D）の未判定を選択（{severeRows.filter((r) => !r.work_judgment).length}名）
+              </button>
+            )}
+            {restrictionRows.length > 0 && (
+              <button className="btn secondary" onClick={onSelectRestriction} disabled={busy}>
+                就業制限項目（R）を選択（{restrictionRows.length}名）
               </button>
             )}
           </div>
