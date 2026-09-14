@@ -41,7 +41,8 @@ const CLEAR = "__clear__";
 // 「要就業制限」で一括判定するときの初期値(定型文のチェックと自由記入)
 const RESTRICTED_DEFAULT_PRESETS = ["但し受診が条件", "要産業医面談"];
 const RESTRICTED_DEFAULT_NOTE = "有所見項目（D）と就業制限項目（R）につき医療機関受診";
-// 「Dの未判定を選択」から「通常勤務可」で一括判定するときの自由記入の初期値
+// 「有所見項目（D）の未判定を選択」から「通常勤務可」で一括判定するときの初期値
+const SEVERE_DEFAULT_PRESETS = ["但し受診が条件"];
 const SEVERE_DEFAULT_NOTE = "有所見項目（D）につき医療機関受診";
 const DEFAULT_NOTES = [RESTRICTED_DEFAULT_NOTE, SEVERE_DEFAULT_NOTE];
 
@@ -138,7 +139,9 @@ export default function CheckupsTable({
     const noteUntouched = bulkFree.trim() === "" || DEFAULT_NOTES.includes(bulkFree);
     if (noteUntouched) setBulkFree(value === "restricted" ? RESTRICTED_DEFAULT_NOTE : "");
     const presetsUntouched =
-      bulkPresets.length === 0 || samePresets(bulkPresets, RESTRICTED_DEFAULT_PRESETS);
+      bulkPresets.length === 0 ||
+      samePresets(bulkPresets, RESTRICTED_DEFAULT_PRESETS) ||
+      samePresets(bulkPresets, SEVERE_DEFAULT_PRESETS);
     if (presetsUntouched) setBulkPresets(value === "restricted" ? RESTRICTED_DEFAULT_PRESETS : []);
   };
   const [editingNote, setEditingNote] = useState<string | null>(null);
@@ -288,7 +291,7 @@ export default function CheckupsTable({
   const onSelectSevereUnjudged = () => {
     setSelected(new Set(severeRows.filter((r) => !r.work_judgment).map((r) => r.id)));
     setJudgment("normal");
-    setBulkPresets([]);
+    setBulkPresets(SEVERE_DEFAULT_PRESETS);
     setBulkFree(SEVERE_DEFAULT_NOTE);
   };
 
