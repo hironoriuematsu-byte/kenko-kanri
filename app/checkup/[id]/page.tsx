@@ -10,6 +10,7 @@ import { formatDateJa } from "@/lib/fiscal";
 import {
   CHECKUP_TYPES,
   CHECKUP_WORK_JUDGMENTS,
+  conditionLabel,
   isFindingJudgment,
   isRestrictionJudgment,
 } from "@/lib/checkups";
@@ -23,13 +24,33 @@ export default async function CheckupDetailPage({ params }: { params: { id: stri
   const { profile } = await requireProfile();
   const supabase = createClient();
 
-  const { data: c } = await supabase
-    .from("hm_checkups")
-    .select(
-      "id, company_id, person_id, target_user_id, target_name, employee_no, birth_date, sex, fiscal_year, checkup_type, checkup_date, overall_judgment, has_findings, work_judgment, work_judgment_note, work_judgment_date, companies(name)"
-    )
-    .eq("id", params.id)
-    .single();
+  const detailCols =
+    "id, company_id, person_id, target_user_id, target_name, employee_no, birth_date, sex, fiscal_year, checkup_type, checkup_date, overall_judgment, has_findings, work_judgment, work_judgment_note, work_judgment_date, companies(name)";
+  const fetchDetail = (cols: string) =>
+    supabase.from("hm_checkups").select(cols).eq("id", params.id).single();
+  // 判定条件(work_judgment_condition)は 0132 で追加。未適用の環境では列なしで取得する
+  let detailRes = await fetchDetail(`${detailCols}, work_judgment_condition`);
+  if (detailRes.error) detailRes = await fetchDetail(detailCols);
+  const c = detailRes.data as unknown as {
+    id: string;
+    company_id: string;
+    person_id: string | null;
+    target_user_id: string | null;
+    target_name: string;
+    employee_no: string | null;
+    birth_date: string | null;
+    sex: string | null;
+    fiscal_year: number;
+    checkup_type: string;
+    checkup_date: string | null;
+    overall_judgment: string | null;
+    has_findings: boolean;
+    work_judgment: string | null;
+    work_judgment_note: string | null;
+    work_judgment_date: string | null;
+    work_judgment_condition?: string | null;
+    companies: { name: string } | { name: string }[] | null;
+  } | null;
   if (!c) notFound();
 
   await supabase.rpc("hm_log_access", {
@@ -154,6 +175,11 @@ export default async function CheckupDetailPage({ params }: { params: { id: stri
                   {c.work_judgment ? (
                     <>
                       <strong>{CHECKUP_WORK_JUDGMENTS[c.work_judgment]}</strong>
+                      {c.work_judgment_condition && (
+                        <span className="badge orange" style={{ marginLeft: 6 }}>
+                          {conditionLabel(c.work_judgment_condition)}
+                        </span>
+                      )}
                       <span className="muted">
                         （{formatDateJa(c.work_judgment_date)}）
                       </span>
@@ -346,6 +372,7 @@ export default async function CheckupDetailPage({ params }: { params: { id: stri
                 judgment: c.work_judgment ?? "",
                 note: c.work_judgment_note ?? "",
                 date: c.work_judgment_date ?? "",
+                condition: c.work_judgment_condition ?? null,
               }}
             />
           </div>

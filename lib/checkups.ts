@@ -12,8 +12,19 @@ export const CHECKUP_WORK_JUDGMENTS: Record<string, string> = {
   pending: "判定保留",
 };
 
+// 就業判定の「判定条件」。要医療項目(D)・就業制限項目(R)があるのに通常勤務可とする
+// 場合の条件付き判定(医師の意見とは別の欄)。値は hm_checkups.work_judgment_condition
+export const WORK_JUDGMENT_CONDITIONS: Record<string, string> = {
+  consult: "受診が条件",
+};
+
+export function conditionLabel(condition: string | null | undefined): string {
+  return condition ? WORK_JUDGMENT_CONDITIONS[condition] ?? condition : "";
+}
+
 // 医師の意見の定型文(チェックで付与でき、自由記入と併用できる)
-export const OPINION_PRESETS = ["但し受診が条件", "要産業医面談", "時間外労働月45時間以内"];
+// 「但し受診が条件」は判定条件(WORK_JUDGMENT_CONDITIONS)に移した
+export const OPINION_PRESETS = ["要産業医面談", "時間外労働月45時間以内"];
 
 // 定型文＋自由記入 → 保存文字列
 export function buildOpinionNote(presets: string[], freeText: string): string {

@@ -48,18 +48,21 @@ export default async function CheckupsSection({
   const round = selectedRound ?? rounds[0] ?? 1;
   const roundQuery = rounds.length > 1 ? `&round=${round}` : "";
 
-  const { data: checkups } = year
-    ? await supabase
-        .from("hm_checkups")
-        .select(
-          "id, target_name, employee_no, sex, checkup_type, special_kind, checkup_date, overall_judgment, has_findings, work_judgment, work_judgment_note, work_judgment_date, followup_status"
-        )
-        .eq("company_id", companyId)
-        .eq("fiscal_year", year)
-        .eq("round", round)
-        .order("employee_no", { ascending: true, nullsFirst: false })
-        .order("target_name")
-    : { data: [] };
+  const listCols =
+    "id, target_name, employee_no, sex, checkup_type, special_kind, checkup_date, overall_judgment, has_findings, work_judgment, work_judgment_note, work_judgment_date, followup_status";
+  const fetchList = (cols: string) =>
+    supabase
+      .from("hm_checkups")
+      .select(cols)
+      .eq("company_id", companyId)
+      .eq("fiscal_year", year!)
+      .eq("round", round)
+      .order("employee_no", { ascending: true, nullsFirst: false })
+      .order("target_name");
+  // 判定条件(work_judgment_condition)は 0132 で追加。未適用の環境では列なしで取得する
+  let listRes = year ? await fetchList(`${listCols}, work_judgment_condition`) : null;
+  if (listRes?.error) listRes = await fetchList(listCols);
+  const checkups = (listRes?.data ?? []) as unknown as (CheckupRow & { sex: string | null })[];
 
   // 有所見の検査項目を一覧に表示するため、該当年度分の項目をまとめて取得
   const ids = (checkups ?? []).map((c) => c.id);

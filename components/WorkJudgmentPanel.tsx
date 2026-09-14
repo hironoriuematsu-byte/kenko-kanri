@@ -6,6 +6,7 @@ import { createClient } from "@/lib/supabase/browser";
 import {
   CHECKUP_WORK_JUDGMENTS,
   OPINION_PRESETS,
+  WORK_JUDGMENT_CONDITIONS,
   buildOpinionNote,
   parseOpinionNote,
 } from "@/lib/checkups";
@@ -16,11 +17,13 @@ export default function WorkJudgmentPanel({
   initial,
 }: {
   checkupId: string;
-  initial: { judgment: string; note: string; date: string };
+  initial: { judgment: string; note: string; date: string; condition?: string | null };
 }) {
   const router = useRouter();
   const parsed = parseOpinionNote(initial.note);
   const [judgment, setJudgment] = useState(initial.judgment);
+  // 判定条件「受診が条件」: 要医療項目(D)・就業制限項目(R)があるのに通常勤務可とする場合
+  const [consult, setConsult] = useState(initial.condition === "consult");
   const [presets, setPresets] = useState<string[]>(parsed.presets);
   const [freeText, setFreeText] = useState(parsed.freeText);
   const [error, setError] = useState<string | null>(null);
@@ -42,10 +45,27 @@ export default function WorkJudgmentPanel({
     });
     if (error) {
       setError(`保存に失敗しました: ${error.message}`);
-    } else {
-      setSaved(true);
-      router.refresh();
+      setBusy(false);
+      return;
     }
+    // 判定条件は通常勤務可のときだけ保存する(それ以外はサーバー側で消える)
+    if (judgment === "normal") {
+      const { error: condError } = await supabase.rpc("hm_set_work_judgment_condition", {
+        p_ids: [checkupId],
+        p_on: consult,
+      });
+      if (condError) {
+        setError(
+          `就業判定は保存しましたが、判定条件を保存できませんでした: ${condError.message}` +
+            "（データベースの更新(0132)が未適用の可能性があります）"
+        );
+        setBusy(false);
+        router.refresh();
+        return;
+      }
+    }
+    setSaved(true);
+    router.refresh();
     setBusy(false);
   };
 
@@ -63,6 +83,27 @@ export default function WorkJudgmentPanel({
             ))}
           </select>
         </div>
+        {judgment === "normal" && (
+          <div>
+            <label>判定条件</label>
+            <label
+              htmlFor="wj-consult"
+              style={{ display: "inline-flex", alignItems: "center", gap: 6, marginTop: 6 }}
+            >
+              <input
+                id="wj-consult"
+                type="checkbox"
+                checked={consult}
+                onChange={(e) => setConsult(e.target.checked)}
+                style={{ width: 16, height: 16 }}
+              />
+              {WORK_JUDGMENT_CONDITIONS.consult}
+              <span className="muted" style={{ fontSize: 12 }}>
+                （要医療項目（D）・就業制限項目（R）があるのに通常勤務可とする場合）
+              </span>
+            </label>
+          </div>
+        )}
         <div>
           <label>判定日</label>
           <p className="muted" style={{ margin: "6px 0 0" }}>

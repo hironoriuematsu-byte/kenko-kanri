@@ -10,7 +10,9 @@ import {
   CHECKUP_WORK_JUDGMENTS,
   FOLLOWUP_STATUS,
   OPINION_PRESETS,
+  WORK_JUDGMENT_CONDITIONS,
   buildOpinionNote,
+  conditionLabel,
   isRestrictionJudgment,
   isSevereJudgment,
   needsAttention,
@@ -30,6 +32,7 @@ export type CheckupRow = {
   work_judgment: string | null;
   work_judgment_note: string | null;
   work_judgment_date: string | null;
+  work_judgment_condition?: string | null; // 判定条件(consult = 受診が条件)
   followup_status?: string | null; // 受診勧奨の状態(none/pending/recommended/done)
   special_kind?: string | null; // 特殊健診の種類(有機溶剤・鉛 など)
   findingItems?: FindingItem[];
@@ -40,8 +43,9 @@ const CLEAR = "__clear__";
 
 // 「要就業制限」で一括判定するときの初期値(定型文のチェック)
 const RESTRICTED_DEFAULT_PRESETS = ["要産業医面談", "時間外労働月45時間以内"];
-// 「要医療項目（D）の未判定を選択」から「通常勤務可」で一括判定するときの初期値
-const SEVERE_DEFAULT_PRESETS = ["但し受診が条件"];
+// 「要医療項目（D）の未判定を選択」から「通常勤務可」で一括判定するときの定型文の初期値
+// (「受診が条件」は医師の意見ではなく判定条件として付ける)
+const SEVERE_DEFAULT_PRESETS: string[] = [];
 
 // 一括判定のとき、従業員ごとに「医師の意見」の先頭に入れる文章。
 //   その方の要医療項目(D)・就業制限項目(R)の項目名を並べる
@@ -139,6 +143,9 @@ export default function CheckupsTable({
   // 自由記入は空(従業員ごとの「○○につき医療機関受診」は自動で先頭に入る)
   const [bulkPresets, setBulkPresets] = useState<string[]>(RESTRICTED_DEFAULT_PRESETS);
   const [bulkFree, setBulkFree] = useState("");
+  // 判定条件「受診が条件」: 通常勤務可で一括判定するとき、要医療項目(D)・就業制限項目(R)の
+  // ある方に付ける(初期はオン)
+  const [bulkConsult, setBulkConsult] = useState(true);
 
   const samePresets = (a: string[], b: string[]) =>
     a.length === b.length && a.every((p) => b.includes(p));
@@ -242,13 +249,15 @@ export default function CheckupsTable({
       return allSelected ? new Set() : new Set(ids);
     });
 
-  // 一括判定。notes を渡すと従業員ごとに異なる「医師の意見」を保存する(0131)。
-  // まだ0131が適用されていない環境では、1人ずつ保存する方法に切り替える
+  // 一括判定。notes を渡すと従業員ごとに異なる「医師の意見」を、conditionIds を渡すと
+  // 「受診が条件」の判定条件を保存する(0132)。
+  // まだ0132が適用されていない環境では、1人ずつ保存する方法に切り替える(判定条件は保存されない)
   const runBulkJudgment = async (
     ids: string[],
     value: string,
     note: string | null,
-    notes?: Record<string, string>
+    notes?: Record<string, string>,
+    conditionIds?: string[] | null
   ) => {
     setBusy(true);
     setError(null);
@@ -260,6 +269,7 @@ export default function CheckupsTable({
           p_judgment: value,
           p_note: note,
           p_notes: notes,
+          p_condition_ids: conditionIds ?? null,
         })
       : await supabase.rpc("hm_bulk_work_judgment", {
           p_ids: ids,
@@ -268,8 +278,9 @@ export default function CheckupsTable({
         });
     let data: number = Number(res.data ?? 0);
     let errMsg: string | null = res.error?.message ?? null;
-    if (errMsg && notes && /hm_bulk_work_judgment|p_notes/.test(errMsg)) {
-      // 4引数の版が無い(0131未適用)ときは1人ずつ保存する
+    let fallbackNote = "";
+    if (errMsg && notes && /hm_bulk_work_judgment|p_notes|p_condition_ids/.test(errMsg)) {
+      // 5引数の版が無い(0132未適用)ときは1人ずつ保存する
       let saved = 0;
       let firstError: string | null = null;
       for (const id of ids) {
@@ -287,6 +298,9 @@ export default function CheckupsTable({
       }
       data = saved;
       errMsg = saved === 0 ? firstError : null;
+      if ((conditionIds ?? []).length > 0) {
+        fallbackNote = "（判定条件「受診が条件」はデータベースの更新(0132)を実行した後に保存できます）";
+      }
     }
     if (errMsg) {
       setError(`一括判定に失敗しました: ${errMsg}`);
@@ -299,7 +313,7 @@ export default function CheckupsTable({
       return;
     }
     setMessage(
-      `${data}名の就業判定を「${CHECKUP_WORK_JUDGMENTS[value]}」で登録しました（判定日は本日）。`
+      `${data}名の就業判定を「${CHECKUP_WORK_JUDGMENTS[value]}」で登録しました（判定日は本日）。${fallbackNote}`
     );
     setSelected(new Set());
     setBulkPresets(judgment === "restricted" ? RESTRICTED_DEFAULT_PRESETS : []);
@@ -326,23 +340,46 @@ export default function CheckupsTable({
     // 従業員ごとに「○○につき医療機関受診」を先頭に付けた医師の意見を作る
     const ids = Array.from(selected);
     const notes: Record<string, string> = {};
-    let withReferral = 0;
+    const referralIds: string[] = [];
     for (const id of ids) {
       const row = rows.find((r) => r.id === id);
       const referral = referralNote(row?.findingItems ?? []);
-      if (referral) withReferral++;
+      if (referral) referralIds.push(id);
       notes[id] = [referral, common].filter(Boolean).join(" / ");
     }
+    // 判定条件「受診が条件」: 通常勤務可のとき、D・Rのある方に付ける(チェックを外せば付けない)
+    const conditionIds = judgment === "normal" ? (bulkConsult ? referralIds : []) : null;
     const ok = window.confirm(
       `選択した ${selected.size}名を「${CHECKUP_WORK_JUDGMENTS[judgment]}」で判定します。\n` +
-        (withReferral > 0
-          ? `医師の意見: 要医療項目（D）・就業制限項目（R）のある ${withReferral}名には、その項目名につき医療機関受診 が入ります。\n`
+        (referralIds.length > 0
+          ? `医師の意見: 要医療項目（D）・就業制限項目（R）のある ${referralIds.length}名には、その項目名につき医療機関受診 が入ります。\n`
+          : "") +
+        (conditionIds && conditionIds.length > 0
+          ? `判定条件: その ${conditionIds.length}名は「受診が条件」の条件付きの通常勤務可になります。\n`
           : "") +
         (common ? `共通の意見: ${common}\n` : "") +
         `判定日は本日として記録されます。よろしいですか？`
     );
     if (!ok) return;
-    await runBulkJudgment(ids, judgment, common || null, notes);
+    await runBulkJudgment(ids, judgment, common || null, notes, conditionIds);
+  };
+
+  // 一覧の1人分の判定条件「受診が条件」を付け外しする(通常勤務可の方のみ)
+  const setCondition = async (id: string, on: boolean) => {
+    setBusy(true);
+    setError(null);
+    setMessage(null);
+    const supabase = createClient();
+    const { error } = await supabase.rpc("hm_set_work_judgment_condition", {
+      p_ids: [id],
+      p_on: on,
+    });
+    if (error) {
+      setError(
+        `判定条件を変更できませんでした: ${error.message}（データベースの更新(0132)が未適用の可能性があります）`
+      );
+    } else router.refresh();
+    setBusy(false);
   };
 
   // 「Dの未判定を選択」: 通常勤務可(医療機関受診を条件)で判定する前提で初期値を入れる
@@ -577,6 +614,26 @@ export default function CheckupsTable({
                     ))}
                   </select>
                 </div>
+                {judgment === "normal" && (
+                  <div>
+                    <label className="muted" style={{ display: "block", fontSize: 12 }}>
+                      判定条件
+                    </label>
+                    <label
+                      htmlFor="bulk-consult"
+                      style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 13, padding: "6px 0" }}
+                    >
+                      <input
+                        id="bulk-consult"
+                        type="checkbox"
+                        checked={bulkConsult}
+                        onChange={(e) => setBulkConsult(e.target.checked)}
+                        style={{ width: 15, height: 15 }}
+                      />
+                      {WORK_JUDGMENT_CONDITIONS.consult}（D・Rのある方に付けます）
+                    </label>
+                  </div>
+                )}
                 <div style={{ flex: 1, minWidth: 220 }}>
                   <label className="muted" style={{ display: "block", fontSize: 12 }}>
                     医師の意見（選択者に共通で入ります）。要医療項目（D）・就業制限項目（R）のある方には、
@@ -816,6 +873,30 @@ export default function CheckupsTable({
                         {c.work_judgment ? CHECKUP_WORK_JUDGMENTS[c.work_judgment] : "未判定"}
                       </span>
                     )}
+                    {/* 判定条件「受診が条件」(通常勤務可のときだけ) */}
+                    {c.work_judgment === "normal" &&
+                      (canJudge ? (
+                        <label
+                          htmlFor={`consult-${c.id}`}
+                          style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 12, marginTop: 4 }}
+                        >
+                          <input
+                            id={`consult-${c.id}`}
+                            type="checkbox"
+                            checked={c.work_judgment_condition === "consult"}
+                            onChange={(e) => setCondition(c.id, e.target.checked)}
+                            disabled={busy}
+                            style={{ width: 14, height: 14 }}
+                          />
+                          {WORK_JUDGMENT_CONDITIONS.consult}
+                        </label>
+                      ) : (
+                        c.work_judgment_condition && (
+                          <div>
+                            <span className="badge orange">{conditionLabel(c.work_judgment_condition)}</span>
+                          </div>
+                        )
+                      ))}
                     {c.work_judgment_date && (
                       <div className="muted" style={{ fontSize: 11 }}>
                         {formatDateJa(c.work_judgment_date)}

@@ -5,6 +5,7 @@ import {
   CHECKUP_TYPES,
   CHECKUP_WORK_JUDGMENTS,
   FOLLOWUP_STATUS,
+  conditionLabel,
   isFindingJudgment,
   isRestrictionJudgment,
   isSevereJudgment,
@@ -30,6 +31,7 @@ export type ReportCheckup = {
   work_judgment: string | null;
   work_judgment_date: string | null;
   work_judgment_note: string | null;
+  work_judgment_condition?: string | null; // 判定条件(consult = 受診が条件)
   followup_status?: string | null; // 受診勧奨の状態
   special_kind?: string | null; // 特殊健診の種類
 };
@@ -144,6 +146,10 @@ export default function CheckupReportPanel({
       [],
       ["受診者数", checkups.length],
       ["通常勤務可", count("normal")],
+      [
+        "　うち受診が条件",
+        checkups.filter((c) => c.work_judgment === "normal" && c.work_judgment_condition).length,
+      ],
       ["要就業制限", count("restricted")],
       ["要休業", count("leave")],
       ["判定保留", count("pending")],
@@ -160,8 +166,11 @@ export default function CheckupReportPanel({
         "要医療項目(D)",
         "就業制限項目(R)",
         "就業判定",
+        "判定条件",
         "判定日",
         "医師の意見",
+        "受診勧奨",
+        "産業医面談",
       ],
       ...checkups.map((c) => [
         c.employee_no ?? "",
@@ -173,9 +182,11 @@ export default function CheckupReportPanel({
         names(c, (j) => isSevereJudgment(j) && !isRestrictionJudgment(j)),
         names(c, isRestrictionJudgment),
         c.work_judgment ? CHECKUP_WORK_JUDGMENTS[c.work_judgment] : "未判定",
+        conditionLabel(c.work_judgment_condition),
         c.work_judgment_date ?? "",
         c.work_judgment_note ?? "",
-        FOLLOWUP_STATUS[c.followup_status ?? "none"] ?? "",
+        c.followup_status && c.followup_status !== "none" ? "要" : "",
+        c.work_judgment === "restricted" ? "要" : "",
       ]),
       [],
       [
@@ -204,8 +215,10 @@ export default function CheckupReportPanel({
       "総合判定",
       "有所見",
       "就業判定",
+      "判定条件",
       "判定日",
       "医師の意見",
+      "受診勧奨",
       ...itemNames.flatMap((n) => [n, `${n} 判定`]),
     ];
 
@@ -230,9 +243,10 @@ export default function CheckupReportPanel({
           c.overall_judgment ?? "",
           c.has_findings ? "有" : "",
           c.work_judgment ? CHECKUP_WORK_JUDGMENTS[c.work_judgment] : "未判定",
+          conditionLabel(c.work_judgment_condition),
           c.work_judgment_date ?? "",
           c.work_judgment_note ?? "",
-        FOLLOWUP_STATUS[c.followup_status ?? "none"] ?? "",
+          FOLLOWUP_STATUS[c.followup_status ?? "none"] ?? "",
           ...itemNames.flatMap((n) => {
             const it = map?.get(n);
             return [it?.value ?? "", it?.judgment ?? ""];

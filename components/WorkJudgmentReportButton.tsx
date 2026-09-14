@@ -3,6 +3,7 @@
 import {
   CHECKUP_TYPES,
   CHECKUP_WORK_JUDGMENTS,
+  conditionLabel,
   isFindingJudgment,
   isRestrictionJudgment,
   isSevereJudgment,
@@ -47,6 +48,10 @@ export default function WorkJudgmentReportButton({
       [],
       ["受診者数", rows.length],
       ["通常勤務可", count("normal")],
+      [
+        "　うち受診が条件",
+        rows.filter((r) => r.work_judgment === "normal" && r.work_judgment_condition).length,
+      ],
       ["要就業制限", count("restricted")],
       ["要休業", count("leave")],
       ["判定保留", count("pending")],
@@ -63,6 +68,7 @@ export default function WorkJudgmentReportButton({
         "要医療項目(D)",
         "就業制限項目(R)",
         "就業判定",
+        "判定条件",
         "判定日",
         "医師の意見",
         "受診勧奨",
@@ -78,6 +84,8 @@ export default function WorkJudgmentReportButton({
         names(r, (j) => isSevereJudgment(j) && !isRestrictionJudgment(j)),
         names(r, isRestrictionJudgment),
         r.work_judgment ? CHECKUP_WORK_JUDGMENTS[r.work_judgment] : "未判定",
+        // 判定条件: 要医療項目(D)・就業制限項目(R)があるのに通常勤務可とした場合の「受診が条件」
+        conditionLabel(r.work_judgment_condition),
         r.work_judgment_date ?? "",
         r.work_judgment_note ?? "",
         // 受診勧奨が必要な方(受診勧奨・勧奨済・受診済)は「要」、措置不要は空欄
