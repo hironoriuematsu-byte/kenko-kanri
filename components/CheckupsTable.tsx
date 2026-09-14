@@ -38,6 +38,9 @@ export type CheckupRow = {
 // 一覧の「就業判定」欄で未判定に戻すときの選択肢の値
 const CLEAR = "__clear__";
 
+// 「要就業制限」で一括判定するときの自由記入の初期値
+const RESTRICTED_DEFAULT_NOTE = "時間外労働月45時間以内";
+
 // 有所見項目を C / D(過去データのEを含む) / R(就業制限の検討)に振り分ける
 function splitFindings(items: FindingItem[]) {
   const c: FindingItem[] = [];
@@ -118,7 +121,18 @@ export default function CheckupsTable({
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [judgment, setJudgment] = useState("restricted");
   const [bulkPresets, setBulkPresets] = useState<string[]>([]);
-  const [bulkFree, setBulkFree] = useState("");
+  // 「要就業制限」の一括判定では、自由記入の初期値を「時間外労働月45時間以内」にする
+  const [bulkFree, setBulkFree] = useState(RESTRICTED_DEFAULT_NOTE);
+
+  // 判定区分を切り替えたとき、自由記入が初期値のまま(または空)なら区分に合わせて入れ替える
+  const changeJudgment = (value: string) => {
+    setJudgment(value);
+    if (value === "restricted") {
+      if (bulkFree.trim() === "") setBulkFree(RESTRICTED_DEFAULT_NOTE);
+    } else if (bulkFree === RESTRICTED_DEFAULT_NOTE) {
+      setBulkFree("");
+    }
+  };
   const [editingNote, setEditingNote] = useState<string | null>(null);
   const [noteDraft, setNoteDraft] = useState<{ presets: string[]; freeText: string }>({
     presets: [],
@@ -234,7 +248,7 @@ export default function CheckupsTable({
     );
     setSelected(new Set());
     setBulkPresets([]);
-    setBulkFree("");
+    setBulkFree(judgment === "restricted" ? RESTRICTED_DEFAULT_NOTE : "");
     setBusy(false);
     router.refresh();
   };
@@ -246,17 +260,6 @@ export default function CheckupsTable({
     );
     if (!ok) return;
     await runBulkJudgment(normalTargets.map((r) => r.id), "normal", null);
-  };
-
-  // 就業制限項目(R)の該当者を、選択の手順なしでそのまま判定する
-  const onRestrictionBulk = async () => {
-    if (restrictionRows.length === 0) return;
-    const ok = window.confirm(
-      `就業制限項目（R）に該当する ${restrictionRows.length}名を、まとめて「就業制限が必要」で判定します。\n` +
-        `すでに判定済みの方も、この判定で上書きされます。\n判定日は本日として記録されます。よろしいですか？`
-    );
-    if (!ok) return;
-    await runBulkJudgment(restrictionRows.map((r) => r.id), "restricted", null);
   };
 
   const onSelectedBulk = async () => {
@@ -423,17 +426,6 @@ export default function CheckupsTable({
               A・B・Cの未判定 {normalTargets.length}名を「通常勤務可」で一括判定
             </button>
             {restrictionRows.length > 0 && (
-              // 判定済みの方も対象にする(先に「通常勤務可」で一括判定した方を
-              // あらためて就業制限に変更できるようにするため)
-              <button
-                className="btn orange"
-                onClick={onRestrictionBulk}
-                disabled={busy}
-              >
-                就業制限項目（R）の {restrictionRows.length}名を「就業制限が必要」で一括判定
-              </button>
-            )}
-            {restrictionRows.length > 0 && (
               <button
                 className="btn secondary"
                 onClick={() => setSelected(new Set(restrictionRows.map((r) => r.id)))}
@@ -506,7 +498,7 @@ export default function CheckupsTable({
                   <label className="muted" style={{ display: "block", fontSize: 12 }}>
                     選択中 {selected.size}名の就業判定
                   </label>
-                  <select value={judgment} onChange={(e) => setJudgment(e.target.value)}>
+                  <select value={judgment} onChange={(e) => changeJudgment(e.target.value)}>
                     {Object.entries(CHECKUP_WORK_JUDGMENTS).map(([k, v]) => (
                       <option key={k} value={k}>
                         {v}

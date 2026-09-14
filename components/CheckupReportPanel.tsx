@@ -144,7 +144,7 @@ export default function CheckupReportPanel({
       [],
       ["受診者数", checkups.length],
       ["通常勤務可", count("normal")],
-      ["就業制限が必要", count("restricted")],
+      ["要就業制限", count("restricted")],
       ["要休業", count("leave")],
       ["判定保留", count("pending")],
       ["未判定", count(null)],

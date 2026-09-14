@@ -7,7 +7,7 @@ export const CHECKUP_TYPES: Record<string, string> = {
 // 健診の就業判定(面談の意見書とは別に「判定保留」を持つ)
 export const CHECKUP_WORK_JUDGMENTS: Record<string, string> = {
   normal: "通常勤務可",
-  restricted: "就業制限が必要",
+  restricted: "要就業制限",
   leave: "要休業",
   pending: "判定保留",
 };

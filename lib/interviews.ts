@@ -21,7 +21,7 @@ export const INTERVIEW_STATUS: Record<string, string> = {
 
 export const WORK_JUDGMENTS: Record<string, string> = {
   normal: "通常勤務可",
-  restricted: "就業制限が必要",
+  restricted: "要就業制限",
   leave: "要休業",
 };
 
