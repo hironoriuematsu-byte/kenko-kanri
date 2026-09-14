@@ -128,7 +128,15 @@ export default function JudgmentRulesEditor({ initial }: { initial: JudgmentRule
             {item.unit && <span className="muted">（{item.unit}）</span>}
             {item.sexSpecific && <span className="badge" style={{ marginLeft: 8 }}>性別あり</span>}
           </h3>
-          {item.rules.length === 0 ? (
+          {item.textJudged ? (
+            <p className="muted">
+              所見の文言から判定します（数値の基準はありません）。
+              {item.key === "ecg" &&
+                "日本人間ドック学会「心電図健診判定マニュアル」の表2に沿って、所見の語句をA〜D（D1・D2はD）に対応づけます。"}
+              {item.key === "chest_xray" &&
+                "所見があればB、腫瘍・腫瘤・結節・空洞・粒状・網状・すりガラス・胸水・狭窄・動脈瘤・蜂巣・気腫・うっ血・リンパ節腫大・縦隔拡大・浸潤・コンソリデーション・胸膜肥厚・胸膜プラーク・破壊・溶骨・骨折・心拡大・癌(がん)・転移・結核・無気肺・肺炎・胸膜炎の語句を含めばDとします（「右胸水」「肺がん疑い」「腹部大動脈瘤」も該当）。"}
+            </p>
+          ) : item.rules.length === 0 ? (
             <p className="muted">基準未設定（この項目は判定されません）</p>
           ) : (
             <table className="list" style={{ marginBottom: 8 }}>

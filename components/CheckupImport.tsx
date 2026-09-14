@@ -12,6 +12,7 @@ import {
   normalizeDate,
 } from "@/lib/checkups";
 import { matchPerson, type PersonCandidate } from "@/lib/personMatch";
+import { averageBloodPressure, isAverageHeader } from "@/lib/bloodPressure";
 import {
   LEGAL_ITEMS,
   findLegalItemByHeader,
@@ -134,6 +135,24 @@ export default function CheckupImport({
       .filter(Boolean);
 
     const norm = (s: string) => s.replace(/[\s　]/g, "");
+
+    // 血圧を2回測定していて平均の列が無い場合は、平均を求めてそれを判定する。
+    // 各回の測定値はそのまま保存するが、判定は付けない(平均で判定する)
+    const bpCols = (key: "sbp" | "dbp") =>
+      header
+        .map((h, i) => ({ h, i }))
+        .filter(({ h, i }) => {
+          const m = colModes[i];
+          return !baseCols.includes(i) && m?.kind === "legal" && m.itemKey === key;
+        });
+    const sbpCols = bpCols("sbp");
+    const dbpCols = bpCols("dbp");
+    const hasAvgCol = [...sbpCols, ...dbpCols].some(({ h }) => isAverageHeader(h));
+    const needBpAverage = !hasAvgCol && (sbpCols.length >= 2 || dbpCols.length >= 2);
+    const bpReadingCols = new Set<number>(
+      needBpAverage ? [...sbpCols, ...dbpCols].map(({ i }) => i) : []
+    );
+
     const payload = dataRows
       .map((r) => {
         const sex = readSex(r);
@@ -146,6 +165,12 @@ export default function CheckupImport({
           if (mode.kind === "off") return;
           const cell = (r[i] ?? "").trim();
           if (!cell) return;
+
+          // 各回の血圧は値だけ保存し、判定は平均で行う
+          if (bpReadingCols.has(i)) {
+            items.push({ name: h.trim(), value: cell });
+            return;
+          }
 
           if (mode.kind === "legal" && autoJudge) {
             // 「142/90」形式の血圧は収縮期・拡張期に分けて判定
@@ -171,6 +196,25 @@ export default function CheckupImport({
           }
           items.push({ name: h.trim(), value: cell });
         });
+
+        // 血圧2回測定の平均(平均の列が無い場合のみ)
+        if (needBpAverage) {
+          // 「142/90」形式の列は収縮期の列として読み取られるため、拡張期もそこから求める
+          const sbpReadings = sbpCols.map(({ i }) => r[i] ?? "");
+          const dbpReadings = (dbpCols.length > 0 ? dbpCols : sbpCols).map(({ i }) => r[i] ?? "");
+          const sbpAvg = averageBloodPressure(sbpReadings, "sbp");
+          const dbpAvg = averageBloodPressure(dbpReadings, "dbp");
+          if (sbpAvg != null) {
+            const g = autoJudge ? judgeItem("sbp", String(sbpAvg), sex, rules) : null;
+            autoGrades.push(g);
+            items.push({ name: "収縮期血圧(平均)", value: String(sbpAvg), judgment: g ?? undefined });
+          }
+          if (dbpAvg != null) {
+            const g = autoJudge ? judgeItem("dbp", String(dbpAvg), sex, rules) : null;
+            autoGrades.push(g);
+            items.push({ name: "拡張期血圧(平均)", value: String(dbpAvg), judgment: g ?? undefined });
+          }
+        }
 
         // 「〇〇判定」列を同名の測定値項目にマージ
         const merged: typeof items = [];
