@@ -4,7 +4,7 @@ import Header from "@/components/Header";
 import { requireProfile } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { formatDateJa } from "@/lib/fiscal";
-import { CHECKUP_TYPES, FOLLOWUP_STATUS } from "@/lib/checkups";
+import { CHECKUP_TYPES, FOLLOWUP_STATUS, roundLabel } from "@/lib/checkups";
 import {
   INTERVIEW_TYPES,
   INTERVIEW_STATUS,
@@ -53,7 +53,7 @@ export default async function PersonPage({
     supabase
       .from("hm_checkups")
       .select(
-        "id, fiscal_year, checkup_type, special_kind, checkup_date, overall_judgment, has_findings, work_judgment, followup_status"
+        "id, fiscal_year, round, checkup_type, special_kind, checkup_date, overall_judgment, has_findings, work_judgment, followup_status"
       )
       .eq("target_user_id", person.id)
       .order("fiscal_year", { ascending: false }),
@@ -70,7 +70,7 @@ export default async function PersonPage({
   for (const c of checkups ?? []) {
     entries.push({
       sortKey: c.checkup_date ?? `${c.fiscal_year}-04-01`,
-      dateLabel: c.checkup_date ? formatDateJa(c.checkup_date) : `${c.fiscal_year}年度`,
+      dateLabel: `${c.checkup_date ? formatDateJa(c.checkup_date) : `${c.fiscal_year}年度`}${roundLabel(c.round) ? ` ${roundLabel(c.round)}` : ""}`,
       kind: "健診",
       kindClass: c.has_findings ? "badge orange" : "badge",
       description: `${CHECKUP_TYPES[c.checkup_type] ?? c.checkup_type}${

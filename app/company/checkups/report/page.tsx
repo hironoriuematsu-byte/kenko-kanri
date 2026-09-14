@@ -15,7 +15,7 @@ export const dynamic = "force-dynamic";
 export default async function CompanyCheckupReportPage({
   searchParams,
 }: {
-  searchParams: { year?: string };
+  searchParams: { year?: string; round?: string };
 }) {
   const { profile } = await requireProfile();
   if (profile.role !== "company" || !profile.company_id) redirect("/");
@@ -28,7 +28,8 @@ export default async function CompanyCheckupReportPage({
     .single();
 
   const year = searchParams.year ? Number(searchParams.year) : getFiscalYear();
-  const { checkups, items } = await getCheckupReportData(profile.company_id, year);
+  const round = searchParams.round ? Number(searchParams.round) : undefined;
+  const { checkups, items } = await getCheckupReportData(profile.company_id, year, round);
 
   const officeInfo = await getOfficeInfo();
   // 就業制限(R)を測定値から確かめるために使う
@@ -48,7 +49,7 @@ export default async function CompanyCheckupReportPage({
         <p className="muted">
           <Link href={`/company/checkups?year=${year}`}>← 健康診断管理に戻る</Link>
         </p>
-        <h1 className="page-title">定期健康診断結果報告書（{year}年度）</h1>
+        <h1 className="page-title">定期健康診断結果報告書（{year}年度{round ? `・第${round}回` : ""}）</h1>
         <div className="notice">
           労働基準監督署への報告は、厚生労働省の
           <a

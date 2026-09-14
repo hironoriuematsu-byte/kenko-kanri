@@ -34,6 +34,12 @@ export function parseOpinionNote(note: string | null | undefined): {
   return { presets, freeText };
 }
 
+// 実施回(年に複数回の定期健診を分けて扱う)の表示
+export function roundLabel(round: number | null | undefined): string {
+  const r = round ?? 1;
+  return r <= 1 ? "" : `第${r}回`;
+}
+
 // 就業判定が「要対応」(未判定・判定保留)か
 export function needsAttention(workJudgment: string | null | undefined): boolean {
   return !workJudgment || workJudgment === "pending";

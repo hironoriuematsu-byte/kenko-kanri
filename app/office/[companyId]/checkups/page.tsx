@@ -12,7 +12,7 @@ export default async function OfficeCheckupsPage({
   searchParams,
 }: {
   params: { companyId: string };
-  searchParams: { year?: string };
+  searchParams: { year?: string; round?: string };
 }) {
   const { profile } = await requireProfile();
   if (profile.role !== "office") redirect("/");
@@ -39,6 +39,7 @@ export default async function OfficeCheckupsPage({
             companyName={company.name}
             basePath={`/office/${company.id}/checkups`}
             selectedYear={searchParams.year ? Number(searchParams.year) : undefined}
+            selectedRound={searchParams.round ? Number(searchParams.round) : undefined}
             canEdit
             canDelete
             canJudge

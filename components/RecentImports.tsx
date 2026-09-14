@@ -10,6 +10,7 @@ type ImportBatch = {
   batch_id: string;
   imported_at: string;
   fiscal_year: number;
+  round: number;
   checkup_type: string;
   rows_count: number; // この取込で新しく作成した記録の数
   merged_count: number; // 既存の記録に検査項目を統合した数
@@ -114,7 +115,10 @@ export default function RecentImports({ companyId }: { companyId: string }) {
                 {batches.map((b) => (
                   <tr key={b.batch_id}>
                     <td>{new Date(b.imported_at).toLocaleString("ja-JP")}</td>
-                    <td>{b.fiscal_year}年度</td>
+                    <td>
+                      {b.fiscal_year}年度
+                      {b.round > 1 && <span className="muted"> 第{b.round}回</span>}
+                    </td>
                     <td>{CHECKUP_TYPES[b.checkup_type] ?? b.checkup_type}</td>
                     <td>
                       {b.rows_count}件

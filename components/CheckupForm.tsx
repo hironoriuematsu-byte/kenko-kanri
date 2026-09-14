@@ -39,6 +39,7 @@ export default function CheckupForm({
   const [fiscalYear, setFiscalYear] = useState(getFiscalYear());
   const [checkupType, setCheckupType] = useState("regular");
   const [specialKind, setSpecialKind] = useState(""); // 特殊健診の種類(有機溶剤・鉛 など)
+  const [round, setRound] = useState(1); // 実施回(年に複数回の定期健診を行う事業場向け)
   const [checkupDate, setCheckupDate] = useState("");
   const [autoJudge, setAutoJudge] = useState(true);
   const [overall, setOverall] = useState("");
@@ -84,6 +85,7 @@ export default function CheckupForm({
       p_fiscal_year: fiscalYear,
       p_checkup_type: checkupType,
       p_special_kind: checkupType === "special" ? specialKind.trim() || null : null,
+      p_round: round,
       p_findings_judgments: DEFAULT_FINDINGS_JUDGMENTS,
       p_rows: [
         {
@@ -173,6 +175,15 @@ export default function CheckupForm({
                 {v}
               </option>
             ))}
+          </select>
+        </div>
+        <div>
+          <label>実施回</label>
+          <select value={round} onChange={(e) => setRound(Number(e.target.value))}>
+            <option value={1}>1回目</option>
+            <option value={2}>2回目</option>
+            <option value={3}>3回目</option>
+            <option value={4}>4回目</option>
           </select>
         </div>
         {checkupType === "special" && (

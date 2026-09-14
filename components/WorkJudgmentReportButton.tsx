@@ -16,11 +16,13 @@ import type { CheckupRow } from "@/components/CheckupsTable";
 export default function WorkJudgmentReportButton({
   companyName,
   fiscalYear,
+  round,
   rows,
   officeInfo,
 }: {
   companyName: string;
   fiscalYear: number;
+  round?: number; // 年に複数回の定期健診がある場合の実施回
   rows: CheckupRow[];
   officeInfo?: OfficeInfo | null;
 }) {
@@ -37,7 +39,7 @@ export default function WorkJudgmentReportButton({
     const csv: (string | number | null)[][] = [
       ["就業判定結果報告書"],
       ["事業場名", companyName],
-      ["対象年度", `${fiscalYear}年度`],
+      ["対象年度", `${fiscalYear}年度${round ? `（第${round}回）` : ""}`],
       ["作成日", new Date().toLocaleDateString("ja-JP")],
       ["産業医氏名", officeInfo?.physician_name ?? "上松弘典"],
       ["産業医所属機関の名称", officeInfo?.office_name ?? "うえまつ産業医事務所"],
@@ -85,7 +87,7 @@ export default function WorkJudgmentReportButton({
         "※ 就業判定と医師の意見は、健康診断の結果に基づき産業医が述べたものです。事業者はこの意見を勘案し、必要な就業上の措置をご検討ください(労働安全衛生法第66条の4・第66条の5)。",
       ],
     ];
-    downloadCsv(`就業判定結果報告書_${companyName}_${fiscalYear}年度.csv`, csv);
+    downloadCsv(`就業判定結果報告書_${companyName}_${fiscalYear}年度${round ? `_第${round}回` : ""}.csv`, csv);
   };
 
   return (

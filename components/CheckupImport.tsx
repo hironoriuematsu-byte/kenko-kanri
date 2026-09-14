@@ -48,6 +48,8 @@ export default function CheckupImport({
   // 同じ方の記録が同年度・同種別にすでにあれば、検査項目を追加して1つの記録にまとめる
   // (健診機関ごとに項目の異なるCSVが複数ある場合のため)
   const [merge, setMerge] = useState(true);
+  // 実施回。年に2回(半年に1回)定期健診を行う事業場では、回ごとに分けて取り込む
+  const [round, setRound] = useState(1);
   const [merged, setMerged] = useState(0);
   const [autoJudge, setAutoJudge] = useState(autoJudgeDefault);
   const [findingsJudgments, setFindingsJudgments] = useState(
@@ -225,6 +227,7 @@ export default function CheckupImport({
       p_rows: payload,
       p_special_kind: checkupType === "special" ? specialKind.trim() || null : null,
       p_merge: merge,
+      p_round: round,
     });
     if (error) {
       setError(`取込に失敗しました: ${error.message}`);
@@ -336,6 +339,15 @@ export default function CheckupImport({
                 {v}
               </option>
             ))}
+          </select>
+        </div>
+        <div>
+          <label>実施回</label>
+          <select value={round} onChange={(e) => setRound(Number(e.target.value))}>
+            <option value={1}>1回目（年1回の場合はこのまま）</option>
+            <option value={2}>2回目</option>
+            <option value={3}>3回目</option>
+            <option value={4}>4回目</option>
           </select>
         </div>
         {checkupType === "special" && (

@@ -16,6 +16,7 @@ export default async function CheckupsSection({
   companyName,
   basePath,
   selectedYear,
+  selectedRound,
   canEdit,
   canDelete = false,
   canJudge = false,
@@ -24,6 +25,7 @@ export default async function CheckupsSection({
   companyName: string;
   basePath: string;
   selectedYear?: number;
+  selectedRound?: number; // 実施回(年に複数回の定期健診を行う事業場向け)
   canEdit: boolean;
   canDelete?: boolean;
   canJudge?: boolean;
@@ -33,11 +35,18 @@ export default async function CheckupsSection({
 
   const { data: yearRows } = await supabase
     .from("hm_checkups")
-    .select("fiscal_year")
+    .select("fiscal_year, round")
     .eq("company_id", companyId)
-    .order("fiscal_year", { ascending: false });
+    .order("fiscal_year", { ascending: false })
+    .order("round");
   const years = Array.from(new Set((yearRows ?? []).map((r) => r.fiscal_year)));
   const year = selectedYear ?? years[0];
+  // その年度に存在する実施回(1回だけなら選択肢は出さない)
+  const rounds = Array.from(
+    new Set((yearRows ?? []).filter((r) => r.fiscal_year === year).map((r) => r.round ?? 1))
+  ).sort((a, b) => a - b);
+  const round = selectedRound ?? rounds[0] ?? 1;
+  const roundQuery = rounds.length > 1 ? `&round=${round}` : "";
 
   const { data: checkups } = year
     ? await supabase
@@ -47,6 +56,7 @@ export default async function CheckupsSection({
         )
         .eq("company_id", companyId)
         .eq("fiscal_year", year)
+        .eq("round", round)
         .order("employee_no", { ascending: true, nullsFirst: false })
         .order("target_name")
     : { data: [] };
@@ -142,10 +152,11 @@ export default async function CheckupsSection({
             <WorkJudgmentReportButton
               companyName={companyName}
               fiscalYear={year}
+              round={rounds.length > 1 ? round : undefined}
               rows={list as CheckupRow[]}
               officeInfo={officeInfo}
             />
-            <Link className="btn" href={`${basePath}/report?year=${year}`}>
+            <Link className="btn" href={`${basePath}/report?year=${year}${roundQuery}`}>
               定期健診結果報告書のサマリ・CSV出力
             </Link>
           </>
@@ -173,6 +184,22 @@ export default async function CheckupsSection({
               {y}年度
             </Link>
           ))}
+          {/* 年に複数回の定期健診がある事業場では、実施回を分けて表示する */}
+          {rounds.length > 1 && (
+            <>
+              <span className="muted" style={{ marginLeft: 12 }}>実施回:</span>
+              {rounds.map((r) => (
+                <Link
+                  key={r}
+                  href={`${basePath}?year=${year}&round=${r}`}
+                  className={r === round ? "badge" : ""}
+                  style={r === round ? {} : { padding: "2px 8px" }}
+                >
+                  第{r}回
+                </Link>
+              ))}
+            </>
+          )}
         </p>
       )}
 

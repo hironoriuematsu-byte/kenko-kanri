@@ -17,7 +17,7 @@ export default async function OfficeCheckupReportPage({
   searchParams,
 }: {
   params: { companyId: string };
-  searchParams: { year?: string };
+  searchParams: { year?: string; round?: string };
 }) {
   const { profile } = await requireProfile();
   if (profile.role !== "office") redirect("/");
@@ -31,7 +31,8 @@ export default async function OfficeCheckupReportPage({
   if (!company) notFound();
 
   const year = searchParams.year ? Number(searchParams.year) : getFiscalYear();
-  const { checkups, items } = await getCheckupReportData(company.id, year);
+  const round = searchParams.round ? Number(searchParams.round) : undefined;
+  const { checkups, items } = await getCheckupReportData(company.id, year, round);
 
   const officeInfo = await getOfficeInfo();
   // 就業制限(R)を測定値から確かめるために使う
