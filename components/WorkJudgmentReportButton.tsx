@@ -1,6 +1,13 @@
 "use client";
 
-import { CHECKUP_TYPES, CHECKUP_WORK_JUDGMENTS, isFindingJudgment, isRestrictionJudgment, isSevereJudgment } from "@/lib/checkups";
+import {
+  CHECKUP_TYPES,
+  CHECKUP_WORK_JUDGMENTS,
+  FOLLOWUP_STATUS,
+  isFindingJudgment,
+  isRestrictionJudgment,
+  isSevereJudgment,
+} from "@/lib/checkups";
 import { downloadCsv } from "@/lib/checkupReport";
 import type { OfficeInfo } from "@/components/CheckupReportPanel";
 import type { CheckupRow } from "@/components/CheckupsTable";
@@ -57,6 +64,7 @@ export default function WorkJudgmentReportButton({
         "就業判定",
         "判定日",
         "医師の意見",
+        "受診勧奨",
       ],
       ...rows.map((r) => [
         r.employee_no ?? "",
@@ -70,6 +78,7 @@ export default function WorkJudgmentReportButton({
         r.work_judgment ? CHECKUP_WORK_JUDGMENTS[r.work_judgment] : "未判定",
         r.work_judgment_date ?? "",
         r.work_judgment_note ?? "",
+        FOLLOWUP_STATUS[r.followup_status ?? "none"] ?? "",
       ]),
       [],
       [

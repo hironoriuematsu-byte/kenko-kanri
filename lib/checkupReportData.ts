@@ -9,7 +9,7 @@ export async function getCheckupReportData(companyId: string, year: number) {
   const { data: checkups } = await supabase
     .from("hm_checkups")
     .select(
-      "id, target_name, employee_no, birth_date, sex, checkup_type, checkup_date, overall_judgment, has_findings, work_judgment, work_judgment_date, work_judgment_note"
+      "id, target_name, employee_no, birth_date, sex, checkup_type, special_kind, checkup_date, overall_judgment, has_findings, work_judgment, work_judgment_date, work_judgment_note, followup_status"
     )
     .eq("company_id", companyId)
     .eq("fiscal_year", year)

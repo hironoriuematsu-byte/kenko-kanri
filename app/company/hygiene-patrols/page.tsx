@@ -60,9 +60,11 @@ export default async function CompanyHygienePatrolsPage({
         <h1 className="page-title">衛生管理者巡視記録</h1>
         <div className="card">
           <p style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-            <Link className="btn orange" href="/company/hygiene-patrols/new">
-              ＋ 巡視記録を作成
-            </Link>
+            {!profile.view_only && (
+              <Link className="btn orange" href="/company/hygiene-patrols/new">
+                ＋ 巡視記録を作成
+              </Link>
+            )}
             {selectedYear != null && (
               <Link
                 className="btn"

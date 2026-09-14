@@ -38,6 +38,7 @@ export default function CheckupForm({
   const [sex, setSex] = useState<"" | "male" | "female">("");
   const [fiscalYear, setFiscalYear] = useState(getFiscalYear());
   const [checkupType, setCheckupType] = useState("regular");
+  const [specialKind, setSpecialKind] = useState(""); // 特殊健診の種類(有機溶剤・鉛 など)
   const [checkupDate, setCheckupDate] = useState("");
   const [autoJudge, setAutoJudge] = useState(true);
   const [overall, setOverall] = useState("");
@@ -82,6 +83,7 @@ export default function CheckupForm({
       p_company_id: companyId,
       p_fiscal_year: fiscalYear,
       p_checkup_type: checkupType,
+      p_special_kind: checkupType === "special" ? specialKind.trim() || null : null,
       p_findings_judgments: DEFAULT_FINDINGS_JUDGMENTS,
       p_rows: [
         {
@@ -173,6 +175,18 @@ export default function CheckupForm({
             ))}
           </select>
         </div>
+        {checkupType === "special" && (
+          <div>
+            <label>特殊健診の種類</label>
+            <input
+              type="text"
+              value={specialKind}
+              onChange={(e) => setSpecialKind(e.target.value)}
+              placeholder="例: 有機溶剤 / 鉛 / 電離放射線"
+              style={{ width: 200 }}
+            />
+          </div>
+        )}
         <div>
           <label>健診日</label>
           <input

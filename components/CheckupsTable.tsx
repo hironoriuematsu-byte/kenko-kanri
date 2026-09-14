@@ -8,6 +8,7 @@ import { formatDateJa } from "@/lib/fiscal";
 import {
   CHECKUP_TYPES,
   CHECKUP_WORK_JUDGMENTS,
+  FOLLOWUP_STATUS,
   OPINION_PRESETS,
   buildOpinionNote,
   isRestrictionJudgment,
@@ -29,6 +30,8 @@ export type CheckupRow = {
   work_judgment: string | null;
   work_judgment_note: string | null;
   work_judgment_date: string | null;
+  followup_status?: string | null; // 受診勧奨の状態(none/pending/recommended/done)
+  special_kind?: string | null; // 特殊健診の種類(有機溶剤・鉛 など)
   findingItems?: FindingItem[];
 };
 
@@ -73,12 +76,26 @@ export default function CheckupsTable({
   rows,
   canDelete,
   canJudge = false,
+  canFollowup = false,
 }: {
   rows: CheckupRow[];
   canDelete: boolean;
   canJudge?: boolean;
+  canFollowup?: boolean; // 受診勧奨の状態を変更できるか(実施者・企業担当者)
 }) {
   const router = useRouter();
+
+  // 受診勧奨の状態(受診勧奨 → 勧奨済 → 受診済)を変更する
+  const setFollowup = async (id: string, status: string) => {
+    setBusy(true);
+    setError(null);
+    setMessage(null);
+    const supabase = createClient();
+    const { error } = await supabase.rpc("hm_set_followup", { p_id: id, p_status: status, p_note: null });
+    if (error) setError(`受診勧奨の状態を変更できませんでした: ${error.message}`);
+    else router.refresh();
+    setBusy(false);
+  };
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [judgment, setJudgment] = useState("restricted");
   const [bulkPresets, setBulkPresets] = useState<string[]>([]);
@@ -513,6 +530,7 @@ export default function CheckupsTable({
               <th>就業制限項目（R）</th>
               <th style={{ minWidth: 130 }}>就業判定</th>
               <th style={{ minWidth: 200 }}>医師の意見</th>
+              <th style={{ minWidth: 110 }}>受診勧奨</th>
             </tr>
           </thead>
           <tbody>
@@ -538,7 +556,14 @@ export default function CheckupsTable({
                   <td>
                     <Link href={`/checkup/${c.id}`}>{c.target_name}</Link>
                   </td>
-                  <td>{CHECKUP_TYPES[c.checkup_type] ?? c.checkup_type}</td>
+                  <td>
+                    {CHECKUP_TYPES[c.checkup_type] ?? c.checkup_type}
+                    {c.special_kind && (
+                      <div className="muted" style={{ fontSize: 11 }}>
+                        {c.special_kind}
+                      </div>
+                    )}
+                  </td>
                   <td>{formatDateJa(c.checkup_date)}</td>
                   <td>
                     {c.overall_judgment ? (
@@ -667,6 +692,33 @@ export default function CheckupsTable({
                           </button>
                         )}
                       </>
+                    )}
+                  </td>
+                  {/* 受診勧奨のフォローアップ。総合判定D以上は取込時に「受診勧奨」になる */}
+                  <td>
+                    {canFollowup ? (
+                      <select
+                        value={c.followup_status ?? "none"}
+                        onChange={(e) => setFollowup(c.id, e.target.value)}
+                        disabled={busy}
+                        style={{
+                          fontSize: 13,
+                          padding: "4px 6px",
+                          ...(c.followup_status === "pending"
+                            ? { color: "var(--orange)", fontWeight: 700 }
+                            : {}),
+                        }}
+                      >
+                        {Object.entries(FOLLOWUP_STATUS).map(([k, v]) => (
+                          <option key={k} value={k}>
+                            {v}
+                          </option>
+                        ))}
+                      </select>
+                    ) : (
+                      <span style={c.followup_status === "pending" ? { color: "var(--orange)", fontWeight: 700 } : {}}>
+                        {FOLLOWUP_STATUS[c.followup_status ?? "none"] ?? "—"}
+                      </span>
                     )}
                   </td>
                 </tr>

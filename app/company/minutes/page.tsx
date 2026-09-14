@@ -45,9 +45,11 @@ export default async function CompanyMinutesPage({
         <h1 className="page-title">{info?.committee_name ?? "安全衛生委員会"}議事録</h1>
         <div className="card">
           <p style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-            <Link className="btn orange" href="/company/minutes/new">
-              ＋ 議事録を作成
-            </Link>
+            {!profile.view_only && (
+              <Link className="btn orange" href="/company/minutes/new">
+                ＋ 議事録を作成
+              </Link>
+            )}
             {selectedYear != null && (
               <Link className="btn" href={`/company/minutes/report?year=${selectedYear}`}>
                 {selectedYear}年度をまとめて印刷/PDF

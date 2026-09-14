@@ -8,6 +8,7 @@ export type Profile = {
   employee_no: string | null;
   department: string | null;
   company_id: string | null;
+  view_only?: boolean; // 企業担当者のうち、閲覧のみ(登録・編集・取込は不可)の方
 };
 
 // ログイン済みユーザーとプロフィールを取得(未ログインは/loginへ)
@@ -21,13 +22,21 @@ export async function requireProfile(): Promise<{ profile: Profile }> {
   const COLS = "id, role, full_name, employee_no, department, company_id";
   // hm_company_access = true の人は、ストレスチェックWebでは実施事務従事者・
   // 従業員のままで、健康管理Webでは事業者担当者として扱う(兼務への対応)
+  // hm_view_only = true の企業担当者は、閲覧のみ(登録・編集・取込は不可)
   let { data: profile } = await supabase
     .from("profiles")
-    .select(`${COLS}, hm_company_access`)
+    .select(`${COLS}, hm_company_access, hm_view_only`)
     .eq("id", user.id)
     .single();
 
-  // 列がまだ無い環境(ストレスチェックWebの0017が未適用)でも動くようにする
+  // 列がまだ無い環境(ストレスチェックWebの0017/0020が未適用)でも動くようにする
+  if (!profile) {
+    ({ data: profile } = await supabase
+      .from("profiles")
+      .select(`${COLS}, hm_company_access`)
+      .eq("id", user.id)
+      .single());
+  }
   if (!profile) {
     ({ data: profile } = await supabase.from("profiles").select(COLS).eq("id", user.id).single());
   }
@@ -36,10 +45,12 @@ export async function requireProfile(): Promise<{ profile: Profile }> {
   // middlewareが / へ戻して無限リダイレクトになるため専用ページへ
   if (!profile) redirect("/profile-error");
 
-  const p = profile as Profile & { hm_company_access?: boolean };
+  const p = profile as Profile & { hm_company_access?: boolean; hm_view_only?: boolean };
   const role: Profile["role"] =
     p.hm_company_access && (p.role === "employee" || p.role === "jimu") ? "company" : p.role;
-  return { profile: { ...p, role } };
+  // 閲覧のみは企業担当者にだけ意味を持つ(実施者には適用しない)
+  const view_only = role === "company" && Boolean(p.hm_view_only);
+  return { profile: { ...p, role, view_only } };
 }
 
 export function homePathFor(role: Profile["role"]): string {

@@ -10,6 +10,8 @@ export const dynamic = "force-dynamic";
 export default async function CompanyHygienePatrolNewPage() {
   const { profile } = await requireProfile();
   if (profile.role !== "company" || !profile.company_id) redirect("/");
+  // 閲覧のみの担当者は登録・取込を行えない
+  if (profile.view_only) redirect("/company");
 
   const supabase = createClient();
   const { data: info } = await supabase

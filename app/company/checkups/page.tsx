@@ -36,7 +36,7 @@ export default async function CompanyCheckupsPage({
             companyName={company?.name ?? "自社"}
             basePath="/company/checkups"
             selectedYear={searchParams.year ? Number(searchParams.year) : undefined}
-            canEdit
+            canEdit={!profile.view_only}
           />
         </div>
       </main>

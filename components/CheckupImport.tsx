@@ -44,6 +44,7 @@ export default function CheckupImport({
   const router = useRouter();
   const [fiscalYear, setFiscalYear] = useState(getFiscalYear());
   const [checkupType, setCheckupType] = useState("regular");
+  const [specialKind, setSpecialKind] = useState(""); // 特殊健診の種類(有機溶剤・鉛 など)
   const [autoJudge, setAutoJudge] = useState(autoJudgeDefault);
   const [findingsJudgments, setFindingsJudgments] = useState(
     DEFAULT_FINDINGS_JUDGMENTS.join(",")
@@ -218,6 +219,7 @@ export default function CheckupImport({
       p_checkup_type: checkupType,
       p_findings_judgments: judgments,
       p_rows: payload,
+      p_special_kind: checkupType === "special" ? specialKind.trim() || null : null,
     });
     if (error) {
       setError(`取込に失敗しました: ${error.message}`);
@@ -325,6 +327,18 @@ export default function CheckupImport({
             ))}
           </select>
         </div>
+        {checkupType === "special" && (
+          <div>
+            <label>特殊健診の種類</label>
+            <input
+              type="text"
+              value={specialKind}
+              onChange={(e) => setSpecialKind(e.target.value)}
+              placeholder="例: 有機溶剤 / 鉛 / 電離放射線 / じん肺"
+              style={{ width: 220 }}
+            />
+          </div>
+        )}
         <div>
           <label>有所見とみなす判定（カンマ区切り）</label>
           <input

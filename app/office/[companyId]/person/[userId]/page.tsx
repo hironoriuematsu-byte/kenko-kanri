@@ -4,7 +4,7 @@ import Header from "@/components/Header";
 import { requireProfile } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { formatDateJa } from "@/lib/fiscal";
-import { CHECKUP_TYPES } from "@/lib/checkups";
+import { CHECKUP_TYPES, FOLLOWUP_STATUS } from "@/lib/checkups";
 import {
   INTERVIEW_TYPES,
   INTERVIEW_STATUS,
@@ -53,7 +53,7 @@ export default async function PersonPage({
     supabase
       .from("hm_checkups")
       .select(
-        "id, fiscal_year, checkup_type, checkup_date, overall_judgment, has_findings, work_judgment"
+        "id, fiscal_year, checkup_type, special_kind, checkup_date, overall_judgment, has_findings, work_judgment, followup_status"
       )
       .eq("target_user_id", person.id)
       .order("fiscal_year", { ascending: false }),
@@ -73,10 +73,14 @@ export default async function PersonPage({
       dateLabel: c.checkup_date ? formatDateJa(c.checkup_date) : `${c.fiscal_year}年度`,
       kind: "健診",
       kindClass: c.has_findings ? "badge orange" : "badge",
-      description: `${CHECKUP_TYPES[c.checkup_type] ?? c.checkup_type} 総合判定 ${
-        c.overall_judgment || "—"
-      }${c.has_findings ? "（有所見）" : ""}${
+      description: `${CHECKUP_TYPES[c.checkup_type] ?? c.checkup_type}${
+        c.special_kind ? `（${c.special_kind}）` : ""
+      } 総合判定 ${c.overall_judgment || "—"}${c.has_findings ? "（有所見）" : ""}${
         c.work_judgment ? ` / 就業判定: ${WORK_JUDGMENTS[c.work_judgment]}` : ""
+      }${
+        c.followup_status && c.followup_status !== "none"
+          ? ` / ${FOLLOWUP_STATUS[c.followup_status] ?? c.followup_status}`
+          : ""
       }`,
       href: `/checkup/${c.id}`,
     });

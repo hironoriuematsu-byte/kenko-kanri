@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import {
   CHECKUP_TYPES,
   CHECKUP_WORK_JUDGMENTS,
+  FOLLOWUP_STATUS,
   isFindingJudgment,
   isRestrictionJudgment,
   isSevereJudgment,
@@ -29,6 +30,8 @@ export type ReportCheckup = {
   work_judgment: string | null;
   work_judgment_date: string | null;
   work_judgment_note: string | null;
+  followup_status?: string | null; // 受診勧奨の状態
+  special_kind?: string | null; // 特殊健診の種類
 };
 
 // 定期健康診断結果報告書(様式第6号)の記入用サマリと、健診結果一覧のCSV出力
@@ -172,6 +175,7 @@ export default function CheckupReportPanel({
         c.work_judgment ? CHECKUP_WORK_JUDGMENTS[c.work_judgment] : "未判定",
         c.work_judgment_date ?? "",
         c.work_judgment_note ?? "",
+        FOLLOWUP_STATUS[c.followup_status ?? "none"] ?? "",
       ]),
       [],
       [
@@ -228,6 +232,7 @@ export default function CheckupReportPanel({
           c.work_judgment ? CHECKUP_WORK_JUDGMENTS[c.work_judgment] : "未判定",
           c.work_judgment_date ?? "",
           c.work_judgment_note ?? "",
+        FOLLOWUP_STATUS[c.followup_status ?? "none"] ?? "",
           ...itemNames.flatMap((n) => {
             const it = map?.get(n);
             return [it?.value ?? "", it?.judgment ?? ""];

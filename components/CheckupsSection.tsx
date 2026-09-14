@@ -43,7 +43,7 @@ export default async function CheckupsSection({
     ? await supabase
         .from("hm_checkups")
         .select(
-          "id, target_name, employee_no, sex, checkup_type, checkup_date, overall_judgment, has_findings, work_judgment, work_judgment_note, work_judgment_date"
+          "id, target_name, employee_no, sex, checkup_type, special_kind, checkup_date, overall_judgment, has_findings, work_judgment, work_judgment_note, work_judgment_date, followup_status"
         )
         .eq("company_id", companyId)
         .eq("fiscal_year", year)
@@ -112,6 +112,10 @@ export default async function CheckupsSection({
     c.findingItems.some((it) => isRestrictionJudgment(it.judgment))
   ).length;
   const attention = list.filter((c) => needsAttention(c.work_judgment)).length;
+  // 受診勧奨のフォローアップ状況
+  const followupPending = list.filter((c) => c.followup_status === "pending").length;
+  const followupRecommended = list.filter((c) => c.followup_status === "recommended").length;
+  const followupDone = list.filter((c) => c.followup_status === "done").length;
   const held = list.filter((c) => c.work_judgment === "pending").length;
   const restricted = list.filter(
     (c) => c.work_judgment === "restricted" || c.work_judgment === "leave"
@@ -228,6 +232,20 @@ export default async function CheckupsSection({
                 </td>
               </tr>
               <tr>
+                <th>受診勧奨</th>
+                <td colSpan={3}>
+                  {followupPending > 0 ? (
+                    <span className="badge orange">未対応 {followupPending}名</span>
+                  ) : (
+                    "未対応 0名"
+                  )}
+                  <span className="muted" style={{ marginLeft: 8 }}>
+                    勧奨済 {followupRecommended}名 / 受診済 {followupDone}名
+                    （総合判定D以上の方は取込時に「受診勧奨」になります。一覧の「受診勧奨」欄で更新できます）
+                  </span>
+                </td>
+              </tr>
+              <tr>
                 <th>就業制限項目（R）</th>
                 <td colSpan={3}>
                   {restrictionCount > 0 ? (
@@ -264,6 +282,7 @@ export default async function CheckupsSection({
             rows={list as CheckupRow[]}
             canDelete={canDelete}
             canJudge={canJudge}
+            canFollowup={canEdit}
           />
         </>
       ) : (
