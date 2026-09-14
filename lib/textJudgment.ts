@@ -236,14 +236,27 @@ export const CHEST_XRAY_D_WORDS = [
 //   (例: 陳旧性肺結核 → B、陳旧性炎症性変化 → B)
 const OLD_CHANGE_WORDS = ["陳旧性", "陳旧"];
 
-// 所見は「、」「・」「/」「;」改行などで区切られていることが多いので、区切りごとに判定する。
-// 「陳旧性肺結核、右胸水」のような場合は、陳旧性の部分は B、胸水の部分は D になり、全体では D
+// 所見は「、」「・」「/」「;」スペース・改行などで区切られていることが多いので、区切りごとに判定する。
+// 「陳旧性肺結核、右胸水」「陳旧性肺結核 右胸水」のような場合は、陳旧性の部分は B、
+// 胸水の部分は D になり、全体では D
 function splitChestXrayFindings(text: string): string[] {
-  return text
+  const parts = text
     .normalize("NFKC")
-    .split(/[\n\r,、，;；/／・]+/)
+    .split(/[\s\n\r,、，;；/／・]+/)
     .map((s) => s.trim())
     .filter((s) => s !== "");
+  // 「陳旧性 肺結核」のように陳旧性だけがスペースで分かれている場合は、次の語句とつなげる
+  const merged: string[] = [];
+  for (let i = 0; i < parts.length; i++) {
+    const p = parts[i];
+    if (OLD_CHANGE_WORDS.includes(normalizeFinding(p)) && i + 1 < parts.length) {
+      merged.push(p + parts[i + 1]);
+      i++;
+    } else {
+      merged.push(p);
+    }
+  }
+  return merged;
 }
 
 function isOldChange(segment: string): boolean {
