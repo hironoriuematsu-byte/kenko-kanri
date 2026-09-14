@@ -11,7 +11,8 @@ type ImportBatch = {
   imported_at: string;
   fiscal_year: number;
   checkup_type: string;
-  rows_count: number;
+  rows_count: number; // この取込で新しく作成した記録の数
+  merged_count: number; // 既存の記録に検査項目を統合した数
   judged_count: number;
 };
 
@@ -45,6 +46,9 @@ export default function RecentImports({ companyId }: { companyId: string }) {
   const undo = async (b: ImportBatch) => {
     const ok = window.confirm(
       `${formatDateJa(b.imported_at)}に取り込んだ ${b.rows_count}件の健診記録を削除します。\n` +
+        (b.merged_count > 0
+          ? `※ ${b.merged_count}件は既存の記録への統合分です。統合先の記録は残し、この取込で追加した検査項目だけを消します。\n`
+          : "") +
         (b.judged_count > 0
           ? `※ このうち ${b.judged_count}件は就業判定が入力済みです。判定内容も一緒に消えます。\n`
           : "") +
@@ -68,7 +72,7 @@ export default function RecentImports({ companyId }: { companyId: string }) {
       setBusy(false);
       return;
     }
-    setMessage(`${data}件を取り消しました。`);
+    setMessage(`取り消しました（記録と統合分の検査項目をあわせて ${data}件）。`);
     setBatches(null);
     setBusy(false);
     await load();
@@ -112,7 +116,12 @@ export default function RecentImports({ companyId }: { companyId: string }) {
                     <td>{new Date(b.imported_at).toLocaleString("ja-JP")}</td>
                     <td>{b.fiscal_year}年度</td>
                     <td>{CHECKUP_TYPES[b.checkup_type] ?? b.checkup_type}</td>
-                    <td>{b.rows_count}件</td>
+                    <td>
+                      {b.rows_count}件
+                      {b.merged_count > 0 && (
+                        <span className="muted" style={{ marginLeft: 4 }}>（統合 {b.merged_count}件）</span>
+                      )}
+                    </td>
                     <td>{b.judged_count > 0 ? `${b.judged_count}件` : "—"}</td>
                     <td>
                       <button
