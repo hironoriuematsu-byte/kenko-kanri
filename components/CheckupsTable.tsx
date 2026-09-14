@@ -38,13 +38,23 @@ export type CheckupRow = {
 // 一覧の「就業判定」欄で未判定に戻すときの選択肢の値
 const CLEAR = "__clear__";
 
-// 「要就業制限」で一括判定するときの初期値(定型文のチェックと自由記入)
+// 「要就業制限」で一括判定するときの初期値(定型文のチェック)
 const RESTRICTED_DEFAULT_PRESETS = ["要産業医面談", "時間外労働月45時間以内"];
-const RESTRICTED_DEFAULT_NOTE = "要医療項目（D）と就業制限項目（R）につき医療機関受診";
 // 「要医療項目（D）の未判定を選択」から「通常勤務可」で一括判定するときの初期値
 const SEVERE_DEFAULT_PRESETS = ["但し受診が条件"];
-const SEVERE_DEFAULT_NOTE = "要医療項目（D）につき医療機関受診";
-const DEFAULT_NOTES = [RESTRICTED_DEFAULT_NOTE, SEVERE_DEFAULT_NOTE];
+
+// 一括判定のとき、従業員ごとに「医師の意見」の先頭に入れる文章。
+//   その方の要医療項目(D)・就業制限項目(R)の項目名を並べる
+//   例: 「γ-GTP、HbA1cにつき医療機関受診」。該当項目が無ければ空
+function referralNote(items: FindingItem[]): string {
+  const names: string[] = [];
+  for (const it of items) {
+    if (isSevereJudgment(it.judgment) || isRestrictionJudgment(it.judgment)) {
+      if (!names.includes(it.item_name)) names.push(it.item_name);
+    }
+  }
+  return names.length > 0 ? `${names.join("、")}につき医療機関受診` : "";
+}
 
 // 有所見項目を C / D(過去データのEを含む) / R(就業制限の検討)に振り分ける
 function splitFindings(items: FindingItem[]) {
@@ -125,19 +135,18 @@ export default function CheckupsTable({
   };
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [judgment, setJudgment] = useState("restricted");
-  // 一括判定の初期の区分は「要就業制限」なので、定型文と自由記入もその初期値にしておく
+  // 一括判定の初期の区分は「要就業制限」なので、定型文もその初期値にしておく。
+  // 自由記入は空(従業員ごとの「○○につき医療機関受診」は自動で先頭に入る)
   const [bulkPresets, setBulkPresets] = useState<string[]>(RESTRICTED_DEFAULT_PRESETS);
-  const [bulkFree, setBulkFree] = useState(RESTRICTED_DEFAULT_NOTE);
+  const [bulkFree, setBulkFree] = useState("");
 
   const samePresets = (a: string[], b: string[]) =>
     a.length === b.length && a.every((p) => b.includes(p));
 
-  // 判定区分を切り替えたとき、自由記入・定型文が初期値のまま(または空)なら区分に合わせて
-  // 入れ替える。手で書き換えた内容はそのまま残す
+  // 判定区分を切り替えたとき、定型文が初期値のまま(または未チェック)なら区分に合わせて
+  // 入れ替える。手で変えた内容はそのまま残す
   const changeJudgment = (value: string) => {
     setJudgment(value);
-    const noteUntouched = bulkFree.trim() === "" || DEFAULT_NOTES.includes(bulkFree);
-    if (noteUntouched) setBulkFree(value === "restricted" ? RESTRICTED_DEFAULT_NOTE : "");
     const presetsUntouched =
       bulkPresets.length === 0 ||
       samePresets(bulkPresets, RESTRICTED_DEFAULT_PRESETS) ||
@@ -233,18 +242,54 @@ export default function CheckupsTable({
       return allSelected ? new Set() : new Set(ids);
     });
 
-  const runBulkJudgment = async (ids: string[], value: string, note: string | null) => {
+  // 一括判定。notes を渡すと従業員ごとに異なる「医師の意見」を保存する(0131)。
+  // まだ0131が適用されていない環境では、1人ずつ保存する方法に切り替える
+  const runBulkJudgment = async (
+    ids: string[],
+    value: string,
+    note: string | null,
+    notes?: Record<string, string>
+  ) => {
     setBusy(true);
     setError(null);
     setMessage(null);
     const supabase = createClient();
-    const { data, error } = await supabase.rpc("hm_bulk_work_judgment", {
-      p_ids: ids,
-      p_judgment: value,
-      p_note: note,
-    });
-    if (error) {
-      setError(`一括判定に失敗しました: ${error.message}`);
+    const res = notes
+      ? await supabase.rpc("hm_bulk_work_judgment", {
+          p_ids: ids,
+          p_judgment: value,
+          p_note: note,
+          p_notes: notes,
+        })
+      : await supabase.rpc("hm_bulk_work_judgment", {
+          p_ids: ids,
+          p_judgment: value,
+          p_note: note,
+        });
+    let data: number = Number(res.data ?? 0);
+    let errMsg: string | null = res.error?.message ?? null;
+    if (errMsg && notes && /hm_bulk_work_judgment|p_notes/.test(errMsg)) {
+      // 4引数の版が無い(0131未適用)ときは1人ずつ保存する
+      let saved = 0;
+      let firstError: string | null = null;
+      for (const id of ids) {
+        const { error: e } = await supabase.rpc("hm_save_work_judgment", {
+          p_id: id,
+          p_judgment: value,
+          p_note: notes[id] ?? note,
+          p_date: null,
+        });
+        if (e) {
+          firstError = firstError ?? e.message;
+          continue;
+        }
+        saved++;
+      }
+      data = saved;
+      errMsg = saved === 0 ? firstError : null;
+    }
+    if (errMsg) {
+      setError(`一括判定に失敗しました: ${errMsg}`);
       setBusy(false);
       return;
     }
@@ -258,7 +303,7 @@ export default function CheckupsTable({
     );
     setSelected(new Set());
     setBulkPresets(judgment === "restricted" ? RESTRICTED_DEFAULT_PRESETS : []);
-    setBulkFree(judgment === "restricted" ? RESTRICTED_DEFAULT_NOTE : "");
+    setBulkFree("");
     setBusy(false);
     router.refresh();
   };
@@ -277,14 +322,27 @@ export default function CheckupsTable({
       setError("対象が選択されていません。一覧のチェックボックス、または上の選択ボタンで対象を選んでください。");
       return;
     }
-    const note = buildOpinionNote(bulkPresets, bulkFree);
+    const common = buildOpinionNote(bulkPresets, bulkFree);
+    // 従業員ごとに「○○につき医療機関受診」を先頭に付けた医師の意見を作る
+    const ids = Array.from(selected);
+    const notes: Record<string, string> = {};
+    let withReferral = 0;
+    for (const id of ids) {
+      const row = rows.find((r) => r.id === id);
+      const referral = referralNote(row?.findingItems ?? []);
+      if (referral) withReferral++;
+      notes[id] = [referral, common].filter(Boolean).join(" / ");
+    }
     const ok = window.confirm(
-      `選択した ${selected.size}名を「${CHECKUP_WORK_JUDGMENTS[judgment]}」で判定します。\n${
-        note ? `医師の意見: ${note}\n` : ""
-      }判定日は本日として記録されます。よろしいですか？`
+      `選択した ${selected.size}名を「${CHECKUP_WORK_JUDGMENTS[judgment]}」で判定します。\n` +
+        (withReferral > 0
+          ? `医師の意見: 要医療項目（D）・就業制限項目（R）のある ${withReferral}名には、その項目名につき医療機関受診 が入ります。\n`
+          : "") +
+        (common ? `共通の意見: ${common}\n` : "") +
+        `判定日は本日として記録されます。よろしいですか？`
     );
     if (!ok) return;
-    await runBulkJudgment(Array.from(selected), judgment, note || null);
+    await runBulkJudgment(ids, judgment, common || null, notes);
   };
 
   // 「Dの未判定を選択」: 通常勤務可(医療機関受診を条件)で判定する前提で初期値を入れる
@@ -292,7 +350,6 @@ export default function CheckupsTable({
     setSelected(new Set(severeRows.filter((r) => !r.work_judgment).map((r) => r.id)));
     setJudgment("normal");
     setBulkPresets(SEVERE_DEFAULT_PRESETS);
-    setBulkFree(SEVERE_DEFAULT_NOTE);
   };
 
   // 「就業制限項目（R）を選択」: 要就業制限(但し受診が条件・要産業医面談)で判定する前提で初期値を入れる
@@ -300,7 +357,6 @@ export default function CheckupsTable({
     setSelected(new Set(restrictionRows.map((r) => r.id)));
     setJudgment("restricted");
     setBulkPresets(RESTRICTED_DEFAULT_PRESETS);
-    setBulkFree(RESTRICTED_DEFAULT_NOTE);
   };
 
   // 就業判定の取り消し(未判定に戻す)。判定日・医師の意見も一緒に消える
@@ -523,7 +579,8 @@ export default function CheckupsTable({
                 </div>
                 <div style={{ flex: 1, minWidth: 220 }}>
                   <label className="muted" style={{ display: "block", fontSize: 12 }}>
-                    医師の意見（選択者に共通で入ります）
+                    医師の意見（選択者に共通で入ります）。要医療項目（D）・就業制限項目（R）のある方には、
+                    その項目名で「○○につき医療機関受診」が自動で先頭に入ります
                   </label>
                   <div style={{ marginBottom: 4 }}>
                     {OPINION_PRESETS.map((p) =>
