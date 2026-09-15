@@ -43,6 +43,19 @@ export default function Header({ profile }: { profile: Profile }) {
           <span>
             {profile.full_name ?? "—"}（{ROLE_LABEL[profile.role] ?? profile.role}）
           </span>
+          {/* 氏名・所属・パスワードなどのアカウント設定はストレスチェックWeb側で行う
+              (アカウントは両システムで共通)。事業者担当者・従業員に案内を出す */}
+          {stressUrl && (profile.role === "company" || profile.role === "employee") && (
+            <a
+              href={`${stressUrl}/account`}
+              target="_blank"
+              rel="noopener noreferrer"
+              title="氏名・所属・パスワードなどの設定はストレスチェックWebで行います"
+              style={{ fontSize: 12, whiteSpace: "nowrap" }}
+            >
+              アカウント設定 ↗
+            </a>
+          )}
           <LogoutButton />
         </div>
       </div>

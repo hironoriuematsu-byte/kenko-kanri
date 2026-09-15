@@ -111,6 +111,30 @@ export default async function CompanyDashboard() {
             <span style={{ fontSize: 14, color: "var(--muted)" }}>{companyInfo.address}</span>
           )}
         </h1>
+        {/* アカウントはストレスチェックWebと共通。設定はそちらで行うことを常に案内する */}
+        {process.env.NEXT_PUBLIC_STRESS_URL && (
+          <p className="muted" style={{ fontSize: 13, margin: "0 0 12px" }}>
+            アカウント設定は
+            <a
+              href={`${process.env.NEXT_PUBLIC_STRESS_URL}/company`}
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{ margin: "0 4px" }}
+            >
+              ストレスチェックWeb ↗
+            </a>
+            で行います（お名前・所属は事業者担当者ページ、
+            <a
+              href={`${process.env.NEXT_PUBLIC_STRESS_URL}/account`}
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{ margin: "0 4px" }}
+            >
+              パスワードの変更 ↗
+            </a>
+            はアカウント設定ページ）。ログインIDとパスワードは両方のWebで共通です。
+          </p>
+        )}
 
         {((restrictedCount ?? 0) > 0 || (attentionCount ?? 0) > 0) && (
           <div className="notice">
