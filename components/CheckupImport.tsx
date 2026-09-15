@@ -36,12 +36,16 @@ export default function CheckupImport({
   rules,
   autoJudgeDefault,
   persons = [],
+  simple = false,
 }: {
   companyId: string;
   backHref: string;
   rules: JudgmentRule[];
   autoJudgeDefault: boolean;
   persons?: PersonCandidate[];
+  // 事業者担当者向けの簡易画面: 判定や列の割り当ての設定を見せず、
+  // 見出しから自動で割り当ててそのまま取り込む(設定は実施者の画面だけ)
+  simple?: boolean;
 }) {
   const router = useRouter();
   const [fiscalYear, setFiscalYear] = useState(getFiscalYear());
@@ -354,14 +358,20 @@ export default function CheckupImport({
               うち<strong>{merged}名</strong>は同年度の既存の記録に検査項目を統合しました。
             </>
           )}
-          {autoJudge && "（総合判定は事務所基準で自動判定しました）"}
+          {autoJudge && !simple && "（総合判定は事務所基準で自動判定しました）"}
         </p>
+        {simple && !undone && (
+          <p style={{ color: "var(--teal-dark)" }}>
+            産業医事務所に取込完了をお知らせしました。産業医が内容を確認して就業判定を行います。
+          </p>
+        )}
         {undone ? (
           <p className="muted">この取込を取り消しました。</p>
         ) : (
           <p className="muted">
-            列の選び方や年度を誤った場合は、この取込をまとめて取り消せます
-            （健診一覧の「最近の取込」からも取り消せます）。
+            {simple
+              ? "ファイルや年度を誤った場合は、この取込をまとめて取り消せます。"
+              : "列の選び方や年度を誤った場合は、この取込をまとめて取り消せます（健診一覧の「最近の取込」からも取り消せます）。"}
           </p>
         )}
         {error && <p className="error-message">{error}</p>}
@@ -422,39 +432,46 @@ export default function CheckupImport({
             />
           </div>
         )}
-        <div>
-          <label>有所見とみなす判定（カンマ区切り）</label>
-          <input
-            type="text"
-            value={findingsJudgments}
-            onChange={(e) => setFindingsJudgments(e.target.value)}
-            style={{ width: 160 }}
-          />
-        </div>
+        {!simple && (
+          <div>
+            <label>有所見とみなす判定（カンマ区切り）</label>
+            <input
+              type="text"
+              value={findingsJudgments}
+              onChange={(e) => setFindingsJudgments(e.target.value)}
+              style={{ width: 160 }}
+            />
+          </div>
+        )}
       </div>
 
-      <div className="form-row checkbox-row">
-        <input
-          id="autojudge"
-          type="checkbox"
-          checked={autoJudge}
-          onChange={(e) => setAutoJudge(e.target.checked)}
-        />
-        <label htmlFor="autojudge" style={{ margin: 0 }}>
-          事務所基準で自動判定する（法定項目をA〜Dで判定し、最も重い判定を総合判定にする）
-        </label>
-      </div>
-      <div className="form-row checkbox-row">
-        <input id="merge" type="checkbox" checked={merge} onChange={(e) => setMerge(e.target.checked)} />
-        <label htmlFor="merge" style={{ margin: 0 }}>
-          同じ方の記録が同年度・同種別にすでにある場合は、検査項目を追加して1つの記録にまとめる
-          （健診機関ごとに項目の異なるCSVが複数あるとき）
-        </label>
-      </div>
-      {autoJudge && rules.length === 0 && (
-        <p className="error-message">
-          判定基準が未登録です。SQL(0115)の実行と「判定基準の設定」をご確認ください。
-        </p>
+      {/* 判定・統合の設定は実施者の画面だけに出す(事業者担当者は既定のまま) */}
+      {!simple && (
+        <>
+          <div className="form-row checkbox-row">
+            <input
+              id="autojudge"
+              type="checkbox"
+              checked={autoJudge}
+              onChange={(e) => setAutoJudge(e.target.checked)}
+            />
+            <label htmlFor="autojudge" style={{ margin: 0 }}>
+              事務所基準で自動判定する（法定項目をA〜Dで判定し、最も重い判定を総合判定にする）
+            </label>
+          </div>
+          <div className="form-row checkbox-row">
+            <input id="merge" type="checkbox" checked={merge} onChange={(e) => setMerge(e.target.checked)} />
+            <label htmlFor="merge" style={{ margin: 0 }}>
+              同じ方の記録が同年度・同種別にすでにある場合は、検査項目を追加して1つの記録にまとめる
+              （健診機関ごとに項目の異なるCSVが複数あるとき）
+            </label>
+          </div>
+          {autoJudge && rules.length === 0 && (
+            <p className="error-message">
+              判定基準が未登録です。SQL(0115)の実行と「判定基準の設定」をご確認ください。
+            </p>
+          )}
+        </>
       )}
 
       <div className="form-row">
@@ -469,7 +486,65 @@ export default function CheckupImport({
         )}
       </div>
 
-      {rows && (
+      {/* 事業者担当者向け: 見出しから自動で割り当てた結果を確認して、そのまま取り込む */}
+      {rows && simple && (
+        <>
+          <h3 style={{ color: "var(--teal-dark)", fontSize: 15 }}>読み取った内容</h3>
+          <table className="list" style={{ marginBottom: 14, maxWidth: 560 }}>
+            <tbody>
+              {(
+                [
+                  ["氏名（必須）", nameCol],
+                  ["フリガナ", kanaCol],
+                  ["所属（部署）", deptCol],
+                  ["社員番号", empNoCol],
+                  ["性別", sexCol],
+                  ["生年月日", birthCol],
+                  ["健診日", dateCol],
+                  ["総合判定", judgmentCol],
+                ] as [string, number][]
+              ).map(([label, idx]) => (
+                <tr key={label}>
+                  <th style={{ width: 160 }}>{label}</th>
+                  <td>
+                    {idx >= 0 ? (
+                      <>
+                        列「{header[idx] || `列${idx + 1}`}」
+                        <span className="muted" style={{ marginLeft: 8 }}>
+                          例: {dataRows[0]?.[idx] ?? ""}
+                        </span>
+                      </>
+                    ) : (
+                      <span className="muted">見つかりません</span>
+                    )}
+                  </td>
+                </tr>
+              ))}
+              <tr>
+                <th>検査項目</th>
+                <td>
+                  {header.filter((_, i) => !baseCols.includes(i) && (header[i] ?? "").trim() !== "").length}列
+                  <span className="muted" style={{ marginLeft: 8 }}>
+                    （法定項目は産業医事務所の基準で自動判定されます）
+                  </span>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+          {nameCol < 0 && (
+            <p className="error-message">
+              氏名の列が見つかりません。CSVの1行目に「氏名」の見出しがあるかご確認ください。
+              解決しない場合は産業医事務所にご連絡ください。
+            </p>
+          )}
+          {error && <p className="error-message">{error}</p>}
+          <button className="btn orange" onClick={onImport} disabled={busy || nameCol < 0}>
+            {busy ? "取込中…" : `${dataRows.length}名分を取り込む`}
+          </button>
+        </>
+      )}
+
+      {rows && !simple && (
         <>
           <h3 style={{ color: "var(--teal-dark)", fontSize: 15 }}>基本項目の列を指定</h3>
           <table className="list" style={{ marginBottom: 14 }}>

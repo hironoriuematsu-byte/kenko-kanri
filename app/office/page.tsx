@@ -6,6 +6,7 @@ import { createClient } from "@/lib/supabase/server";
 import { formatDateJa } from "@/lib/fiscal";
 import { INTERVIEW_TYPES, formatDateTimeJa } from "@/lib/interviews";
 import OfficeInfoForm from "@/components/OfficeInfoForm";
+import ImportNotices from "@/components/ImportNotices";
 import { getOfficeInfo } from "@/lib/officeInfo";
 
 export const dynamic = "force-dynamic";
@@ -60,6 +61,9 @@ export default async function OfficeDashboard() {
       <Header profile={profile} />
       <main className="container">
         <h1 className="page-title">産業医事務所ダッシュボード</h1>
+
+        {/* 事業者担当者などが取り込んだ健診結果の通知(未確認のものだけ) */}
+        <ImportNotices />
 
         {(overdue.length > 0 || (unjudgedCount ?? 0) > 0 || (heldCount ?? 0) > 0) && (
           <div className="card" style={{ borderColor: "var(--orange)" }}>

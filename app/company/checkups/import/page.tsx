@@ -22,12 +22,17 @@ export default async function CompanyCheckupImportPage() {
       <main className="container">
         <h1 className="page-title">健診結果CSV一括取込</h1>
         <div className="card">
+          <p className="muted" style={{ marginTop: 0 }}>
+            健診機関から受け取ったCSVを選んで取り込んでください。取込が完了すると産業医事務所に通知され、
+            産業医が内容を確認して就業判定を行います。
+          </p>
           <CheckupImport
             companyId={profile.company_id}
             backHref="/company/checkups"
             rules={rules}
             persons={persons}
             autoJudgeDefault
+            simple
           />
         </div>
       </main>
