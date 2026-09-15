@@ -92,6 +92,24 @@ export default function CheckupImport({
   const [done, setDone] = useState<number | null>(null);
   const [batchId, setBatchId] = useState<string | null>(null); // 取込の取り消しに使う
   const [undone, setUndone] = useState(false);
+  const [originalPurged, setOriginalPurged] = useState(false); // 送られたCSVの原本を削除したか
+
+  // 取込後に、事業者担当者から送られたCSVの原本を削除する(取り込んだデータは残る)
+  const purgeOriginal = async () => {
+    if (!upload) return;
+    const ok = window.confirm(
+      `送られたCSV「${upload.fileName}」の原本を削除します（取り込んだ健診データは残ります）。\n` +
+        `この操作は元に戻せません。よろしいですか？`
+    );
+    if (!ok) return;
+    setBusy(true);
+    setError(null);
+    const supabase = createClient();
+    const { error } = await supabase.rpc("hm_csv_upload_purge", { p_id: upload.id });
+    if (error) setError(`原本を削除できませんでした: ${error.message}`);
+    else setOriginalPurged(true);
+    setBusy(false);
+  };
 
   const header = rows?.[0] ?? [];
   const dataRows = useMemo(() => (rows ? rows.slice(1) : []), [rows]);
@@ -424,11 +442,23 @@ export default function CheckupImport({
               : "列の選び方や年度を誤った場合は、この取込をまとめて取り消せます（健診一覧の「最近の取込」からも取り消せます）。"}
           </p>
         )}
+        {upload && !undone && (
+          <p className="muted">
+            {originalPurged
+              ? "送られたCSVの原本は削除しました。"
+              : "送られたCSVの原本は保管されています（健診一覧の「送られたファイルの原本」からもダウンロード・削除できます）。"}
+          </p>
+        )}
         {error && <p className="error-message">{error}</p>}
         <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
           <button className="btn" onClick={() => { startNavigationProgress(); router.push(backHref); }}>
             健診一覧へ戻る
           </button>
+          {upload && !undone && !originalPurged && (
+            <button className="btn secondary" onClick={purgeOriginal} disabled={busy}>
+              {busy ? "処理中…" : "送られたCSVの原本を削除する"}
+            </button>
+          )}
           {batchId && !undone && (
             <button className="btn danger" onClick={undoImport} disabled={busy}>
               {busy ? "処理中…" : "この取込を取り消す"}

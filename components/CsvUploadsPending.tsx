@@ -45,25 +45,41 @@ export default function CsvUploadsPending() {
     load();
   }, []);
 
-  // PDFを署名付きURLでダウンロードする(非公開バケット。URLは2分間だけ有効)
+  // ダウンロード。PDFは署名付きURL(非公開バケット。2分間だけ有効)、CSVは中身をそのまま保存
   const download = async (u: Upload) => {
-    if (!u.storage_path) return;
     setBusy(u.id);
     setError(null);
     const supabase = createClient();
-    const { data, error } = await supabase.storage
-      .from("hm-files")
-      .createSignedUrl(u.storage_path, 120, { download: u.file_name });
-    if (error || !data?.signedUrl) {
-      setError(`ダウンロードできませんでした: ${error?.message ?? "unknown"}`);
+    if (u.kind === "pdf") {
+      if (!u.storage_path) return;
+      const { data, error } = await supabase.storage
+        .from("hm-files")
+        .createSignedUrl(u.storage_path, 120, { download: u.file_name });
+      if (error || !data?.signedUrl) {
+        setError(`ダウンロードできませんでした: ${error?.message ?? "unknown"}`);
+      } else {
+        const a = document.createElement("a");
+        a.href = data.signedUrl;
+        a.download = u.file_name;
+        a.rel = "noopener";
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+      }
     } else {
-      const a = document.createElement("a");
-      a.href = data.signedUrl;
-      a.download = u.file_name;
-      a.rel = "noopener";
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
+      const { data, error } = await supabase.rpc("hm_csv_upload_get", { p_id: u.id });
+      const row = Array.isArray(data) ? data[0] : data;
+      if (error || !row?.content) {
+        setError(`ダウンロードできませんでした: ${error?.message ?? "内容がありません"}`);
+      } else {
+        const blob = new Blob(["﻿" + row.content], { type: "text/csv;charset=utf-8;" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = u.file_name;
+        a.click();
+        URL.revokeObjectURL(url);
+      }
     }
     setBusy(null);
   };
@@ -139,7 +155,7 @@ export default function CsvUploadsPending() {
             <th>対象（担当者の指定）</th>
             <th>連絡事項</th>
             <th>送った方</th>
-            <th style={{ width: 260 }}></th>
+            <th style={{ width: 300 }}></th>
           </tr>
         </thead>
         <tbody>
@@ -194,13 +210,23 @@ export default function CsvUploadsPending() {
                       </button>
                     </>
                   ) : (
-                    <Link
-                      className="btn orange"
-                      style={{ padding: "4px 10px", fontSize: 12, marginRight: 6 }}
-                      href={`/office/${u.company_id}/checkups/import?upload=${u.id}`}
-                    >
-                      取り込む
-                    </Link>
+                    <>
+                      <Link
+                        className="btn orange"
+                        style={{ padding: "4px 10px", fontSize: 12, marginRight: 6 }}
+                        href={`/office/${u.company_id}/checkups/import?upload=${u.id}`}
+                      >
+                        取り込む
+                      </Link>
+                      <button
+                        className="btn secondary"
+                        style={{ padding: "4px 10px", fontSize: 12, marginRight: 6 }}
+                        onClick={() => download(u)}
+                        disabled={busy === u.id}
+                      >
+                        ダウンロード
+                      </button>
+                    </>
                   )}
                   <button
                     className="btn secondary"
