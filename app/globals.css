@@ -354,3 +354,85 @@ table.list td {
 @keyframes loading-spin {
   to { transform: rotate(360deg); }
 }
+
+/* ---- 使い方マニュアル ---- */
+.manual {
+  display: flex;
+  gap: 20px;
+  align-items: flex-start;
+}
+.manual-nav {
+  flex: 0 0 200px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  position: sticky;
+  top: 12px;
+}
+.manual-tab {
+  text-align: left;
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 8px 10px;
+  font-size: 13px;
+  color: var(--ink);
+  cursor: pointer;
+}
+.manual-tab:hover {
+  background: var(--teal-light);
+}
+.manual-tab.active {
+  background: var(--teal);
+  border-color: var(--teal);
+  color: #fff;
+  font-weight: 700;
+}
+.manual-body {
+  flex: 1;
+  min-width: 0;
+  font-size: 14px;
+  line-height: 1.7;
+}
+.manual-h3 {
+  font-size: 15px;
+  color: var(--teal-dark);
+  border-left: 4px solid var(--teal);
+  padding-left: 8px;
+  margin: 0 0 8px;
+}
+.manual-steps,
+.manual-list {
+  margin: 4px 0 10px;
+  padding-left: 22px;
+}
+.manual-steps li,
+.manual-list li {
+  margin-bottom: 4px;
+}
+.manual-link {
+  display: inline-block;
+  font-size: 12px;
+  color: var(--teal-dark);
+  border: 1px solid var(--teal);
+  border-radius: 12px;
+  padding: 2px 10px;
+  margin-left: 10px;
+  vertical-align: middle;
+  white-space: nowrap;
+}
+.manual-link:hover {
+  background: var(--teal-light);
+}
+@media (max-width: 720px) {
+  .manual {
+    flex-direction: column;
+  }
+  .manual-nav {
+    flex: none;
+    flex-direction: row;
+    flex-wrap: wrap;
+    position: static;
+    width: 100%;
+  }
+}

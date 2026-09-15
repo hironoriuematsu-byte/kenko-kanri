@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import Header from "@/components/Header";
+import ManualLink from "@/components/ManualLink";
 import PersonsSection from "@/components/PersonsSection";
 import { requireProfile } from "@/lib/auth";
 
@@ -17,7 +18,7 @@ export default async function CompanyPersonsPage() {
         <p className="muted">
           <Link href="/company">← ダッシュボード</Link>
         </p>
-        <h1 className="page-title">従業員カルテ</h1>
+        <h1 className="page-title">従業員カルテ<ManualLink section="persons" /></h1>
         <div className="card">
           <PersonsSection companyId={profile.company_id} basePath="/company/persons" />
         </div>

@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import Header from "@/components/Header";
+import ManualLink from "@/components/ManualLink";
 import InterviewsTable from "@/components/InterviewsTable";
 import { requireProfile } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
@@ -25,7 +26,7 @@ export default async function CompanyInterviewsPage() {
         <p className="muted">
           <Link href="/company">← ダッシュボード</Link>
         </p>
-        <h1 className="page-title">産業医面談管理</h1>
+        <h1 className="page-title">産業医面談管理<ManualLink section="interviews" /></h1>
         <div className="card">
           <InterviewsTable interviews={interviews ?? []} />
           <p className="muted" style={{ marginTop: 10 }}>

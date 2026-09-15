@@ -40,6 +40,11 @@ export default function Header({ profile }: { profile: Profile }) {
               ストレスチェックWeb ↗
             </a>
           )}
+          {profile.role === "company" && (
+            <Link href="/company/manual" style={{ fontSize: 12, whiteSpace: "nowrap" }} title="使い方マニュアル">
+              📖 使い方
+            </Link>
+          )}
           <span>
             {profile.full_name ?? "—"}（{ROLE_LABEL[profile.role] ?? profile.role}）
           </span>

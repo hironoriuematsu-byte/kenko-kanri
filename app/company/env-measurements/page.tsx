@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import Header from "@/components/Header";
+import ManualLink from "@/components/ManualLink";
 import EnvMeasurementsPanel from "@/components/EnvMeasurementsPanel";
 import { requireProfile } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
@@ -25,7 +26,7 @@ export default async function CompanyEnvMeasurementsPage() {
         <p className="muted">
           <Link href="/company">← ダッシュボード</Link>
         </p>
-        <h1 className="page-title">作業環境測定</h1>
+        <h1 className="page-title">作業環境測定<ManualLink section="env-measurements" /></h1>
         <div className="card">
           <EnvMeasurementsPanel
             companyId={profile.company_id}

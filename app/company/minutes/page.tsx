@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import Header from "@/components/Header";
+import ManualLink from "@/components/ManualLink";
 import MinutesTable from "@/components/MinutesTable";
 import MinutesSettingsForm from "@/components/MinutesSettingsForm";
 import { requireProfile } from "@/lib/auth";
@@ -42,7 +43,7 @@ export default async function CompanyMinutesPage({
         <p className="muted">
           <Link href="/company">← ダッシュボード</Link>
         </p>
-        <h1 className="page-title">{info?.committee_name ?? "安全衛生委員会"}議事録</h1>
+        <h1 className="page-title">{info?.committee_name ?? "安全衛生委員会"}議事録<ManualLink section="minutes" /></h1>
         <div className="card">
           <p style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
             {!profile.view_only && (

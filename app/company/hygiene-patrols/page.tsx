@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import Header from "@/components/Header";
+import ManualLink from "@/components/ManualLink";
 import HygienePatrolsTable from "@/components/HygienePatrolsTable";
 import ChecklistSettingsForm from "@/components/ChecklistSettingsForm";
 import DefaultInspectorForm from "@/components/DefaultInspectorForm";
@@ -57,7 +58,7 @@ export default async function CompanyHygienePatrolsPage({
         <p className="muted">
           <Link href="/company">← ダッシュボード</Link>
         </p>
-        <h1 className="page-title">衛生管理者巡視記録</h1>
+        <h1 className="page-title">衛生管理者巡視記録<ManualLink section="hygiene-patrols" /></h1>
         <div className="card">
           <p style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
             {!profile.view_only && (

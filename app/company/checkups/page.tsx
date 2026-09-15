@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import Header from "@/components/Header";
+import ManualLink from "@/components/ManualLink";
 import CheckupsSection from "@/components/CheckupsSection";
 import { requireProfile } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
@@ -29,7 +30,7 @@ export default async function CompanyCheckupsPage({
         <p className="muted">
           <Link href="/company">← ダッシュボード</Link>
         </p>
-        <h1 className="page-title">健康診断管理</h1>
+        <h1 className="page-title">健康診断管理<ManualLink section="checkups" /></h1>
         <div className="card">
           <CheckupsSection
             companyId={profile.company_id}

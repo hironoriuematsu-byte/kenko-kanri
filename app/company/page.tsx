@@ -17,6 +17,7 @@ const MENU = [
   { href: "/company/interviews", title: "産業医面談管理", icon: "💬", desc: "面談予定・日程調整・意見書" },
   { href: "/company/checkups", title: "健康診断管理", icon: "🩺", desc: "取込・有所見・事後措置" },
   { href: "/company/persons", title: "個人カルテ", icon: "🗂️", desc: "診断書等の共有・履歴" },
+  { href: "/company/manual", title: "使い方（マニュアル）", icon: "📖", desc: "各機能の操作手順・よくある質問" },
 ];
 
 export default async function CompanyDashboard() {
