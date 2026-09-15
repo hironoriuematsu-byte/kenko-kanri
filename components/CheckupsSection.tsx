@@ -163,7 +163,7 @@ export default async function CheckupsSection({
               officeInfo={officeInfo}
             />
             <Link className="btn" href={`${basePath}/report?year=${year}${roundQuery}`}>
-              定期健診結果報告書のサマリ・CSV出力
+              定期健康診断結果報告書
             </Link>
           </>
         )}

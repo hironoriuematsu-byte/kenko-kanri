@@ -6,11 +6,7 @@ import {
   CHECKUP_WORK_JUDGMENTS,
   FOLLOWUP_STATUS,
   conditionLabel,
-  isFindingJudgment,
-  isRestrictionJudgment,
-  isSevereJudgment,
 } from "@/lib/checkups";
-import { gradeFromValue } from "@/lib/gradeFromValue";
 import type { JudgmentRule } from "@/lib/judgment";
 import {
   downloadCsv,
@@ -52,17 +48,15 @@ export default function CheckupReportPanel({
   checkups,
   items,
   officeInfo,
-  rules,
 }: {
   companyName: string;
   fiscalYear: number;
   checkups: ReportCheckup[];
   items: ReportItem[];
   officeInfo?: OfficeInfo | null;
-  rules?: JudgmentRule[]; // 就業制限(R)を測定値から確かめるために使う
+  rules?: JudgmentRule[]; // (就業判定結果報告書は一覧画面のボタンに一本化したため未使用)
 }) {
   const [headcount, setHeadcount] = useState("");
-  const sexOf = (c: ReportCheckup) => (c.sex as "male" | "female" | null) ?? null;
 
   const regular = useMemo(
     () => checkups.filter((c) => c.checkup_type === "regular"),
@@ -91,7 +85,7 @@ export default function CheckupReportPanel({
 
   const onDownloadSummary = () => {
     const rows: (string | number | null)[][] = [
-      ["定期健康診断結果報告書 記入用サマリ"],
+      ["定期健康診断結果報告書（様式第6号 記入用）"],
       ["事業場名", companyName],
       ["対象年度", `${fiscalYear}年度`],
       ["健診種別", "定期健診のみを集計"],
@@ -111,99 +105,7 @@ export default function CheckupReportPanel({
       ["産業医所属機関の所在地", officeInfo?.address ?? ""],
       ...(officeInfo?.tel ? [["産業医所属機関の電話番号", officeInfo.tel]] : []),
     ];
-    downloadCsv(`定期健診結果報告書_サマリ_${companyName}_${fiscalYear}年度.csv`, rows);
-  };
-
-  // 就業判定結果報告書: 事業者が就業上の措置を検討するための一覧
-  const onDownloadWorkJudgment = () => {
-    const byCheckup = new Map<string, ReportItem[]>();
-    for (const it of items) {
-      byCheckup.set(it.checkup_id, [...(byCheckup.get(it.checkup_id) ?? []), it]);
-    }
-    // 就業制限(R)は測定値で決まるため、判定基準があれば値からも確かめる
-    const gradeOfItem = (c: ReportCheckup, it: ReportItem): string | null => {
-      const g = rules ? gradeFromValue(it.item_name, it.value, sexOf(c), rules) : null;
-      if (isRestrictionJudgment(g)) return "R";
-      return it.judgment ?? g ?? null;
-    };
-    const names = (c: ReportCheckup, pick: (j: string | null) => boolean) =>
-      (byCheckup.get(c.id) ?? [])
-        .filter((it) => pick(gradeOfItem(c, it)))
-        .map((it) => it.item_name)
-        .join("、");
-
-    const count = (v: string | null) =>
-      checkups.filter((c) => (c.work_judgment ?? null) === v).length;
-    const restrictionCount = checkups.filter((c) => names(c, isRestrictionJudgment) !== "").length;
-
-    const rows: (string | number | null)[][] = [
-      ["就業判定結果報告書"],
-      ["事業場名", companyName],
-      ["対象年度", `${fiscalYear}年度`],
-      ["作成日", new Date().toLocaleDateString("ja-JP")],
-      ["産業医氏名", officeInfo?.physician_name ?? "上松弘典"],
-      ["産業医所属機関の名称", officeInfo?.office_name ?? "うえまつ産業医事務所"],
-      ["産業医所属機関の所在地", officeInfo?.address ?? ""],
-      ...(officeInfo?.tel ? [["産業医所属機関の電話番号", officeInfo.tel]] : []),
-      [],
-      ["受診者数", checkups.length],
-      ["通常勤務可", count("normal")],
-      [
-        "　うち受診が条件",
-        checkups.filter((c) => c.work_judgment === "normal" && c.work_judgment_condition).length,
-      ],
-      ["要就業制限", count("restricted")],
-      ["要休業", count("leave")],
-      ["判定保留", count("pending")],
-      ["未判定", count(null)],
-      ["就業制限項目(R)に該当", restrictionCount],
-      [],
-      [
-        "社員番号",
-        "氏名",
-        "フリガナ",
-        "生年月日",
-        "性別",
-        "所属",
-        "健診種別",
-        "健診日",
-        "総合判定",
-        "有所見項目(C)",
-        "要医療項目(D)",
-        "就業制限項目(R)",
-        "就業判定",
-        "判定条件",
-        "判定日",
-        "医師の意見",
-        "受診勧奨",
-        "産業医面談",
-      ],
-      ...checkups.map((c) => [
-        c.employee_no ?? "",
-        c.target_name,
-        c.target_name_kana ?? "",
-        c.birth_date ?? "",
-        c.sex === "male" ? "男" : c.sex === "female" ? "女" : "",
-        c.department ?? "",
-        CHECKUP_TYPES[c.checkup_type] ?? c.checkup_type,
-        c.checkup_date ?? "",
-        c.overall_judgment ?? "",
-        names(c, (j) => isFindingJudgment(j) && !isSevereJudgment(j)),
-        names(c, (j) => isSevereJudgment(j) && !isRestrictionJudgment(j)),
-        names(c, isRestrictionJudgment),
-        c.work_judgment ? CHECKUP_WORK_JUDGMENTS[c.work_judgment] : "未判定",
-        conditionLabel(c.work_judgment_condition),
-        c.work_judgment_date ?? "",
-        c.work_judgment_note ?? "",
-        c.followup_status && c.followup_status !== "none" ? "要" : "",
-        c.work_judgment === "restricted" ? "要" : "",
-      ]),
-      [],
-      [
-        "※ 就業判定と医師の意見は、健康診断の結果に基づき産業医が述べたものです。事業者はこの意見を勘案し、必要な就業上の措置をご検討ください(労働安全衛生法第66条の4・第66条の5)。",
-      ],
-    ];
-    downloadCsv(`就業判定結果報告書_${companyName}_${fiscalYear}年度.csv`, rows);
+    downloadCsv(`定期健康診断結果報告書_${companyName}_${fiscalYear}年度.csv`, rows);
   };
 
   const onDownloadList = () => {
@@ -296,10 +198,7 @@ export default function CheckupReportPanel({
           />
         </div>
         <button className="btn orange" onClick={onDownloadSummary}>
-          報告書サマリをCSVでダウンロード
-        </button>
-        <button className="btn" onClick={onDownloadWorkJudgment}>
-          就業判定結果報告書をCSVでダウンロード
+          定期健康診断結果報告書のCSV出力
         </button>
         <button className="btn secondary" onClick={onDownloadList}>
           健康診断結果一覧をCSVでダウンロード
