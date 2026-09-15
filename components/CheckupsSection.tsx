@@ -2,6 +2,7 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import CheckupsTable, { type CheckupRow } from "@/components/CheckupsTable";
 import RecentImports from "@/components/RecentImports";
+import CsvUploadsStatus from "@/components/CsvUploadsStatus";
 import RecomputeJudgments from "@/components/RecomputeJudgments";
 import WorkJudgmentReportButton from "@/components/WorkJudgmentReportButton";
 import { getOfficeInfo } from "@/lib/officeInfo";
@@ -158,11 +159,13 @@ export default async function CheckupsSection({
 
   return (
     <div>
+      {/* 事業者担当者が送ったCSVで、産業医事務所の取込待ちのもの */}
+      <CsvUploadsStatus companyId={companyId} />
       <p style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
         {canEdit && (
           <>
             <Link className="btn orange" href={`${basePath}/import`}>
-              CSV一括取込
+              {canDelete ? "CSV一括取込" : "健診結果CSVを送る"}
             </Link>
             <Link className="btn secondary" href={`${basePath}/new`}>
               ＋ 個別入力

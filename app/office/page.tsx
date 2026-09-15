@@ -7,6 +7,7 @@ import { formatDateJa } from "@/lib/fiscal";
 import { INTERVIEW_TYPES, formatDateTimeJa } from "@/lib/interviews";
 import OfficeInfoForm from "@/components/OfficeInfoForm";
 import ImportNotices from "@/components/ImportNotices";
+import CsvUploadsPending from "@/components/CsvUploadsPending";
 import { getOfficeInfo } from "@/lib/officeInfo";
 
 export const dynamic = "force-dynamic";
@@ -62,7 +63,9 @@ export default async function OfficeDashboard() {
       <main className="container">
         <h1 className="page-title">産業医事務所ダッシュボード</h1>
 
-        {/* 事業者担当者などが取り込んだ健診結果の通知(未確認のものだけ) */}
+        {/* 事業者担当者から送られた取込待ちのCSV */}
+        <CsvUploadsPending />
+        {/* 取り込まれた健診結果の通知(未確認のものだけ) */}
         <ImportNotices />
 
         {(overdue.length > 0 || (unjudgedCount ?? 0) > 0 || (heldCount ?? 0) > 0) && (

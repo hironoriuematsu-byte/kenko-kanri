@@ -1,39 +1,29 @@
 import { redirect } from "next/navigation";
 import Header from "@/components/Header";
-import CheckupImport from "@/components/CheckupImport";
+import CsvSubmit from "@/components/CsvSubmit";
 import { requireProfile } from "@/lib/auth";
-import { getJudgmentRules } from "@/lib/judgmentRules";
-import { getPersonCandidates } from "@/lib/personsForCompany";
 
 export const dynamic = "force-dynamic";
 
+// 事業者担当者は健診機関のCSVをそのまま産業医事務所に送る。
+// どの列をどう取り込むかは産業医事務所が取込画面で指定する
 export default async function CompanyCheckupImportPage() {
   const { profile } = await requireProfile();
   if (profile.role !== "company" || !profile.company_id) redirect("/");
   // 閲覧のみの担当者は登録・取込を行えない
   if (profile.view_only) redirect("/company");
 
-  const rules = await getJudgmentRules();
-  const persons = await getPersonCandidates(profile.company_id);
-
   return (
     <>
       <Header profile={profile} />
       <main className="container">
-        <h1 className="page-title">健診結果CSV一括取込</h1>
+        <h1 className="page-title">健診結果CSVの送信</h1>
         <div className="card">
           <p className="muted" style={{ marginTop: 0 }}>
-            健診機関から受け取ったCSVを選んで取り込んでください。取込が完了すると産業医事務所に通知され、
-            産業医が内容を確認して就業判定を行います。
+            健診機関から受け取ったCSVをそのまま送ってください。産業医事務所がCSVの列の割り当てを
+            確認して取り込み、就業判定を行います。取り込まれると健康診断管理の一覧に表示されます。
           </p>
-          <CheckupImport
-            companyId={profile.company_id}
-            backHref="/company/checkups"
-            rules={rules}
-            persons={persons}
-            autoJudgeDefault
-            simple
-          />
+          <CsvSubmit companyId={profile.company_id} backHref="/company/checkups" />
         </div>
       </main>
     </>

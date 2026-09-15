@@ -1,6 +1,6 @@
 "use client";
 
-import { ChangeEvent, useMemo, useState } from "react";
+import { ChangeEvent, useEffect, useMemo, useState } from "react";
 import { startNavigationProgress } from "@/lib/navigate";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/browser";
@@ -27,6 +27,19 @@ import {
 
 const NOT_USED = "__not_used__";
 
+// 事業者担当者から送られたCSV(0135 hm_csv_uploads)。取込画面で開くときに渡す
+export type UploadedCsv = {
+  id: string;
+  fileName: string;
+  content: string;
+  fiscalYear: number | null;
+  checkupType: string | null;
+  round: number;
+  specialKind: string | null;
+  note: string | null;
+  createdAt: string;
+};
+
 // 列の扱い: 法定項目(自動判定) / 値のみ / 判定として取込 / 取り込まない
 type ColumnMode = { kind: "legal"; itemKey: string } | { kind: "value" } | { kind: "judgment" } | { kind: "off" };
 
@@ -37,25 +50,27 @@ export default function CheckupImport({
   autoJudgeDefault,
   persons = [],
   simple = false,
+  upload = null,
 }: {
   companyId: string;
   backHref: string;
   rules: JudgmentRule[];
   autoJudgeDefault: boolean;
   persons?: PersonCandidate[];
-  // 事業者担当者向けの簡易画面: 判定や列の割り当ての設定を見せず、
-  // 見出しから自動で割り当ててそのまま取り込む(設定は実施者の画面だけ)
+  // 簡易画面: 判定や列の割り当ての設定を見せず、見出しから自動で割り当ててそのまま取り込む
   simple?: boolean;
+  // 事業者担当者から送られたCSVを開いて取り込むとき(実施者)
+  upload?: UploadedCsv | null;
 }) {
   const router = useRouter();
-  const [fiscalYear, setFiscalYear] = useState(getFiscalYear());
-  const [checkupType, setCheckupType] = useState("regular");
-  const [specialKind, setSpecialKind] = useState(""); // 特殊健診の種類(有機溶剤・鉛 など)
+  const [fiscalYear, setFiscalYear] = useState(upload?.fiscalYear ?? getFiscalYear());
+  const [checkupType, setCheckupType] = useState(upload?.checkupType ?? "regular");
+  const [specialKind, setSpecialKind] = useState(upload?.specialKind ?? ""); // 特殊健診の種類(有機溶剤・鉛 など)
   // 同じ方の記録が同年度・同種別にすでにあれば、検査項目を追加して1つの記録にまとめる
   // (健診機関ごとに項目の異なるCSVが複数ある場合のため)
   const [merge, setMerge] = useState(true);
   // 実施回。年に2回(半年に1回)定期健診を行う事業場では、回ごとに分けて取り込む
-  const [round, setRound] = useState(1);
+  const [round, setRound] = useState(upload?.round ?? 1);
   const [merged, setMerged] = useState(0);
   const [autoJudge, setAutoJudge] = useState(autoJudgeDefault);
   const [findingsJudgments, setFindingsJudgments] = useState(
@@ -93,21 +108,18 @@ export default function CheckupImport({
   }, [dataRows, dateCol]);
   const yearMismatch = csvFiscalYear != null && csvFiscalYear !== fiscalYear;
 
-  const onFile = async (e: ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    e.target.value = "";
-    if (!file) return;
+  // CSVの文字列を読み込み、見出しから列を自動で割り当てる
+  const loadCsv = (text: string, name: string) => {
     setError(null);
     setDone(null);
     try {
-      const text = await readCsvFile(file);
       const parsed = parseCsv(text);
       if (parsed.length < 2) {
         setError("データ行がありません。1行目に見出し、2行目以降にデータがあるCSVを選択してください。");
         return;
       }
       setRows(parsed);
-      setFileName(file.name);
+      setFileName(name);
       const h = parsed[0];
       const find = (words: string[], exclude?: RegExp) =>
         h.findIndex((c) => {
@@ -141,6 +153,24 @@ export default function CheckupImport({
       setError("ファイルの読み込みに失敗しました。CSV形式か確認してください。");
     }
   };
+
+  const onFile = async (e: ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    try {
+      const text = await readCsvFile(file);
+      loadCsv(text, file.name);
+    } catch {
+      setError("ファイルの読み込みに失敗しました。CSV形式か確認してください。");
+    }
+  };
+
+  // 事業者担当者から送られたCSVを開いたときは、その内容を最初から読み込んでおく
+  useEffect(() => {
+    if (upload) loadCsv(upload.content, upload.fileName);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [upload?.id]);
 
   const baseCols = [nameCol, kanaCol, deptCol, empNoCol, sexCol, birthCol, dateCol, judgmentCol];
 
@@ -315,6 +345,14 @@ export default function CheckupImport({
     setDone(result.count ?? 0);
     setMerged(result.merged ?? 0);
     setBatchId(result.batch_id ?? null);
+    // 事業者担当者から送られたCSVは「取込済み」にして、送られた内容を消す
+    if (upload) {
+      await supabase.rpc("hm_csv_upload_finish", {
+        p_id: upload.id,
+        p_status: "imported",
+        p_batch: result.batch_id ?? null,
+      });
+    }
     setBusy(false);
   };
 
@@ -403,6 +441,27 @@ export default function CheckupImport({
 
   return (
     <div>
+      {upload && (
+        <div
+          className="card"
+          style={{ background: "var(--orange-light)", borderColor: "var(--orange)", padding: "10px 16px" }}
+        >
+          <strong style={{ fontSize: 14 }}>事業者担当者から送られたCSVを開いています</strong>
+          <div style={{ fontSize: 13, marginTop: 4 }}>
+            {upload.fileName}（{dataRows.length}行）
+            {upload.note && (
+              <>
+                <br />
+                連絡事項: {upload.note}
+              </>
+            )}
+          </div>
+          <div className="muted" style={{ fontSize: 12, marginTop: 4 }}>
+            年度・種別は担当者の指定を初期値にしています。列の割り当てを確認して取り込んでください。
+            取り込むとダッシュボードの「取込待ち」から消えます。
+          </div>
+        </div>
+      )}
       <div className="form-row" style={{ display: "flex", gap: 16, flexWrap: "wrap" }}>
         <div>
           <label>年度</label>
