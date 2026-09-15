@@ -31,15 +31,30 @@ export default async function CheckupsSection({
   canJudge?: boolean;
 }) {
   const supabase = createClient();
+  // 年度・実施回の一覧。1回の問い合わせで返る行数には上限(1000行)があり、
+  // 受診者×年度が1000件を超えると古い年度が欠けてしまうため、全件を分けて取得する
+  const fetchYearRows = async () => {
+    const PAGE = 1000;
+    const all: { fiscal_year: number; round: number | null }[] = [];
+    for (let from = 0; ; from += PAGE) {
+      const { data } = await supabase
+        .from("hm_checkups")
+        .select("fiscal_year, round")
+        .eq("company_id", companyId)
+        .order("fiscal_year", { ascending: false })
+        .order("round")
+        .range(from, from + PAGE - 1);
+      if (!data || data.length === 0) break;
+      all.push(...(data as { fiscal_year: number; round: number | null }[]));
+      if (data.length < PAGE) break;
+    }
+    return all;
+  };
+
   // 互いに関係のない問い合わせは同時に行い、待ち時間を短くする
-  const [officeInfo, { data: yearRows }, rules] = await Promise.all([
+  const [officeInfo, yearRows, rules] = await Promise.all([
     getOfficeInfo(),
-    supabase
-      .from("hm_checkups")
-      .select("fiscal_year, round")
-      .eq("company_id", companyId)
-      .order("fiscal_year", { ascending: false })
-      .order("round"),
+    fetchYearRows(),
     getJudgmentRules(),
   ]);
   const years = Array.from(new Set((yearRows ?? []).map((r) => r.fiscal_year)));

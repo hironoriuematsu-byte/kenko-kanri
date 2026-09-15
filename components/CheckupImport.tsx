@@ -81,6 +81,18 @@ export default function CheckupImport({
   const header = rows?.[0] ?? [];
   const dataRows = useMemo(() => (rows ? rows.slice(1) : []), [rows]);
 
+  // CSVの健診日から見た年度(4月〜翌3月)。指定した年度と食い違っていれば注意を出す
+  // (2023年の健診を、既定の今年度のまま取り込んでしまう誤りを防ぐ)
+  const csvFiscalYear = useMemo(() => {
+    if (dateCol < 0) return null;
+    for (const r of dataRows) {
+      const d = normalizeDate(r[dateCol] ?? "");
+      if (d) return getFiscalYear(new Date(d + "T00:00:00"));
+    }
+    return null;
+  }, [dataRows, dateCol]);
+  const yearMismatch = csvFiscalYear != null && csvFiscalYear !== fiscalYear;
+
   const onFile = async (e: ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     e.target.value = "";
@@ -537,9 +549,16 @@ export default function CheckupImport({
               解決しない場合は産業医事務所にご連絡ください。
             </p>
           )}
+          {yearMismatch && (
+            <p className="error-message">
+              CSVの健診日は<strong>{csvFiscalYear}年度</strong>ですが、年度の指定が
+              <strong>{fiscalYear}年度</strong>になっています。上の「年度」を {csvFiscalYear} に
+              直してから取り込んでください（このままでも取り込めますが、{fiscalYear}年度として登録されます）。
+            </p>
+          )}
           {error && <p className="error-message">{error}</p>}
           <button className="btn orange" onClick={onImport} disabled={busy || nameCol < 0}>
-            {busy ? "取込中…" : `${dataRows.length}名分を取り込む`}
+            {busy ? "取込中…" : `${dataRows.length}名分を${fiscalYear}年度として取り込む`}
           </button>
         </>
       )}
@@ -657,9 +676,15 @@ export default function CheckupImport({
             </tbody>
           </table>
 
+          {yearMismatch && (
+            <p className="error-message">
+              CSVの健診日は<strong>{csvFiscalYear}年度</strong>ですが、年度の指定が
+              <strong>{fiscalYear}年度</strong>になっています。上の「年度」をご確認ください。
+            </p>
+          )}
           {error && <p className="error-message">{error}</p>}
           <button className="btn orange" onClick={onImport} disabled={busy}>
-            {busy ? "取込中…" : `この内容で ${dataRows.length} 行を取り込む`}
+            {busy ? "取込中…" : `この内容で ${dataRows.length} 行を${fiscalYear}年度として取り込む`}
           </button>
         </>
       )}
