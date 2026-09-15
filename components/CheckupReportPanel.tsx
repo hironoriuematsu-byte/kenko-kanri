@@ -97,7 +97,7 @@ export default function CheckupReportPanel({
       ["健診項目", "受診者数", "有所見者数"],
       ...summary.map((s) => [s.label, s.examined, s.findings]),
       [],
-      ["所見のあった者の数（総合判定B・C・D）", findingsCount],
+      ["所見のあった者の人数（総合判定B・C・D）", findingsCount],
       ["医師の指示人数（総合判定D）", instructedCount],
       [],
       ["産業医氏名", officeInfo?.physician_name ?? "上松弘典"],
@@ -252,7 +252,7 @@ export default function CheckupReportPanel({
       <table className="list" style={{ maxWidth: 560 }}>
         <tbody>
           <tr>
-            <th style={{ width: 220 }}>所見のあった者の数</th>
+            <th style={{ width: 220 }}>所見のあった者の人数</th>
             <td>
               <strong>{findingsCount}</strong>名
               <span className="muted" style={{ marginLeft: 8 }}>
