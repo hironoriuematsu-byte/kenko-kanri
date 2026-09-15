@@ -783,7 +783,8 @@ export default function CheckupsTable({
                     </td>
                   )}
                   <td style={nowrap}>{c.employee_no || "—"}</td>
-                  {/* 氏名の下にフリガナ・生年月日・所属を小さく出し、同姓同名を見分けられるようにする */}
+                  {/* 氏名の上にフリガナ、下に生年月日を小さく出し、同姓同名を見分けられるようにする
+                      (所属は列幅が広がるため一覧には出さない。報告書CSV・個人票には出る) */}
                   <td style={nowrap}>
                     {c.target_name_kana && (
                       <div className="muted" style={{ fontSize: 10, lineHeight: 1.2 }}>
@@ -791,11 +792,9 @@ export default function CheckupsTable({
                       </div>
                     )}
                     <Link href={`/checkup/${c.id}`}>{c.target_name}</Link>
-                    {(c.birth_date || c.department) && (
+                    {c.birth_date && (
                       <div className="muted" style={{ fontSize: 11 }}>
-                        {c.birth_date ? formatDateJa(c.birth_date) : ""}
-                        {c.birth_date && c.department ? " / " : ""}
-                        {c.department ?? ""}
+                        {formatDateJa(c.birth_date)}
                       </div>
                     )}
                   </td>
