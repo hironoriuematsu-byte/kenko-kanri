@@ -1,6 +1,7 @@
 "use client";
 
 import { FormEvent, useMemo, useState } from "react";
+import { startNavigationProgress } from "@/lib/navigate";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/browser";
 import { INTERVIEW_TYPES, INTERVIEW_METHODS } from "@/lib/interviews";
@@ -194,6 +195,7 @@ export default function InterviewForm({
         p_target_id: id,
       });
     }
+    startNavigationProgress();
     router.replace(`/interviews/${id}`);
     router.refresh();
   };
@@ -319,7 +321,7 @@ export default function InterviewForm({
         <button className="btn" type="submit" disabled={busy}>
           {busy ? "保存中…" : "保存する"}
         </button>
-        <button type="button" className="btn secondary" onClick={() => router.push(backHref)}>
+        <button type="button" className="btn secondary" onClick={() => { startNavigationProgress(); router.push(backHref); }}>
           キャンセル
         </button>
       </div>

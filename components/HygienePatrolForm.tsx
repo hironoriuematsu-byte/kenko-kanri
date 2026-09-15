@@ -1,6 +1,7 @@
 "use client";
 
 import { FormEvent, useState } from "react";
+import { startNavigationProgress } from "@/lib/navigate";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/browser";
 import { CHECKLIST_TYPES, RESULT_LABELS, type ChecklistResult } from "@/lib/hygiene";
@@ -99,6 +100,7 @@ export default function HygienePatrolForm({
         p_target_id: id,
       });
     }
+    startNavigationProgress();
     router.replace(`/hygiene-patrols/${id}`);
     router.refresh();
   };
@@ -210,7 +212,7 @@ export default function HygienePatrolForm({
         <button className="btn" type="submit" disabled={busy}>
           {busy ? "保存中…" : "保存する"}
         </button>
-        <button type="button" className="btn secondary" onClick={() => router.push(backHref)}>
+        <button type="button" className="btn secondary" onClick={() => { startNavigationProgress(); router.push(backHref); }}>
           キャンセル
         </button>
       </div>

@@ -1,6 +1,7 @@
 "use client";
 
 import { ChangeEvent, useMemo, useState } from "react";
+import { startNavigationProgress } from "@/lib/navigate";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/browser";
 import { getFiscalYear } from "@/lib/fiscal";
@@ -365,7 +366,7 @@ export default function CheckupImport({
         )}
         {error && <p className="error-message">{error}</p>}
         <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-          <button className="btn" onClick={() => router.push(backHref)}>
+          <button className="btn" onClick={() => { startNavigationProgress(); router.push(backHref); }}>
             健診一覧へ戻る
           </button>
           {batchId && !undone && (

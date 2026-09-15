@@ -1,6 +1,7 @@
 "use client";
 
 import { FormEvent, useState } from "react";
+import { startNavigationProgress } from "@/lib/navigate";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/browser";
 import { getFiscalYear } from "@/lib/fiscal";
@@ -123,6 +124,7 @@ export default function CheckupForm({
       setBusy(false);
       return;
     }
+    startNavigationProgress();
     router.replace(backHref);
     router.refresh();
   };
@@ -339,7 +341,7 @@ export default function CheckupForm({
         <button className="btn" type="submit" disabled={busy}>
           {busy ? "登録中…" : "登録する"}
         </button>
-        <button type="button" className="btn secondary" onClick={() => router.push(backHref)}>
+        <button type="button" className="btn secondary" onClick={() => { startNavigationProgress(); router.push(backHref); }}>
           キャンセル
         </button>
       </div>

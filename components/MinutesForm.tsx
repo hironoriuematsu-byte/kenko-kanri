@@ -1,6 +1,7 @@
 "use client";
 
 import { ChangeEvent, FormEvent, useState } from "react";
+import { startNavigationProgress } from "@/lib/navigate";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/browser";
 import { makeStorageFileName } from "@/lib/storage";
@@ -131,6 +132,8 @@ export default function MinutesForm({
       }
     }
 
+    startNavigationProgress();
+
     router.replace(`/minutes/${id}`);
     router.refresh();
   };
@@ -215,7 +218,7 @@ export default function MinutesForm({
         <button className="btn" type="submit" disabled={busy}>
           {busy ? "保存中…" : "保存する"}
         </button>
-        <button type="button" className="btn secondary" onClick={() => router.push(backHref)}>
+        <button type="button" className="btn secondary" onClick={() => { startNavigationProgress(); router.push(backHref); }}>
           キャンセル
         </button>
       </div>

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { startNavigationProgress } from "@/lib/navigate";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/browser";
 
@@ -26,6 +27,7 @@ export default function DeleteMinutesButton({ minutesId }: { minutesId: string }
       setBusy(false);
       return;
     }
+    startNavigationProgress();
     router.replace("/office");
     router.refresh();
   };
