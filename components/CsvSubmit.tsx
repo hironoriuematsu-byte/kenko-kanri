@@ -9,7 +9,14 @@ import { startNavigationProgress } from "@/lib/navigate";
 
 const MAX_PDF_BYTES = 20 * 1024 * 1024;
 
-// 事業者担当者向け: 健診機関のCSVまたはPDFをそのまま産業医事務所に送る。
+// 送るファイル1つ分
+type Picked =
+  | { key: string; kind: "csv"; name: string; content: string; rowCount: number; headers: string[] }
+  | { key: string; kind: "pdf"; name: string; file: File; size: number };
+
+type Result = { name: string; ok: boolean; message?: string };
+
+// 事業者担当者向け: 健診機関のCSVやPDFをそのまま産業医事務所に送る(複数ファイルをまとめて送れる)。
 //   CSV: 中身をそのまま送り、産業医事務所が取込画面で列を指定して取り込む(0135)
 //   PDF: 非公開の保存領域(hm-files/<company_id>/checkup-uploads/)に保存し、
 //        産業医事務所がダウンロードしてCSVに変換して取り込む(0136)
@@ -20,66 +27,59 @@ export default function CsvSubmit({ companyId, backHref }: { companyId: string; 
   const [round, setRound] = useState(1);
   const [specialKind, setSpecialKind] = useState("");
   const [note, setNote] = useState("");
-  const [fileName, setFileName] = useState("");
-  const [kind, setKind] = useState<"csv" | "pdf" | null>(null);
-  const [content, setContent] = useState<string | null>(null); // CSVの中身
-  const [pdfFile, setPdfFile] = useState<File | null>(null);
-  const [rowCount, setRowCount] = useState(0);
-  const [headers, setHeaders] = useState<string[]>([]);
+  const [files, setFiles] = useState<Picked[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const [done, setDone] = useState(false);
+  const [progress, setProgress] = useState<string | null>(null);
+  const [results, setResults] = useState<Result[] | null>(null);
 
-  const reset = () => {
-    setKind(null);
-    setContent(null);
-    setPdfFile(null);
-    setRowCount(0);
-    setHeaders([]);
-  };
-
-  const onFile = async (e: ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
+  // ファイルを追加する(何回かに分けて選んでもよい)
+  const onFiles = async (e: ChangeEvent<HTMLInputElement>) => {
+    const list = Array.from(e.target.files ?? []);
     e.target.value = "";
-    if (!file) return;
+    if (list.length === 0) return;
     setError(null);
-    const isPdf = /\.pdf$/i.test(file.name) || file.type === "application/pdf";
-    if (isPdf) {
-      if (file.size > MAX_PDF_BYTES) {
-        setError("PDFが大きすぎます（20MBまで）。分けて送ってください。");
-        reset();
-        return;
+    const errors: string[] = [];
+    const added: Picked[] = [];
+    for (const file of list) {
+      const key = `${file.name}-${file.size}-${file.lastModified}`;
+      if (files.some((f) => f.key === key) || added.some((f) => f.key === key)) continue; // 同じファイルは1回だけ
+      const isPdf = /\.pdf$/i.test(file.name) || file.type === "application/pdf";
+      if (isPdf) {
+        if (file.size > MAX_PDF_BYTES) {
+          errors.push(`${file.name}: PDFが大きすぎます（20MBまで）`);
+          continue;
+        }
+        added.push({ key, kind: "pdf", name: file.name, file, size: file.size });
+        continue;
       }
-      setFileName(file.name);
-      setKind("pdf");
-      setPdfFile(file);
-      setContent(null);
-      setRowCount(0);
-      setHeaders([]);
-      return;
-    }
-    try {
-      const text = await readCsvFile(file);
-      const parsed = parseCsv(text);
-      if (parsed.length < 2) {
-        setError("データ行がありません。1行目に見出し、2行目以降にデータがあるCSVを選択してください。");
-        reset();
-        return;
+      try {
+        const text = await readCsvFile(file);
+        const parsed = parseCsv(text);
+        if (parsed.length < 2) {
+          errors.push(`${file.name}: データ行がありません（1行目に見出し、2行目以降にデータ）`);
+          continue;
+        }
+        added.push({
+          key,
+          kind: "csv",
+          name: file.name,
+          content: text,
+          rowCount: parsed.length - 1,
+          headers: parsed[0],
+        });
+      } catch {
+        errors.push(`${file.name}: 読み込みに失敗しました（CSV形式か確認してください）`);
       }
-      setFileName(file.name);
-      setKind("csv");
-      setContent(text);
-      setPdfFile(null);
-      setRowCount(parsed.length - 1);
-      setHeaders(parsed[0]);
-    } catch {
-      setError("ファイルの読み込みに失敗しました。CSV形式か確認してください。");
-      reset();
     }
+    setFiles((prev) => [...prev, ...added]);
+    if (errors.length > 0) setError(errors.join("\n"));
   };
+
+  const removeFile = (key: string) => setFiles((prev) => prev.filter((f) => f.key !== key));
 
   const onSubmit = async () => {
-    if (!kind) return;
+    if (files.length === 0) return;
     setBusy(true);
     setError(null);
     const supabase = createClient();
@@ -90,75 +90,87 @@ export default function CsvSubmit({ companyId, backHref }: { companyId: string; 
       p_special_kind: checkupType === "special" ? specialKind.trim() || null : null,
       p_note: note.trim() || null,
     };
-
-    if (kind === "csv") {
-      const { error } = await supabase.rpc("hm_submit_csv_upload", {
-        p_company_id: companyId,
-        p_file_name: fileName,
-        p_content: content,
-        p_row_count: rowCount,
-        ...common,
-      });
-      if (error) {
-        setError(`送信に失敗しました: ${error.message}`);
-        setBusy(false);
-        return;
+    const out: Result[] = [];
+    for (let i = 0; i < files.length; i++) {
+      const f = files[i];
+      setProgress(`${i + 1} / ${files.length}: ${f.name} を送信中…`);
+      if (f.kind === "csv") {
+        const { error } = await supabase.rpc("hm_submit_csv_upload", {
+          p_company_id: companyId,
+          p_file_name: f.name,
+          p_content: f.content,
+          p_row_count: f.rowCount,
+          ...common,
+        });
+        out.push(error ? { name: f.name, ok: false, message: error.message } : { name: f.name, ok: true });
+        continue;
       }
-    } else if (pdfFile) {
       // PDF本体を非公開の保存領域に保存してから、記録を作る
       const id = crypto.randomUUID();
       const path = `${companyId}/checkup-uploads/${id}.pdf`;
       const { error: upErr } = await supabase.storage
         .from("hm-files")
-        .upload(path, pdfFile, { contentType: "application/pdf", upsert: false });
+        .upload(path, f.file, { contentType: "application/pdf", upsert: false });
       if (upErr) {
-        setError(`PDFの保存に失敗しました: ${upErr.message}`);
-        setBusy(false);
-        return;
+        out.push({ name: f.name, ok: false, message: `PDFの保存に失敗: ${upErr.message}` });
+        continue;
       }
       const { error } = await supabase.rpc("hm_submit_file_upload", {
         p_id: id,
         p_company_id: companyId,
         p_kind: "pdf",
-        p_file_name: fileName,
+        p_file_name: f.name,
         p_storage_path: path,
-        p_file_size: pdfFile.size,
+        p_file_size: f.size,
         ...common,
       });
       if (error) {
-        // 記録が作れなければ保存したファイルも消す
-        await supabase.storage.from("hm-files").remove([path]);
-        setError(`送信に失敗しました: ${error.message}（データベースの更新(0136)が未適用の可能性があります）`);
-        setBusy(false);
-        return;
+        await supabase.storage.from("hm-files").remove([path]); // 記録が作れなければ保存したファイルも消す
+        out.push({ name: f.name, ok: false, message: error.message });
+        continue;
       }
+      out.push({ name: f.name, ok: true });
     }
-    setDone(true);
+    setProgress(null);
+    // 送れなかったものだけ残し、やり直せるようにする
+    const failed = new Set(out.filter((r) => !r.ok).map((r) => r.name));
+    setFiles((prev) => prev.filter((f) => failed.has(f.name)));
+    setResults(out);
     setBusy(false);
   };
 
-  if (done) {
+  const sizeLabel = (bytes: number) =>
+    bytes >= 1024 * 1024 ? `${(bytes / 1024 / 1024).toFixed(1)}MB` : `${Math.ceil(bytes / 1024)}KB`;
+
+  const csvCount = files.filter((f) => f.kind === "csv").length;
+  const pdfCount = files.filter((f) => f.kind === "pdf").length;
+
+  // 送信結果(すべて成功したら完了画面)
+  if (results && results.every((r) => r.ok)) {
     return (
       <div>
         <p>
-          <strong>{fileName}</strong>
-          {kind === "csv" ? `（${rowCount}名分）` : "（PDF）"}を産業医事務所に送りました。
+          <strong>{results.length}件</strong>のファイルを産業医事務所に送りました。
         </p>
+        <ul style={{ margin: "0 0 10px", paddingLeft: 20, fontSize: 13 }}>
+          {results.map((r) => (
+            <li key={r.name}>{r.name}</li>
+          ))}
+        </ul>
         <p style={{ color: "var(--teal-dark)" }}>
-          {kind === "csv"
-            ? "産業医事務所がCSVの列の割り当てを確認して取り込み、就業判定を行います。"
-            : "産業医事務所がPDFの内容を確認して登録し、就業判定を行います。"}
-          取り込まれると健康診断管理の一覧に表示されます。
+          産業医事務所が内容を確認して取り込み、就業判定を行います。取り込まれると健康診断管理の一覧に表示されます。
         </p>
-        <button className="btn" onClick={() => { startNavigationProgress(); router.push(backHref); }}>
-          健診一覧へ戻る
-        </button>
+        <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+          <button className="btn" onClick={() => { startNavigationProgress(); router.push(backHref); }}>
+            健診一覧へ戻る
+          </button>
+          <button className="btn secondary" onClick={() => setResults(null)}>
+            続けて別のファイルを送る
+          </button>
+        </div>
       </div>
     );
   }
-
-  const sizeLabel = (bytes: number) =>
-    bytes >= 1024 * 1024 ? `${(bytes / 1024 / 1024).toFixed(1)}MB` : `${Math.ceil(bytes / 1024)}KB`;
 
   return (
     <div>
@@ -204,41 +216,64 @@ export default function CsvSubmit({ companyId, backHref }: { companyId: string; 
           </div>
         )}
       </div>
+      <p className="muted" style={{ fontSize: 12, marginTop: 0 }}>
+        年度・種別・連絡事項は、ここで選んだファイルすべてに共通で付きます。年度や種別が違うファイルは分けて送ってください。
+      </p>
 
       <div className="form-row">
         <label className="btn secondary" style={{ display: "inline-block" }}>
-          CSVまたはPDFファイルを選択
+          {files.length === 0 ? "CSV・PDFファイルを選択（複数可）" : "ファイルを追加"}
           <input
             type="file"
             accept=".csv,.txt,.pdf,application/pdf"
+            multiple
             style={{ display: "none" }}
-            onChange={onFile}
+            onChange={onFiles}
           />
         </label>
-        {fileName && kind === "csv" && (
+        {files.length > 0 && (
           <span style={{ marginLeft: 10 }} className="muted">
-            {fileName}（CSV・データ {rowCount} 行・{headers.length} 列）
-          </span>
-        )}
-        {fileName && kind === "pdf" && pdfFile && (
-          <span style={{ marginLeft: 10 }} className="muted">
-            {fileName}（PDF・{sizeLabel(pdfFile.size)}）
+            {files.length}件（CSV {csvCount}・PDF {pdfCount}）
           </span>
         )}
       </div>
 
-      {kind === "csv" && (
-        <div className="form-row">
-          <label>読み取った見出し（確認用）</label>
-          <p className="muted" style={{ margin: "4px 0", fontSize: 13 }}>
-            {headers.filter((h) => h.trim()).join("、")}
-          </p>
-        </div>
-      )}
-      {kind === "pdf" && (
-        <p className="muted" style={{ fontSize: 13 }}>
-          PDFは産業医事務所がダウンロードして内容を登録します。1つのPDFに複数名分が入っていても構いません。
-        </p>
+      {files.length > 0 && (
+        <table className="list" style={{ marginBottom: 14, maxWidth: 760 }}>
+          <thead>
+            <tr>
+              <th style={{ width: 60 }}>種類</th>
+              <th>ファイル</th>
+              <th>内容</th>
+              <th style={{ width: 70 }}></th>
+            </tr>
+          </thead>
+          <tbody>
+            {files.map((f) => (
+              <tr key={f.key}>
+                <td>
+                  <span className={`badge${f.kind === "pdf" ? " orange" : ""}`}>{f.kind === "pdf" ? "PDF" : "CSV"}</span>
+                </td>
+                <td>{f.name}</td>
+                <td className="muted" style={{ fontSize: 12 }}>
+                  {f.kind === "csv"
+                    ? `データ ${f.rowCount} 行・${f.headers.length} 列（${f.headers.filter((h) => h.trim()).slice(0, 6).join("、")}…）`
+                    : sizeLabel(f.size)}
+                </td>
+                <td>
+                  <button
+                    className="btn secondary"
+                    style={{ padding: "2px 8px", fontSize: 12 }}
+                    onClick={() => removeFile(f.key)}
+                    disabled={busy}
+                  >
+                    外す
+                  </button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
       )}
 
       <div className="form-row">
@@ -251,13 +286,22 @@ export default function CsvSubmit({ companyId, backHref }: { companyId: string; 
         />
       </div>
 
-      {error && <p className="error-message">{error}</p>}
-      <button className="btn orange" onClick={onSubmit} disabled={busy || !kind}>
-        {busy
-          ? "送信中…"
-          : kind === "pdf"
-            ? "このPDFを産業医事務所に送る"
-            : `このCSV（${rowCount}名分）を産業医事務所に送る`}
+      {error && <p className="error-message" style={{ whiteSpace: "pre-wrap" }}>{error}</p>}
+      {results && results.some((r) => !r.ok) && (
+        <div className="error-message" style={{ marginBottom: 10 }}>
+          <div>送れなかったファイルがあります。残っているファイルをもう一度送ってください。</div>
+          <ul style={{ margin: "4px 0 0", paddingLeft: 20, fontSize: 13 }}>
+            {results.map((r) => (
+              <li key={r.name}>
+                {r.name}: {r.ok ? "送信済み" : `失敗（${r.message}）`}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+      {progress && <p className="muted">{progress}</p>}
+      <button className="btn orange" onClick={onSubmit} disabled={busy || files.length === 0}>
+        {busy ? "送信中…" : `${files.length}件のファイルを産業医事務所に送る`}
       </button>
     </div>
   );
