@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import CheckupsTable, { type CheckupRow } from "@/components/CheckupsTable";
 import RecentImports from "@/components/RecentImports";
 import CsvUploadsStatus from "@/components/CsvUploadsStatus";
+import CsvUploadsArchive from "@/components/CsvUploadsArchive";
 import RecomputeJudgments from "@/components/RecomputeJudgments";
 import WorkJudgmentReportButton from "@/components/WorkJudgmentReportButton";
 import { getOfficeInfo } from "@/lib/officeInfo";
@@ -165,7 +166,7 @@ export default async function CheckupsSection({
         {canEdit && (
           <>
             <Link className="btn orange" href={`${basePath}/import`}>
-              {canDelete ? "CSV一括取込" : "健診結果CSVを送る"}
+              {canDelete ? "CSV一括取込" : "健診結果（CSV・PDF）を送る"}
             </Link>
             <Link className="btn secondary" href={`${basePath}/new`}>
               ＋ 個別入力
@@ -188,6 +189,9 @@ export default async function CheckupsSection({
           </>
         )}
       </p>
+
+      {/* 送られたファイルの原本(取込済み)は実施者だけが見られる */}
+      {canDelete && <CsvUploadsArchive companyId={companyId} />}
 
       {/* 取込ミスの取り消し・判定の再計算は実施者のみ(canDelete) */}
       {canDelete && (

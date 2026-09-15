@@ -6,6 +6,7 @@ import { CHECKUP_TYPES, roundLabel } from "@/lib/checkups";
 
 type Row = {
   id: string;
+  kind?: string; // 'csv' | 'pdf'
   file_name: string;
   row_count: number;
   fiscal_year: number | null;
@@ -46,11 +47,13 @@ export default function CsvUploadsStatus({ companyId }: { companyId: string }) {
       className="card"
       style={{ background: "var(--orange-light)", borderColor: "var(--orange)", padding: "10px 16px" }}
     >
-      <strong style={{ fontSize: 14 }}>送信済みのCSV（産業医事務所で取込待ち {pending.length}件）</strong>
+      <strong style={{ fontSize: 14 }}>送信済みのファイル（産業医事務所で取込待ち {pending.length}件）</strong>
       <ul style={{ margin: "6px 0 0", paddingLeft: 20, fontSize: 13 }}>
         {pending.map((r) => (
           <li key={r.id}>
-            {fmt(r.created_at)} {r.file_name}（{r.row_count}名分）
+            {fmt(r.created_at)} {r.kind === "pdf" ? "PDF " : ""}
+            {r.file_name}
+            {r.kind === "pdf" ? "" : `（${r.row_count}名分）`}
             {r.fiscal_year ? ` ${r.fiscal_year}年度` : ""}
             {roundLabel(r.round) ? `・${roundLabel(r.round)}` : ""}
             {r.checkup_type ? ` ${CHECKUP_TYPES[r.checkup_type] ?? r.checkup_type}` : ""}
