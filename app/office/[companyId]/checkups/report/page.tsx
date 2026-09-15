@@ -19,24 +19,20 @@ export default async function OfficeCheckupReportPage({
   params: { companyId: string };
   searchParams: { year?: string; round?: string };
 }) {
-  const { profile } = await requireProfile();
-  if (profile.role !== "office") redirect("/");
-
   const supabase = createClient();
-  const { data: company } = await supabase
-    .from("companies")
-    .select("id, name")
-    .eq("id", params.companyId)
-    .single();
-  if (!company) notFound();
-
   const year = searchParams.year ? Number(searchParams.year) : getFiscalYear();
   const round = searchParams.round ? Number(searchParams.round) : undefined;
-  const { checkups, items } = await getCheckupReportData(company.id, year, round);
-
-  const officeInfo = await getOfficeInfo();
-  // 就業制限(R)を測定値から確かめるために使う
-  const rules = await getJudgmentRules();
+  // 互いに関係のない問い合わせは同時に行う(待ち時間の短縮)
+  const [{ profile }, { data: company }, { checkups, items }, officeInfo, rules] =
+    await Promise.all([
+      requireProfile(),
+      supabase.from("companies").select("id, name").eq("id", params.companyId).single(),
+      getCheckupReportData(params.companyId, year, round),
+      getOfficeInfo(),
+      getJudgmentRules(),
+    ]);
+  if (profile.role !== "office") redirect("/");
+  if (!company) notFound();
 
   await supabase.rpc("hm_log_access", {
     p_action: "report_summary",

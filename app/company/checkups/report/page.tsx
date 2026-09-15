@@ -21,19 +21,15 @@ export default async function CompanyCheckupReportPage({
   if (profile.role !== "company" || !profile.company_id) redirect("/");
 
   const supabase = createClient();
-  const { data: company } = await supabase
-    .from("companies")
-    .select("id, name")
-    .eq("id", profile.company_id)
-    .single();
-
   const year = searchParams.year ? Number(searchParams.year) : getFiscalYear();
   const round = searchParams.round ? Number(searchParams.round) : undefined;
-  const { checkups, items } = await getCheckupReportData(profile.company_id, year, round);
-
-  const officeInfo = await getOfficeInfo();
-  // 就業制限(R)を測定値から確かめるために使う
-  const rules = await getJudgmentRules();
+  // 互いに関係のない問い合わせは同時に行う(待ち時間の短縮)
+  const [{ data: company }, { checkups, items }, officeInfo, rules] = await Promise.all([
+    supabase.from("companies").select("id, name").eq("id", profile.company_id).single(),
+    getCheckupReportData(profile.company_id, year, round),
+    getOfficeInfo(),
+    getJudgmentRules(),
+  ]);
 
   await supabase.rpc("hm_log_access", {
     p_action: "report_summary",

@@ -31,14 +31,17 @@ export default async function CheckupsSection({
   canJudge?: boolean;
 }) {
   const supabase = createClient();
-  const officeInfo = await getOfficeInfo();
-
-  const { data: yearRows } = await supabase
-    .from("hm_checkups")
-    .select("fiscal_year, round")
-    .eq("company_id", companyId)
-    .order("fiscal_year", { ascending: false })
-    .order("round");
+  // 互いに関係のない問い合わせは同時に行い、待ち時間を短くする
+  const [officeInfo, { data: yearRows }, rules] = await Promise.all([
+    getOfficeInfo(),
+    supabase
+      .from("hm_checkups")
+      .select("fiscal_year, round")
+      .eq("company_id", companyId)
+      .order("fiscal_year", { ascending: false })
+      .order("round"),
+    getJudgmentRules(),
+  ]);
   const years = Array.from(new Set((yearRows ?? []).map((r) => r.fiscal_year)));
   const year = selectedYear ?? years[0];
   // その年度に存在する実施回(1回だけなら選択肢は出さない)
@@ -75,7 +78,6 @@ export default async function CheckupsSection({
 
   // 健診機関の判定が項目ごとに入っていない場合に備え、事務所の判定基準で
   // 補って表示する(どの項目がC・Dなのかを一覧で確認できるようにするため)
-  const rules = await getJudgmentRules();
   const sexById = new Map<string, "male" | "female" | null>(
     (checkups ?? []).map((c) => [c.id, (c.sex as "male" | "female" | null) ?? null])
   );

@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
+import { Suspense } from "react";
 import "./globals.css";
 import DomSafety from "@/components/DomSafety";
+import NavigationProgress from "@/components/NavigationProgress";
 
 export const metadata: Metadata = {
   title: "健康管理Web | うえまつ産業医事務所",
@@ -12,6 +14,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="ja">
       <body>
         <DomSafety />
+        {/* 画面切り替え中の進行バー(useSearchParams を使うため Suspense で包む) */}
+        <Suspense fallback={null}>
+          <NavigationProgress />
+        </Suspense>
         {children}
         <footer className="site-footer no-print">
           &copy; {new Date().getFullYear()} うえまつ産業医事務所 (Mestate LLC)

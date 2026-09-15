@@ -14,15 +14,13 @@ export default async function OfficeCheckupsPage({
   params: { companyId: string };
   searchParams: { year?: string; round?: string };
 }) {
-  const { profile } = await requireProfile();
-  if (profile.role !== "office") redirect("/");
-
   const supabase = createClient();
-  const { data: company } = await supabase
-    .from("companies")
-    .select("id, name")
-    .eq("id", params.companyId)
-    .single();
+  // ログイン確認と企業の取得は同時に行う(待ち時間の短縮)
+  const [{ profile }, { data: company }] = await Promise.all([
+    requireProfile(),
+    supabase.from("companies").select("id, name").eq("id", params.companyId).single(),
+  ]);
+  if (profile.role !== "office") redirect("/");
   if (!company) notFound();
 
   return (
