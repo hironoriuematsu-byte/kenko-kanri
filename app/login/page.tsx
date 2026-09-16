@@ -93,6 +93,13 @@ function LoginForm() {
         <p className="muted" style={{ marginTop: 14 }}>
           ストレスチェックWebと同じアカウントでログインできます。アカウントをお持ちでない方は産業医事務所にお問い合わせください。
         </p>
+        {/* 個人情報保護法第32条に基づく安全管理措置の概要(保存先・外部事業者)の案内 */}
+        <p className="muted" style={{ marginTop: 10, fontSize: 12, lineHeight: 1.7 }}>
+          健康情報は暗号化のうえ日本国内（東京）のサーバーに保存します。保存と画面処理には米国の事業者（Supabase、Vercel）のサービスを利用しています。
+          <a href="/privacy" style={{ marginLeft: 4 }}>
+            個人情報の取扱いについて
+          </a>
+        </p>
       </div>
     </div>
   );

@@ -20,6 +20,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         </Suspense>
         {children}
         <footer className="site-footer no-print">
+          <a href="/privacy" style={{ color: "inherit", textDecoration: "underline" }}>
+            個人情報の取扱いについて
+          </a>
+          <span style={{ margin: "0 10px" }}>|</span>
           &copy; {new Date().getFullYear()} うえまつ産業医事務所 (Mestate LLC)
         </footer>
       </body>
