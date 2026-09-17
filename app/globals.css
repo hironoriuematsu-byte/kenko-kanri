@@ -436,3 +436,10 @@ table.list td {
     width: 100%;
   }
 }
+
+/* フッター: スマホ幅では「個人情報の取扱いについて」と著作権表示を別の行にし、区切りの縦線を隠す */
+.site-footer-item { display: inline-block; white-space: nowrap; }
+@media (max-width: 560px) {
+  .site-footer-item { display: block; }
+  .site-footer-sep { display: none; }
+}
