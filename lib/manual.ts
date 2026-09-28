@@ -2,6 +2,7 @@
 // セクションごとに切り替えて読めるよう、内容をデータとして持つ。
 // 各画面の「使い方」リンクは /company/manual?section=<key> を開く
 
+import { BIRTH_DATE_MANUAL } from "@/lib/personPolicy";
 export type ManualBlock =
   | { type: "p"; text: string }
   | { type: "steps"; items: string[] } // 番号付きの手順
@@ -337,7 +338,7 @@ export const MANUAL_SECTIONS: ManualSection[] = [
             type: "steps",
             items: [
               "「従業員カルテの作成」を押します。",
-              "氏名（必須）・フリガナ・生年月日（必須）・社員番号・部署を入力します。同姓同名の方は生年月日と社員番号で区別されます。",
+              `氏名（必須）・フリガナ・${BIRTH_DATE_MANUAL}・社員番号・部署を入力します。同姓同名の方は生年月日と社員番号で区別されます。`,
               "本人がストレスチェックWeb・健康管理Webのアカウントを持っている場合は「本人のログインアカウント」で紐付けると、本人画面や健診・面談の履歴と連動します。",
               "「保存する」を押します。",
             ],

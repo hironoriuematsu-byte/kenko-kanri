@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/browser";
 import { INTERVIEW_TYPES, INTERVIEW_METHODS } from "@/lib/interviews";
 import DateTextInput from "@/components/DateTextInput";
+import { BIRTH_DATE_LABEL, BIRTH_DATE_REQUIRED } from "@/lib/personPolicy";
 
 export type InterviewInput = {
   id?: string;
@@ -75,7 +76,8 @@ export default function InterviewForm({
       setError("対象者氏名を入力してください。");
       return;
     }
-    if (mode === "office" && !v.person_id && !v.birth_date) {
+    // 生年月日の必須/任意は lib/personPolicy.ts で切り替える(同姓同名がいる場合は下で別途求める)
+    if (BIRTH_DATE_REQUIRED && mode === "office" && !v.person_id && !v.birth_date) {
       setError("生年月日を入力してください（例: 1975/4/1）。");
       return;
     }
@@ -256,11 +258,11 @@ export default function InterviewForm({
             </div>
             {!v.person_id && (
               <div>
-                <label>生年月日 *</label>
+                <label>{BIRTH_DATE_LABEL}</label>
                 <DateTextInput
                   value={v.birth_date}
                   onChange={(val) => set("birth_date", val)}
-                  required
+                  required={BIRTH_DATE_REQUIRED}
                 />
               </div>
             )}
@@ -268,6 +270,7 @@ export default function InterviewForm({
           {!v.person_id && (
             <p className="muted" style={{ margin: "-8px 0 14px" }}>
               カルテ未登録の方は、入力内容で個人カルテを自動作成します。
+              {!BIRTH_DATE_REQUIRED && "生年月日は任意ですが、同姓同名の方がいる場合は区別のために入力が必要です。"}
             </p>
           )}
           <div className="form-row">

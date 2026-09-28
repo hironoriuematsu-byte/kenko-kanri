@@ -5,6 +5,7 @@ import { startNavigationProgress } from "@/lib/navigate";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/browser";
 import DateTextInput from "@/components/DateTextInput";
+import { BIRTH_DATE_LABEL, BIRTH_DATE_REQUIRED } from "@/lib/personPolicy";
 
 export type PersonInput = {
   id?: string;
@@ -39,7 +40,8 @@ export default function PersonForm({
 
   const onSubmit = async (e: FormEvent) => {
     e.preventDefault();
-    if (!v.birth_date) {
+    // 生年月日の必須/任意は lib/personPolicy.ts で切り替える
+    if (BIRTH_DATE_REQUIRED && !v.birth_date) {
       setError("生年月日を入力してください（例: 1975/4/1）。");
       return;
     }
@@ -123,11 +125,11 @@ export default function PersonForm({
           />
         </div>
         <div>
-          <label>生年月日 *</label>
+          <label>{BIRTH_DATE_LABEL}</label>
           <DateTextInput
             value={v.birth_date}
             onChange={(val) => set("birth_date", val)}
-            required
+            required={BIRTH_DATE_REQUIRED}
           />
         </div>
         <div style={{ flex: 1, minWidth: 160 }}>
