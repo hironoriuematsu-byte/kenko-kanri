@@ -3,9 +3,8 @@ import { redirect } from "next/navigation";
 import Header from "@/components/Header";
 import { requireProfile } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
-import { formatDateJa } from "@/lib/fiscal";
-import { INTERVIEW_TYPES, formatDateTimeJa } from "@/lib/interviews";
 import OfficeInfoForm from "@/components/OfficeInfoForm";
+import InterviewSchedule from "@/components/InterviewSchedule";
 import ImportNotices from "@/components/ImportNotices";
 import CsvUploadsPending from "@/components/CsvUploadsPending";
 import { getOfficeInfo } from "@/lib/officeInfo";
@@ -94,35 +93,17 @@ export default async function OfficeDashboard() {
         <div className="card">
           <h2>面談予定</h2>
           {(interviews ?? []).length > 0 ? (
-            <table className="list">
-              <thead>
-                <tr>
-                  <th>予定日</th>
-                  <th>企業</th>
-                  <th>対象者</th>
-                  <th>種別</th>
-                </tr>
-              </thead>
-              <tbody>
-                {[...overdue, ...upcomingInterviews].map((i: any) => (
-                  <tr key={i.id}>
-                    <td>
-                      <Link href={`/interviews/${i.id}`}>
-                        {formatDateTimeJa(i.scheduled_at)}
-                      </Link>
-                      {overdue.includes(i) && (
-                        <span className="badge orange" style={{ marginLeft: 6 }}>
-                          未実施
-                        </span>
-                      )}
-                    </td>
-                    <td>{i.companies?.name ?? "—"}</td>
-                    <td>{i.target_name}</td>
-                    <td>{INTERVIEW_TYPES[i.interview_type] ?? i.interview_type}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+            // 日付を押すとその日の予定者一覧、氏名を押すと面談の詳細(InterviewSchedule)
+            <InterviewSchedule
+              items={[...overdue, ...upcomingInterviews].map((i: any) => ({
+                id: i.id,
+                target_name: i.target_name,
+                interview_type: i.interview_type,
+                scheduled_at: i.scheduled_at,
+                company_name: i.companies?.name ?? null,
+                overdue: overdue.includes(i),
+              }))}
+            />
           ) : (
             <p className="muted">予定されている面談はありません。</p>
           )}
