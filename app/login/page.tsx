@@ -36,7 +36,9 @@ function LoginForm() {
       setBusy(false);
       return;
     }
-    router.replace("/");
+    // ?next= があればログイン後にその画面へ戻る(期限切れで保存に失敗した画面など)。外部URLは受け付けない
+    const next = params.get("next");
+    router.replace(next && next.startsWith("/") && !next.startsWith("//") ? next : "/");
     router.refresh();
   };
 
