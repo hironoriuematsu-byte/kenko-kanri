@@ -736,7 +736,12 @@ export default function CheckupsTable({
                 <br />
                 番号
               </th>
-              <th style={nowrap}>氏名</th>
+              {/* 氏名の下に生年月日が出ることを見出しでも示す(色は見出しと同じ) */}
+              <th style={nowrap}>
+                氏名
+                <br />
+                <span style={{ fontSize: 10, fontWeight: 400 }}>生年月日</span>
+              </th>
               <th style={nowrap}>種別</th>
               <th style={nowrap}>健診日</th>
               <th style={nowrap}>
