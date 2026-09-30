@@ -680,41 +680,36 @@ export default function CheckupsTable({
       {message && <p style={{ color: "var(--teal-dark)", fontSize: 13 }}>{message}</p>}
 
       {/* 表示の絞り込み: 有所見(D)・就業制限(R)の方だけを確認できるようにする */}
-      <div
-        style={{
-          display: "flex",
-          gap: 8,
-          flexWrap: "wrap",
-          alignItems: "center",
-          margin: "8px 0",
-        }}
-      >
-        <span className="muted" style={{ fontSize: 13 }}>表示:</span>
-        {(Object.keys(VIEW_LABEL) as ViewFilter[]).map((k) => {
-          const active = view === k;
-          const danger = k !== "all";
-          return (
-            <button
-              key={k}
-              className={active ? (danger ? "btn orange" : "btn") : "btn secondary"}
-              style={{ padding: "4px 12px", fontSize: 13 }}
-              onClick={() => setView(k)}
-              aria-pressed={active}
-            >
-              {VIEW_LABEL[k]}（{viewCounts[k]}名）
-            </button>
-          );
-        })}
-        {view !== "all" && (
-          <span className="muted" style={{ fontSize: 12 }}>
-            {VIEW_LABEL[view]}の {visibleRows.length}名を表示中。
-            {view === "followup" && "受診勧奨が「未対応」の方です（勧奨済・受診済は含みません）。"}
-            {view === "interview" && "就業判定が「要就業制限」の方と、医師の意見に「産業医面談」が含まれる方です。"}
-            {showCheckbox && "見出しのチェックで表示中の方をまとめて選択できます。"}
-            上の一括判定は絞り込みに関係なく全員が対象です。
-          </span>
-        )}
+      {/* 「表示:」の見出しは左の列に固定し、ボタンは折り返しても先頭のボタンの位置にそろえる */}
+      <div style={{ display: "flex", gap: 8, alignItems: "flex-start", margin: "8px 0" }}>
+        <span className="muted" style={{ fontSize: 13, lineHeight: "30px", flexShrink: 0 }}>表示:</span>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", flex: 1 }}>
+          {(Object.keys(VIEW_LABEL) as ViewFilter[]).map((k) => {
+            const active = view === k;
+            const danger = k !== "all";
+            return (
+              <button
+                key={k}
+                className={active ? (danger ? "btn orange" : "btn") : "btn secondary"}
+                style={{ padding: "4px 12px", fontSize: 13 }}
+                onClick={() => setView(k)}
+                aria-pressed={active}
+              >
+                {VIEW_LABEL[k]}（{viewCounts[k]}名）
+              </button>
+            );
+          })}
+        </div>
       </div>
+      {view !== "all" && (
+        <p className="muted" style={{ fontSize: 12, margin: "0 0 8px" }}>
+          {VIEW_LABEL[view]}の {visibleRows.length}名を表示中。
+          {view === "followup" && "受診勧奨が「未対応」の方です（勧奨済・受診済は含みません）。"}
+          {view === "interview" && "就業判定が「要就業制限」の方と、医師の意見に「産業医面談」が含まれる方です。"}
+          {showCheckbox && "見出しのチェックで表示中の方をまとめて選択できます。"}
+          上の一括判定は絞り込みに関係なく全員が対象です。
+        </p>
+      )}
 
       <div style={{ overflowX: "auto" }}>
         <table className="list">
