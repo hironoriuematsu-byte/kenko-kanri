@@ -70,9 +70,23 @@ export default function OpinionPanel({
         p_detail: { published: v.published },
       });
       if (data?.id) setV((p) => ({ ...p, id: data.id }));
+      // 公開したら面談を「実施済」にする(産業医面談は実施したら必ず意見書を公開するため)
+      if (v.published) {
+        const { error: doneErr } = await supabase.rpc("hm_mark_interview_done", {
+          p_id: interviewId,
+          p_conducted_date: v.interview_date || null,
+        });
+        if (doneErr) {
+          setError(
+            /function|schema cache/i.test(doneErr.message)
+              ? "意見書は保存しましたが、面談を実施済にできませんでした(SQL 0137 が未実行です。SQL Editor で実行してください)。"
+              : `意見書は保存しましたが、面談を実施済にできませんでした: ${doneErr.message}`
+          );
+        }
+      }
       setSaved(true);
-      // 事業者側の表示に関わる公開状態が変わったときだけ、裏でページのデータを更新する
-      if (v.published !== initial.published) router.refresh();
+      // 公開状態(=実施済の表示)が変わったときは、裏でページのデータを更新する
+      if (v.published || v.published !== initial.published) router.refresh();
     }
     setBusy(false);
   };
@@ -130,7 +144,7 @@ export default function OpinionPanel({
           onChange={(e) => setV((p) => ({ ...p, published: e.target.checked }))}
         />
         <label htmlFor="publish-opinion" style={{ margin: 0 }}>
-          企業側に公開する
+          企業側に公開し、面談を実施済にする
         </label>
       </div>
       {error && <p className="error-message">{error}</p>}

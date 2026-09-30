@@ -133,7 +133,7 @@ export default async function InterviewDetailPage({ params }: { params: { id: st
         {isOffice && (
           <>
             <div className="card">
-              <h2>実施記録（office限定）</h2>
+              <h2>実施記録（産業医事務所のみ・企業には共有されません）</h2>
               <InterviewRecordPanel interviewId={iv.id} defaultDate={scheduledDate} />
             </div>
             <div className="card">
