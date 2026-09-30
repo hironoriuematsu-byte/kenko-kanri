@@ -97,7 +97,10 @@ export function summarizeByCategory(items: ReportItem[]): CategorySummary[] {
 // Excelで文字化けしないようBOM付きUTF-8でダウンロードする
 export function downloadCsv(fileName: string, rows: (string | number | null)[][]) {
   const escape = (v: string | number | null) => {
-    const s = v == null ? "" : String(v);
+    let s = v == null ? "" : String(v);
+    // 数式として解釈される先頭文字(= + - @ タブ)で始まる文字列は、Excelで数式が
+    // 実行されないよう先頭に ' を付ける(健診機関のCSVや入力値がそのまま出力されるため)
+    if (typeof v === "string" && /^[=+\-@\t\r]/.test(s)) s = "'" + s;
     return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
   };
   const csv = rows.map((r) => r.map(escape).join(",")).join("\r\n");
