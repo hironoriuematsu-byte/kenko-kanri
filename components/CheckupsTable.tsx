@@ -731,11 +731,8 @@ export default function CheckupsTable({
                   />
                 </th>
               )}
-              <th style={nowrap}>
-                社員
-                <br />
-                番号
-              </th>
+              {/* 社員番号の列は出さない(氏名の下の生年月日で本人を区別する。
+                  社員番号はCSV・個人票に出る)。その分を有所見・要医療項目の列幅に回す */}
               {/* 氏名の下に生年月日が出ることを見出しでも示す(色は見出しと同じ) */}
               <th style={nowrap}>
                 氏名
@@ -779,7 +776,7 @@ export default function CheckupsTable({
           <tbody>
             {visibleRows.length === 0 && (
               <tr>
-                <td colSpan={showCheckbox ? 12 : 11} className="muted" style={{ textAlign: "center" }}>
+                <td colSpan={showCheckbox ? 11 : 10} className="muted" style={{ textAlign: "center" }}>
                   {view === "all" ? "健診記録がありません。" : `${VIEW_LABEL[view]}の方はいません。`}
                 </td>
               </tr>
@@ -802,7 +799,6 @@ export default function CheckupsTable({
                       />
                     </td>
                   )}
-                  <td style={nowrap}>{c.employee_no || "—"}</td>
                   {/* 氏名の上にフリガナ、下に生年月日を小さく出し、同姓同名を見分けられるようにする
                       (所属は列幅が広がるため一覧には出さない。報告書CSV・個人票には出る) */}
                   <td style={nowrap}>
@@ -852,7 +848,7 @@ export default function CheckupsTable({
                   </td>
                   {/* 有所見項目は C と D で列を分ける。項目別判定が無い記録は、
                       総合判定に合わせてどちらかの列に「有所見」と表示する */}
-                  <td style={{ fontSize: 13 }}>
+                  <td style={{ fontSize: 13, minWidth: 150 }}>
                     {findings.c.length > 0 ? (
                       findingLabel(findings.c)
                     ) : noItemFindings && !isSevereJudgment(c.overall_judgment) ? (
@@ -861,7 +857,7 @@ export default function CheckupsTable({
                       <span className="muted">—</span>
                     )}
                   </td>
-                  <td style={{ fontSize: 13, color: findings.d.length > 0 ? "var(--danger)" : undefined }}>
+                  <td style={{ fontSize: 13, minWidth: 130, color: findings.d.length > 0 ? "var(--danger)" : undefined }}>
                     {findings.d.length > 0 ? (
                       <strong>{findingLabel(findings.d)}</strong>
                     ) : noItemFindings && isSevereJudgment(c.overall_judgment) ? (
