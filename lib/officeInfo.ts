@@ -1,5 +1,12 @@
 import { createClient } from "@/lib/supabase/server";
-import type { OfficeInfo } from "@/components/CheckupReportPanel";
+
+// 帳票・CSVに記載する産業医事務所の情報
+export type OfficeInfo = {
+  office_name: string;
+  address: string | null;
+  tel: string | null;
+  physician_name: string;
+};
 
 // 帳票・CSVに記載する産業医事務所の情報(1行のみ)
 export async function getOfficeInfo(): Promise<OfficeInfo | null> {

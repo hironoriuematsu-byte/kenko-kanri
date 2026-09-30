@@ -3,7 +3,7 @@
 import { FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/browser";
-import type { OfficeInfo } from "@/components/CheckupReportPanel";
+import type { OfficeInfo } from "@/lib/officeInfo";
 
 // 産業医事務所の情報(帳票・CSVに記載)の編集。officeのみ
 export default function OfficeInfoForm({ initial }: { initial: OfficeInfo | null }) {

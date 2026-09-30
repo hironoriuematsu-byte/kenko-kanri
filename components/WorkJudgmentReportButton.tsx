@@ -9,10 +9,11 @@ import {
   isSevereJudgment,
 } from "@/lib/checkups";
 import { downloadCsv } from "@/lib/checkupReport";
-import type { OfficeInfo } from "@/components/CheckupReportPanel";
+import { createClient } from "@/lib/supabase/browser";
+import type { OfficeInfo } from "@/lib/officeInfo";
 import type { CheckupRow } from "@/components/CheckupsTable";
 
-// 就業判定結果報告書: 事業者が就業上の措置を検討するための一覧をCSVで出す
+// 就業判定結果(報告書): 事業者が就業上の措置を検討するための一覧をCSVで出す
 export default function WorkJudgmentReportButton({
   companyName,
   fiscalYear,
@@ -107,12 +108,21 @@ export default function WorkJudgmentReportButton({
         "※ 就業判定と医師の意見は、健康診断の結果に基づき産業医が述べたものです。事業者はこの意見を勘案し、必要な就業上の措置をご検討ください(労働安全衛生法第66条の4・第66条の5)。",
       ],
     ];
-    downloadCsv(`就業判定結果報告書_${companyName}_${fiscalYear}年度${round ? `_第${round}回` : ""}.csv`, csv);
+    downloadCsv(`就業判定結果_${companyName}_${fiscalYear}年度${round ? `_第${round}回` : ""}.csv`, csv);
+    // 健康情報の出力としてアクセスログに残す
+    createClient()
+      .rpc("hm_log_access", {
+        p_action: "export_work_judgment",
+        p_target_table: "hm_checkups",
+        p_target_id: null,
+        p_detail: { company_name: companyName, fiscal_year: fiscalYear, round: round ?? null, rows: rows.length },
+      })
+      .then(() => undefined, () => undefined);
   };
 
   return (
     <button className="btn" onClick={onDownload}>
-      就業判定結果報告書のCSV出力
+      就業判定結果・CSV
     </button>
   );
 }

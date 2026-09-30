@@ -6,7 +6,9 @@ import CsvUploadsStatus from "@/components/CsvUploadsStatus";
 import CsvUploadsArchive from "@/components/CsvUploadsArchive";
 import RecomputeJudgments from "@/components/RecomputeJudgments";
 import WorkJudgmentReportButton from "@/components/WorkJudgmentReportButton";
+import CheckupListCsvButton from "@/components/CheckupListCsvButton";
 import { getOfficeInfo } from "@/lib/officeInfo";
+import { summarizeByCategory, type ReportItem } from "@/lib/checkupReport";
 import { isFindingJudgment, isRestrictionJudgment, needsAttention } from "@/lib/checkups";
 import { getJudgmentRules } from "@/lib/judgmentRules";
 import { fetchCheckupItems } from "@/lib/checkupItems";
@@ -158,6 +160,20 @@ export default async function CheckupsSection({
   // 個人特定防止: 10名未満のグループは率を表示しない
   const rate = total >= 10 ? Math.round((findings / total) * 1000) / 10 : null;
 
+  // 定期健康診断結果報告書(様式第6号)の転記用: 定期健診だけを対象に、健診項目の区分ごとに集計する
+  // (以前は別ページだったが、上の集計と重なる項目が多かったためここに統合した)
+  const regularIds = new Set(list.filter((c) => c.checkup_type === "regular").map((c) => c.id));
+  const regularCount = regularIds.size;
+  const categorySummary = summarizeByCategory(
+    items.filter((it) => regularIds.has(it.checkup_id)) as ReportItem[]
+  );
+  const lastCheckupDate = list
+    .filter((c) => regularIds.has(c.id))
+    .map((c) => c.checkup_date)
+    .filter(Boolean)
+    .sort()
+    .slice(-1)[0];
+
   return (
     <div>
       {/* 事業者担当者が送ったCSVで、産業医事務所の取込待ちのもの */}
@@ -183,9 +199,15 @@ export default async function CheckupsSection({
               rows={list as CheckupRow[]}
               officeInfo={officeInfo}
             />
-            <Link className="btn" href={`${basePath}/report?year=${year}${roundQuery}`}>
-              定期健康診断結果報告書
-            </Link>
+            {/* 検査値付きの一覧(以前は「定期健康診断結果報告書」ページにあったもの) */}
+            <CheckupListCsvButton
+              companyName={companyName}
+              fiscalYear={year}
+              round={rounds.length > 1 ? round : undefined}
+              rows={list as CheckupRow[]}
+              items={items as ReportItem[]}
+              officeInfo={officeInfo}
+            />
           </>
         )}
       </p>
@@ -334,6 +356,81 @@ export default async function CheckupsSection({
               </tr>
             </tbody>
           </table>
+
+          {/* 労働基準監督署へ提出する定期健康診断結果報告書(様式第6号)に転記するための集計。
+              受診者数・有所見者数・医師の指示人数は上の表の値を使う */}
+          <details style={{ marginBottom: 14 }}>
+            <summary style={{ cursor: "pointer", fontWeight: 700 }}>
+              定期健康診断結果報告書（様式第6号）の転記用集計
+              <span className="muted" style={{ fontWeight: 400, marginLeft: 8, fontSize: 12 }}>
+                健診項目ごとの受診者数・有所見者数
+              </span>
+            </summary>
+            <div className="notice" style={{ marginTop: 10 }}>
+              労働基準監督署への報告は、厚生労働省の
+              <a
+                href="https://www.chohyo-shien.mhlw.go.jp/inputsupport/servlet/com.inputsupport.ksinrepo"
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                入力支援サービス
+              </a>
+              で行えます。上の集計（受診者数・有所見者数・医師の指示人数）と下の健診項目別の人数をそのまま転記してください。
+              定期健診のみを集計し、受診者数・有所見者数は各区分の検査項目が記録されている方を1名として数えています（C以上の判定を有所見としています）。
+            </div>
+            <table className="list" style={{ maxWidth: 560, marginBottom: 14 }}>
+              <tbody>
+                <tr>
+                  <th style={{ width: 220 }}>健診年月日（最終実施日）</th>
+                  <td>{lastCheckupDate ?? "—"}</td>
+                </tr>
+                {regularCount !== total && (
+                  <tr>
+                    <th>受診労働者数（定期健診のみ）</th>
+                    <td>
+                      <strong>{regularCount}</strong>名
+                      <span className="muted" style={{ marginLeft: 8 }}>
+                        （上の集計には定期健診以外 {total - regularCount}名を含みます）
+                      </span>
+                    </td>
+                  </tr>
+                )}
+                <tr>
+                  <th>産業医</th>
+                  <td>
+                    {officeInfo?.physician_name ?? "上松弘典"}（{officeInfo?.office_name ?? "うえまつ産業医事務所"}）
+                    <div className="muted">
+                      {officeInfo?.address || "所在地が未登録です（事務所の設定から登録できます）"}
+                    </div>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+            <table className="list" style={{ maxWidth: 560 }}>
+              <thead>
+                <tr>
+                  <th>健診項目</th>
+                  <th style={{ width: 110 }}>受診者数</th>
+                  <th style={{ width: 110 }}>有所見者数</th>
+                </tr>
+              </thead>
+              <tbody>
+                {categorySummary.map((s) => (
+                  <tr key={s.key}>
+                    <td>{s.label}</td>
+                    <td>{s.examined > 0 ? s.examined : <span className="muted">0</span>}</td>
+                    <td>
+                      {s.findings > 0 ? (
+                        <strong style={{ color: "var(--danger)" }}>{s.findings}</strong>
+                      ) : (
+                        <span className="muted">0</span>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </details>
 
           <CheckupsTable
             rows={list as CheckupRow[]}
