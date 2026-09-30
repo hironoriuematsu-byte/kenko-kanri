@@ -84,7 +84,7 @@ export default function CheckupListCsvButton({
         ];
       }),
     ];
-    downloadCsv(`健康診断結果一覧_${companyName}_${fiscalYear}年度${round ? `_第${round}回` : ""}.csv`, csv);
+    downloadCsv(`健康診断結果_${companyName}_${fiscalYear}年度${round ? `_第${round}回` : ""}.csv`, csv);
     // 健康情報の出力としてアクセスログに残す
     createClient()
       .rpc("hm_log_access", {
@@ -98,7 +98,7 @@ export default function CheckupListCsvButton({
 
   return (
     <button className="btn secondary" onClick={onDownload}>
-      健康診断結果一覧・CSV
+      健康診断結果・CSV
     </button>
   );
 }
