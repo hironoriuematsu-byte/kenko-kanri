@@ -187,7 +187,7 @@ export default async function CheckupsSection({
         {canEdit && (
           <>
             <Link className="btn orange" href={`${basePath}/import`}>
-              {canDelete ? "CSV一括取込" : "健診結果（CSV・PDF）を送る"}
+              {canDelete ? "健康診断結果取込" : "健康診断結果を送る（CSV・PDF）"}
             </Link>
             <Link className="btn secondary" href={`${basePath}/new`}>
               ＋ 個別入力

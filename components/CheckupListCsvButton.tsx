@@ -98,7 +98,7 @@ export default function CheckupListCsvButton({
 
   return (
     <button className="btn secondary" onClick={onDownload}>
-      健康診断結果・CSV
+      健康診断結果出力
     </button>
   );
 }

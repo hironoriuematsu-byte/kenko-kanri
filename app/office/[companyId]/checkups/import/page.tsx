@@ -57,7 +57,7 @@ export default async function OfficeCheckupImportPage({
     <>
       <Header profile={profile} />
       <main className="container">
-        <h1 className="page-title">{company.name} — 健診結果CSV一括取込</h1>
+        <h1 className="page-title">{company.name} — 健康診断結果取込（CSV）</h1>
         <p className="muted">
           <Link href="/office/judgment-criteria">判定基準の設定を確認・編集する</Link>
         </p>

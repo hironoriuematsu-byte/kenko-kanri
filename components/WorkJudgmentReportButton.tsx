@@ -122,7 +122,7 @@ export default function WorkJudgmentReportButton({
 
   return (
     <button className="btn" onClick={onDownload}>
-      就業判定結果・CSV
+      就業判定結果出力
     </button>
   );
 }

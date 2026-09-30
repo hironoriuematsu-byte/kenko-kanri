@@ -17,7 +17,7 @@ export default async function CompanyCheckupImportPage() {
     <>
       <Header profile={profile} />
       <main className="container">
-        <h1 className="page-title">健診結果の送信（CSV・PDF）</h1>
+        <h1 className="page-title">健康診断結果の送信（CSV・PDF）</h1>
         <div className="card">
           <p className="muted" style={{ marginTop: 0 }}>
             健診機関から受け取ったCSVまたはPDFをそのまま送ってください。産業医事務所が内容を
