@@ -746,27 +746,21 @@ export default function CheckupsTable({
                 <br />
                 判定
               </th>
-              {/* 有所見(C)(D)・就業制限(R)は3行の見出しで高さをそろえる */}
+              {/* 有所見(C)(D)・就業制限(R)は2行の見出しでそろえる */}
               <th style={nowrap}>
                 有所見
                 <br />
-                項目
-                <br />
-                （C）
+                項目（C）
               </th>
               <th style={nowrap}>
                 要医療
                 <br />
-                項目
-                <br />
-                （D）
+                項目（D）
               </th>
               <th style={nowrap}>
                 就業制限
                 <br />
-                項目
-                <br />
-                （R）
+                項目（R）
               </th>
               <th style={{ minWidth: 130, ...nowrap }}>就業判定</th>
               <th style={{ minWidth: 200, ...nowrap }}>医師の意見</th>
