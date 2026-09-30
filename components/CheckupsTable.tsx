@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/browser";
+import HScroll from "@/components/HScroll";
 import { formatDateJa } from "@/lib/fiscal";
 import { referralNote } from "@/lib/referral";
 import {
@@ -722,7 +723,8 @@ export default function CheckupsTable({
         </p>
       )}
 
-      <div style={{ overflowX: "auto" }}>
+      {/* 横に長いので、表の上にもスクロールバーを出す(下と連動) */}
+      <HScroll>
         <table className="list">
           <thead>
             <tr>
@@ -1021,7 +1023,7 @@ export default function CheckupsTable({
             })}
           </tbody>
         </table>
-      </div>
+      </HScroll>
 
       {hasComputed && (
         <p className="muted" style={{ fontSize: 12, marginTop: 6 }}>
