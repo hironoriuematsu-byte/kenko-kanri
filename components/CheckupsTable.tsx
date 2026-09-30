@@ -90,13 +90,21 @@ function dateLines(dateStr: string | null | undefined): [string, string] | null 
 }
 
 // 一覧の絞り込み(有所見D・就業制限Rの方だけを確認できるようにする)
-type ViewFilter = "all" | "d" | "r" | "dr";
+type ViewFilter = "all" | "d" | "r" | "dr" | "followup" | "interview";
 const VIEW_LABEL: Record<ViewFilter, string> = {
   all: "すべて",
   d: "要医療項目（D）あり",
   r: "就業制限項目（R）あり",
   dr: "DまたはRあり",
+  followup: "要受診勧奨",
+  interview: "要産業医面談",
 };
+
+// 要受診勧奨: 受診勧奨が「未対応」の方(勧奨済・受診済は除く)
+const needsFollowup = (r: CheckupRow) => r.followup_status === "pending";
+// 要産業医面談: 就業判定が「要就業制限」の方、または医師の意見に「産業医面談」が含まれる方
+const needsInterview = (r: CheckupRow) =>
+  r.work_judgment === "restricted" || (r.work_judgment_note ?? "").includes("産業医面談");
 
 const nowrap: React.CSSProperties = { whiteSpace: "nowrap" };
 
@@ -219,6 +227,8 @@ export default function CheckupsTable({
     if (view === "d") return rows.filter((r) => dIds.has(r.id));
     if (view === "r") return rows.filter((r) => restrictionIds.has(r.id));
     if (view === "dr") return rows.filter((r) => dIds.has(r.id) || restrictionIds.has(r.id));
+    if (view === "followup") return rows.filter(needsFollowup);
+    if (view === "interview") return rows.filter(needsInterview);
     return rows;
   }, [rows, view, dIds, restrictionIds]);
   const viewCounts: Record<ViewFilter, number> = {
@@ -226,6 +236,8 @@ export default function CheckupsTable({
     d: dRows.length,
     r: restrictionRows.length,
     dr: rows.filter((r) => dIds.has(r.id) || restrictionIds.has(r.id)).length,
+    followup: rows.filter(needsFollowup).length,
+    interview: rows.filter(needsInterview).length,
   };
 
   const toggle = (id: string) =>
@@ -695,7 +707,11 @@ export default function CheckupsTable({
         })}
         {view !== "all" && (
           <span className="muted" style={{ fontSize: 12 }}>
-            {VIEW_LABEL[view]}の {visibleRows.length}名を表示中。上の一括判定は絞り込みに関係なく全員が対象です。
+            {VIEW_LABEL[view]}の {visibleRows.length}名を表示中。
+            {view === "followup" && "受診勧奨が「未対応」の方です（勧奨済・受診済は含みません）。"}
+            {view === "interview" && "就業判定が「要就業制限」の方と、医師の意見に「産業医面談」が含まれる方です。"}
+            {showCheckbox && "見出しのチェックで表示中の方をまとめて選択できます。"}
+            上の一括判定は絞り込みに関係なく全員が対象です。
           </span>
         )}
       </div>
