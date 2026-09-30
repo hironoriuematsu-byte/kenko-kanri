@@ -134,9 +134,14 @@ export default async function CheckupsSection({
     findingItems: findingsByCheckup.get(c.id) ?? [],
   }));
   const total = list.length;
-  // 有所見は総合判定 B・C・D で判定する
-  const findings = list.filter((c) =>
-    ["B", "C", "D"].includes((c.overall_judgment ?? "").trim().charAt(0).toUpperCase())
+  // 有所見者: 取込時の判定(has_findings。総合判定または検査項目のいずれかが C・D・E・R)に加え、
+  // 事務所基準で補った項目判定も含めて C 以上の判定がある方。
+  // B(軽度異常)は有所見に数えない(健診項目別の集計・一覧の有所見項目と同じ基準)
+  const findings = list.filter(
+    (c) =>
+      c.has_findings ||
+      isFindingJudgment(c.overall_judgment) ||
+      c.findingItems.some((it) => isFindingJudgment(it.judgment))
   ).length;
   // 医師の指示人数は総合判定 D で集計する
   const instructed = list.filter(
@@ -266,7 +271,7 @@ export default async function CheckupsSection({
                 <td>
                   {findings}名
                   <span className="muted" style={{ marginLeft: 6, fontSize: 12 }}>
-                    （総合判定B・C・D）
+                    （C以上の判定がある方）
                   </span>
                 </td>
               </tr>
