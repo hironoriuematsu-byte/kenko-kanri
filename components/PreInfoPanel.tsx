@@ -1,19 +1,24 @@
 "use client";
 
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, useCallback, useEffect, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/browser";
 import { clearDraft, ensureSession, isAuthError, saveDraft, takeDraft } from "@/lib/session";
 
-// 面談の事前情報(office/company共有・従業員本人には非表示)。RPC経由で読み書き
+// 面談の事前情報(office/company共有・従業員本人には非表示)。RPC経由で読み書き。
+// 入力が止まって数秒たつと自動で保存する(アクセスログは同じ人・同じ面談で1時間に1行: 0138)
+const AUTOSAVE_DELAY_MS = 4000;
+
 export default function PreInfoPanel({ interviewId }: { interviewId: string }) {
   const [loaded, setLoaded] = useState(false);
   const [text, setText] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
-  const [saved, setSaved] = useState(false);
+  const [status, setStatus] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [needLogin, setNeedLogin] = useState(false);
   const draftKey = `pre-info:${interviewId}`;
+  const lastSaved = useRef<string | null>(null);
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     const supabase = createClient();
@@ -28,12 +33,13 @@ export default function PreInfoPanel({ interviewId }: { interviewId: string }) {
           );
         } else {
           setText((data as string) ?? "");
+          lastSaved.current = (data as string) ?? "";
         }
         // 再ログイン前に残しておいた未保存の入力があれば復元する
         const draft = takeDraft(draftKey);
         if (draft !== null && draft !== ((data as string) ?? "")) {
           setText(draft);
-          setNotice("未保存の入力内容を復元しました。内容を確認して「事前情報を保存」を押してください。");
+          setNotice("未保存の入力内容を復元しました。内容を確認してください(そのまま自動保存されます)。");
         }
         setLoaded(true);
       });
@@ -47,42 +53,63 @@ export default function PreInfoPanel({ interviewId }: { interviewId: string }) {
     window.location.href = `/login?next=${next}`;
   };
 
-  const onSubmit = async (e: FormEvent) => {
-    e.preventDefault();
-    setBusy(true);
-    setError(null);
-    setNotice(null);
-    setSaved(false);
-    const supabase = createClient();
+  const save = useCallback(
+    async (auto: boolean) => {
+      if (auto && lastSaved.current === text) return; // 変わっていない
+      setBusy(true);
+      setError(null);
+      setNotice(null);
+      const supabase = createClient();
 
-    // 長時間の入力でログインの有効期限が切れていることがあるため、保存前に確認・更新する
-    const ok = await ensureSession(supabase);
-    if (!ok) {
-      saveDraft(draftKey, text);
-      setNeedLogin(true);
-      setError("ログインの有効期限が切れています。入力内容はこの画面に保持されますので、下のボタンからログインし直して再度保存してください。");
-      setBusy(false);
-      return;
-    }
-
-    const { error } = await supabase.rpc("hm_save_interview_pre_info", {
-      p_id: interviewId,
-      p_text: text,
-    });
-    if (error) {
-      if (isAuthError(error.message)) {
+      // 長時間の入力でログインの有効期限が切れていることがあるため、保存前に確認・更新する
+      const ok = await ensureSession(supabase);
+      if (!ok) {
         saveDraft(draftKey, text);
         setNeedLogin(true);
-        setError("ログインの有効期限が切れています。入力内容はこの画面に保持されますので、下のボタンからログインし直して再度保存してください。");
-      } else {
-        setError(`保存に失敗しました: ${error.message}`);
+        setError("ログインの有効期限が切れています。入力内容はこの画面に保持されますので、下のボタンからログインし直してください。");
+        setBusy(false);
+        return;
       }
-    } else {
-      clearDraft(draftKey);
-      setNeedLogin(false);
-      setSaved(true);
-    }
-    setBusy(false);
+
+      const { error } = await supabase.rpc("hm_save_interview_pre_info", {
+        p_id: interviewId,
+        p_text: text,
+      });
+      if (error) {
+        if (isAuthError(error.message)) {
+          saveDraft(draftKey, text);
+          setNeedLogin(true);
+          setError("ログインの有効期限が切れています。入力内容はこの画面に保持されますので、下のボタンからログインし直してください。");
+        } else {
+          setError(`保存に失敗しました: ${error.message}`);
+        }
+      } else {
+        lastSaved.current = text;
+        clearDraft(draftKey);
+        setNeedLogin(false);
+        const t = new Date();
+        const hm = `${t.getHours()}:${String(t.getMinutes()).padStart(2, "0")}`;
+        setStatus(auto ? `自動保存しました（${hm}）` : `保存しました（${hm}）`);
+      }
+      setBusy(false);
+    },
+    [text, interviewId, draftKey]
+  );
+
+  // 入力が止まってしばらくしたら自動保存する
+  useEffect(() => {
+    if (!loaded) return;
+    if (timer.current) clearTimeout(timer.current);
+    timer.current = setTimeout(() => save(true), AUTOSAVE_DELAY_MS);
+    return () => {
+      if (timer.current) clearTimeout(timer.current);
+    };
+  }, [text, loaded, save]);
+
+  const onSubmit = async (e: FormEvent) => {
+    e.preventDefault();
+    if (timer.current) clearTimeout(timer.current);
+    await save(false);
   };
 
   if (!loaded) return <p className="muted">事前情報を読み込み中…</p>;
@@ -94,17 +121,18 @@ export default function PreInfoPanel({ interviewId }: { interviewId: string }) {
           value={text}
           onChange={(e) => {
             setText(e.target.value);
-            setSaved(false);
+            setStatus(null);
           }}
+          onBlur={() => save(true)}
           placeholder={
-            "面談前に共有しておきたい情報を記入してください。\n例: 直近3か月の時間外労働時間、勤怠状況(遅刻・欠勤等)、相談に至った経緯、職場での様子 など"
+            "面談前に共有しておきたい情報を記入してください。入力が止まると自動で保存されます。\n例: 直近3か月の時間外労働時間、勤怠状況(遅刻・欠勤等)、相談に至った経緯、職場での様子 など"
           }
           style={{ minHeight: 120 }}
         />
       </div>
       {notice && <p className="notice">{notice}</p>}
       {error && <p className="error-message">{error}</p>}
-      {saved && <p style={{ color: "var(--teal-dark)", fontSize: 13 }}>保存しました。</p>}
+      {status && <p style={{ color: "var(--teal-dark)", fontSize: 13 }}>{status}</p>}
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
         <button className="btn" type="submit" disabled={busy}>
           {busy ? "保存中…" : "事前情報を保存"}
