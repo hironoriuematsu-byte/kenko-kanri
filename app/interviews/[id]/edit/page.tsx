@@ -8,16 +8,19 @@ import { toDatetimeLocal } from "@/lib/interviews";
 export const dynamic = "force-dynamic";
 
 export default async function EditInterviewPage({ params }: { params: { id: string } }) {
-  const { profile } = await requireProfile();
   const supabase = createClient();
 
-  const { data: iv } = await supabase
-    .from("hm_interviews")
-    .select(
-      "id, company_id, person_id, target_user_id, target_name, interview_type, scheduled_at, method, location, status, companies(name)"
-    )
-    .eq("id", params.id)
-    .single();
+  // ログイン確認と面談の取得は同時に行う(待ち時間の短縮)
+  const [{ profile }, { data: iv }] = await Promise.all([
+    requireProfile(),
+    supabase
+      .from("hm_interviews")
+      .select(
+        "id, company_id, person_id, target_user_id, target_name, interview_type, scheduled_at, method, location, status, companies(name)"
+      )
+      .eq("id", params.id)
+      .single(),
+  ]);
   if (!iv) notFound();
 
   const isOffice = profile.role === "office";

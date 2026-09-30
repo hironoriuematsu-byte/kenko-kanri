@@ -19,6 +19,27 @@ export async function ensureSession(supabase: SupabaseClient): Promise<boolean> 
   return !error && !!data.session;
 }
 
+// ログイン中の利用者ID。ブラウザに保存されたセッションから取る(サーバーへの問い合わせなし)。
+// 以前は保存のたびに auth.getUser() でサーバーに確認していたため、保存に余分な待ち時間が出ていた
+export async function currentUserId(supabase: SupabaseClient): Promise<string | undefined> {
+  const {
+    data: { session },
+  } = await supabase.auth.getSession();
+  if (session?.user?.id) return session.user.id;
+  const { data } = await supabase.auth.getUser();
+  return data.user?.id;
+}
+
+// アクセスログの記録を待たずに次へ進む(記録は裏で行う。失敗しても画面の操作は止めない)
+export function logAccessInBackground(
+  supabase: SupabaseClient,
+  params: { p_action: string; p_target_table: string; p_target_id: string | null; p_detail?: unknown }
+) {
+  void supabase
+    .rpc("hm_log_access", params)
+    .then(() => undefined, () => undefined);
+}
+
 // RPC などのエラーが「未ログイン」由来かどうか
 export function isAuthError(message: string | undefined | null): boolean {
   return /not authenticated|jwt|expired|401|invalid claim|permission denied/i.test(message ?? "");

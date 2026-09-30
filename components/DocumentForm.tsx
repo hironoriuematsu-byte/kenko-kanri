@@ -4,6 +4,8 @@ import { FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/browser";
 import { DOC_TYPES, REFERRAL_REQUEST_TEMPLATE } from "@/lib/karte";
+import { currentUserId, logAccessInBackground } from "@/lib/session";
+import { startNavigationProgress } from "@/lib/navigate";
 
 export type DocumentInput = {
   id?: string;
@@ -50,7 +52,7 @@ export default function DocumentForm({
     setBusy(true);
     setError(null);
     const supabase = createClient();
-    const { data: user } = await supabase.auth.getUser();
+    const userId = await currentUserId(supabase);
 
     const payload = {
       person_id: v.person_id,
@@ -75,7 +77,7 @@ export default function DocumentForm({
         setBusy(false);
         return;
       }
-      await supabase.rpc("hm_log_access", {
+      logAccessInBackground(supabase, {
         p_action: "update",
         p_target_table: "hm_person_documents",
         p_target_id: id,
@@ -83,7 +85,7 @@ export default function DocumentForm({
     } else {
       const { data, error } = await supabase
         .from("hm_person_documents")
-        .insert({ ...payload, created_by: user.user?.id })
+        .insert({ ...payload, created_by: userId })
         .select("id")
         .single();
       if (error || !data) {
@@ -92,14 +94,15 @@ export default function DocumentForm({
         return;
       }
       id = data.id;
-      await supabase.rpc("hm_log_access", {
+      logAccessInBackground(supabase, {
         p_action: "create",
         p_target_table: "hm_person_documents",
-        p_target_id: id,
+        p_target_id: id ?? null,
       });
     }
+    startNavigationProgress();
+    // 動的ページはブラウザ側に保持しない設定(next.config)なので、移動だけで最新の内容が表示される
     router.replace(`/document/${id}`);
-    router.refresh();
   };
 
   return (

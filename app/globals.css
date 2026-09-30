@@ -443,3 +443,11 @@ table.list td {
   .site-footer-item { display: block; }
   .site-footer-sep { display: none; }
 }
+
+/* 表の中だけを縦にスクロールするとき、見出し行を上に固定する(components/HScroll) */
+.sticky-head table.list thead th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  box-shadow: inset 0 -1px 0 var(--line);
+}

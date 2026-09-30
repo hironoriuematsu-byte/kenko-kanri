@@ -4,8 +4,9 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 
 // 横に長い表の上下に横スクロールバーを出す。
 // 上のバーは表と同じ幅のダミーで、下(表本体)のスクロールと連動させる。
-// 表がはみ出していないときは上のバーを出さない
-export default function HScroll({ children }: { children: ReactNode }) {
+// 表がはみ出していないときは上のバーを出さない。
+// maxHeight を指定すると、行が多いときは表の中だけを縦にスクロールできる(見出しは上に固定)
+export default function HScroll({ children, maxHeight }: { children: ReactNode; maxHeight?: string | number }) {
   const topRef = useRef<HTMLDivElement>(null);
   const bodyRef = useRef<HTMLDivElement>(null);
   const [width, setWidth] = useState(0);
@@ -42,7 +43,12 @@ export default function HScroll({ children }: { children: ReactNode }) {
           <div style={{ width, height: 1 }} />
         </div>
       )}
-      <div ref={bodyRef} onScroll={() => sync(bodyRef.current, topRef.current)} style={{ overflowX: "auto" }}>
+      <div
+        ref={bodyRef}
+        onScroll={() => sync(bodyRef.current, topRef.current)}
+        className={maxHeight !== undefined ? "sticky-head" : undefined}
+        style={{ overflowX: "auto", overflowY: maxHeight !== undefined ? "auto" : undefined, maxHeight }}
+      >
         {children}
       </div>
     </div>

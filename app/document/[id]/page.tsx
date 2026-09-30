@@ -11,26 +11,27 @@ export const dynamic = "force-dynamic";
 
 // 産業医作成文書の表示・印刷(診療情報提供依頼書など)
 export default async function DocumentPage({ params }: { params: { id: string } }) {
-  const { profile } = await requireProfile();
+  const supabase = createClient();
+  // ログイン確認・文書の取得・閲覧ログは同時に行う(待ち時間の短縮)
+  const [{ profile }, { data: doc }] = await Promise.all([
+    requireProfile(),
+    supabase
+      .from("hm_person_documents")
+      .select(
+        "id, person_id, company_id, doc_type, title, addressee, body, issued_date, physician_name, visibility, hm_persons(full_name, employee_no, birth_date), companies(name)"
+      )
+      .eq("id", params.id)
+      .single(),
+    supabase.rpc("hm_log_access", {
+      p_action: "view",
+      p_target_table: "hm_person_documents",
+      p_target_id: params.id,
+    }),
+  ]);
   if (profile.role !== "office" && profile.role !== "company") {
     redirect(homePathFor(profile.role));
   }
-
-  const supabase = createClient();
-  const { data: doc } = await supabase
-    .from("hm_person_documents")
-    .select(
-      "id, person_id, company_id, doc_type, title, addressee, body, issued_date, physician_name, visibility, hm_persons(full_name, employee_no, birth_date), companies(name)"
-    )
-    .eq("id", params.id)
-    .single();
   if (!doc) notFound();
-
-  await supabase.rpc("hm_log_access", {
-    p_action: "view",
-    p_target_table: "hm_person_documents",
-    p_target_id: doc.id,
-  });
 
   const { data: companyInfo } = await supabase
     .from("hm_company_info")

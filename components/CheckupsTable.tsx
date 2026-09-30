@@ -723,8 +723,9 @@ export default function CheckupsTable({
         </p>
       )}
 
-      {/* 横に長いので、表の上にもスクロールバーを出す(下と連動) */}
-      <HScroll>
+      {/* 横に長いので、表の上にもスクロールバーを出す(下と連動)。
+          行が多いときは表の中だけを縦にスクロールし、見出しは上に固定する */}
+      <HScroll maxHeight="75vh">
         <table className="list">
           <thead>
             <tr>

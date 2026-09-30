@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/browser";
 import { WORK_JUDGMENTS } from "@/lib/interviews";
+import { currentUserId, logAccessInBackground } from "@/lib/session";
 
 export type OpinionInitial = {
   id?: string;
@@ -38,7 +39,7 @@ export default function OpinionPanel({
     setError(null);
     setSaved(false);
     const supabase = createClient();
-    const { data: user } = await supabase.auth.getUser();
+    const userId = await currentUserId(supabase);
 
     const payload = {
       interview_id: interviewId,
@@ -50,23 +51,28 @@ export default function OpinionPanel({
       // 発行日は保存日を自動記録
       issued_date: new Date().toISOString().slice(0, 10),
       published: v.published,
-      created_by: user.user?.id,
+      created_by: userId,
     };
 
-    const { error } = await supabase
+    // 保存と同時にIDを受け取り、画面の再読み込みなしで「意見書を表示」を出せるようにする
+    const { data, error } = await supabase
       .from("hm_interview_opinions")
-      .upsert(payload, { onConflict: "interview_id" });
+      .upsert(payload, { onConflict: "interview_id" })
+      .select("id")
+      .single();
     if (error) {
       setError(`保存に失敗しました: ${error.message}`);
     } else {
-      await supabase.rpc("hm_log_access", {
+      logAccessInBackground(supabase, {
         p_action: "save_opinion",
         p_target_table: "hm_interview_opinions",
         p_target_id: interviewId,
         p_detail: { published: v.published },
       });
+      if (data?.id) setV((p) => ({ ...p, id: data.id }));
       setSaved(true);
-      router.refresh();
+      // 事業者側の表示に関わる公開状態が変わったときだけ、裏でページのデータを更新する
+      if (v.published !== initial.published) router.refresh();
     }
     setBusy(false);
   };

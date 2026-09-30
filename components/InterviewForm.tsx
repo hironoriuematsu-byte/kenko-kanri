@@ -2,6 +2,7 @@
 
 import { FormEvent, useMemo, useState } from "react";
 import { startNavigationProgress } from "@/lib/navigate";
+import { currentUserId, logAccessInBackground } from "@/lib/session";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/browser";
 import { INTERVIEW_TYPES, INTERVIEW_METHODS } from "@/lib/interviews";
@@ -84,7 +85,7 @@ export default function InterviewForm({
     setBusy(true);
     setError(null);
     const supabase = createClient();
-    const { data: authUser } = await supabase.auth.getUser();
+    const userId = await currentUserId(supabase);
 
     const schedulePayload = {
       // 日付のみを保持する(時刻は正午扱いにしてタイムゾーンによる日付ずれを防ぐ)
@@ -129,7 +130,7 @@ export default function InterviewForm({
             company_id: v.company_id,
             full_name: name,
             birth_date: v.birth_date || null,
-            created_by: authUser.user?.id,
+            created_by: userId,
           })
           .select("id")
           .single();
@@ -139,7 +140,7 @@ export default function InterviewForm({
           return;
         }
         personId = created.id;
-        await supabase.rpc("hm_log_access", {
+        logAccessInBackground(supabase, {
           p_action: "create",
           p_target_table: "hm_persons",
           p_target_id: personId,
@@ -166,7 +167,7 @@ export default function InterviewForm({
         setBusy(false);
         return;
       }
-      await supabase.rpc("hm_log_access", {
+      logAccessInBackground(supabase, {
         p_action: "update",
         p_target_table: "hm_interviews",
         p_target_id: id,
@@ -181,7 +182,7 @@ export default function InterviewForm({
           target_name: v.target_name.trim(),
           interview_type: v.interview_type,
           ...schedulePayload,
-          created_by: authUser.user?.id,
+          created_by: userId,
         })
         .select("id")
         .single();
@@ -191,15 +192,15 @@ export default function InterviewForm({
         return;
       }
       id = data.id;
-      await supabase.rpc("hm_log_access", {
+      logAccessInBackground(supabase, {
         p_action: "create",
         p_target_table: "hm_interviews",
-        p_target_id: id,
+        p_target_id: id ?? null,
       });
     }
     startNavigationProgress();
+    // 動的ページはブラウザ側に保持しない設定(next.config)なので、移動だけで最新の内容が表示される
     router.replace(`/interviews/${id}`);
-    router.refresh();
   };
 
   return (

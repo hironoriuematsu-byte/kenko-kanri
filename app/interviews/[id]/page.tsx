@@ -19,29 +19,30 @@ import { formatDateJa } from "@/lib/fiscal";
 export const dynamic = "force-dynamic";
 
 export default async function InterviewDetailPage({ params }: { params: { id: string } }) {
-  const { profile } = await requireProfile();
   const supabase = createClient();
 
-  const { data: iv } = await supabase
-    .from("hm_interviews")
-    .select(
-      "id, company_id, person_id, target_user_id, target_name, interview_type, scheduled_at, method, location, status, companies(name)"
-    )
-    .eq("id", params.id)
-    .single();
+  // ログイン確認・面談・意見書・閲覧ログは互いに依存しないので同時に行う(表示までの待ち時間を短くする)
+  const [{ profile }, { data: iv }, { data: opinion }] = await Promise.all([
+    requireProfile(),
+    supabase
+      .from("hm_interviews")
+      .select(
+        "id, company_id, person_id, target_user_id, target_name, interview_type, scheduled_at, method, location, status, companies(name)"
+      )
+      .eq("id", params.id)
+      .single(),
+    supabase
+      .from("hm_interview_opinions")
+      .select("id, interview_date, work_judgment, opinion, issued_date, physician_name, published")
+      .eq("interview_id", params.id)
+      .maybeSingle(),
+    supabase.rpc("hm_log_access", {
+      p_action: "view",
+      p_target_table: "hm_interviews",
+      p_target_id: params.id,
+    }),
+  ]);
   if (!iv) notFound();
-
-  await supabase.rpc("hm_log_access", {
-    p_action: "view",
-    p_target_table: "hm_interviews",
-    p_target_id: iv.id,
-  });
-
-  const { data: opinion } = await supabase
-    .from("hm_interview_opinions")
-    .select("id, interview_date, work_judgment, opinion, issued_date, physician_name, published")
-    .eq("interview_id", iv.id)
-    .maybeSingle();
 
   const isOffice = profile.role === "office";
   const isCompany = profile.role === "company" && profile.company_id === iv.company_id;
