@@ -98,10 +98,10 @@ export default function WorkJudgmentReportButton({
         conditionLabel(r.work_judgment_condition),
         r.work_judgment_date ?? "",
         r.work_judgment_note ?? "",
-        // 受診勧奨が必要な方(受診勧奨・勧奨済・受診済)は「要」、措置不要は空欄
-        r.followup_status && r.followup_status !== "none" ? "要" : "",
-        // 要就業制限の方は産業医面談の対象として「要」を記入する
-        r.work_judgment === "restricted" ? "要" : "",
+        // 受診勧奨が必要な方(受診勧奨・勧奨済・受診済)は「要」、措置不要は「不要」
+        r.followup_status && r.followup_status !== "none" ? "要" : "不要",
+        // 産業医面談: 要就業制限の方と、医師の意見に「産業医面談」が含まれる方は「要」、それ以外は「不要」
+        r.work_judgment === "restricted" || (r.work_judgment_note ?? "").includes("産業医面談") ? "要" : "不要",
       ]),
       [],
       [
