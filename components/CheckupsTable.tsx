@@ -687,11 +687,15 @@ export default function CheckupsTable({
           {(Object.keys(VIEW_LABEL) as ViewFilter[]).map((k) => {
             const active = view === k;
             const danger = k !== "all";
+            // 要受診勧奨・要産業医面談は対応が必要な方の絞り込みなので、
+            // 該当者がいるときは緑の塗りで目立たせる(選択中はほかと同じ橙)
+            const important = (k === "followup" || k === "interview") && viewCounts[k] > 0;
+            const className = active ? (danger ? "btn orange" : "btn") : important ? "btn" : "btn secondary";
             return (
               <button
                 key={k}
-                className={active ? (danger ? "btn orange" : "btn") : "btn secondary"}
-                style={{ padding: "4px 12px", fontSize: 13 }}
+                className={className}
+                style={{ padding: "4px 12px", fontSize: 13, fontWeight: important ? 700 : undefined }}
                 onClick={() => setView(k)}
                 aria-pressed={active}
               >
