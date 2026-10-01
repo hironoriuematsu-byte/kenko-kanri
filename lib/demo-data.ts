@@ -36,13 +36,13 @@ const JUDGED = "2026-09-10";
 const PEOPLE: Person[] = [
   { no: "1001", name: "青木 誠", kana: "アオキ マコト", birth: "1975-04-12", sex: "male", dept: "製造部", date: "2026-07-14", grade: "D",
     items: [["BMI", "27.8", "C"], ["収縮期血圧", "158", "D"], ["拡張期血圧", "98", "D"], ["血色素量", "15.1", "A"], ["AST", "28", "A"], ["ALT", "41", "B"], ["中性脂肪", "212", "C"], ["LDLコレステロール", "148", "C"], ["HbA1c", "5.7", "B"], ["尿糖", "-", "A"], ["尿蛋白", "-", "A"], ["胸部エックス線", "異常なし", "A"], ["心電図", "異常なし", "A"], ["聴力 1000Hz", "20", "A"], ["聴力 4000Hz", "30", "A"]],
-    judgment: "normal", condition: "consult", note: "高血圧あり内科受診。時間外労働月45時間以内", followup: "recommended" },
+    judgment: "normal", condition: "consult", note: "血圧高値あり内科受診。時間外労働月45時間以内", followup: "recommended" },
   { no: "1002", name: "石井 由美", kana: "イシイ ユミ", birth: "1988-11-03", sex: "female", dept: "製造部", date: "2026-07-14", grade: "A",
     items: [["BMI", "21.0", "A"], ["収縮期血圧", "112", "A"], ["拡張期血圧", "70", "A"], ["血色素量", "13.2", "A"], ["AST", "19", "A"], ["ALT", "15", "A"], ["中性脂肪", "78", "A"], ["LDLコレステロール", "102", "A"], ["HbA1c", "5.2", "A"], ["尿糖", "-", "A"], ["尿蛋白", "-", "A"], ["胸部エックス線", "異常なし", "A"], ["心電図", "異常なし", "A"], ["聴力 1000Hz", "15", "A"], ["聴力 4000Hz", "20", "A"]],
     judgment: "normal", followup: "none" },
   { no: "1003", name: "上田 浩二", kana: "ウエダ コウジ", birth: "1969-02-27", sex: "male", dept: "製造部", date: "2026-07-14", grade: "D",
     items: [["BMI", "29.4", "C"], ["収縮期血圧", "146", "C"], ["拡張期血圧", "92", "C"], ["血色素量", "14.8", "A"], ["AST", "52", "C"], ["ALT", "78", "D"], ["中性脂肪", "310", "D"], ["LDLコレステロール", "162", "C"], ["HbA1c", "7.1", "D"], ["尿糖", "+", "C"], ["尿蛋白", "-", "A"], ["胸部エックス線", "異常なし", "A"], ["心電図", "異常なし", "A"], ["聴力 1000Hz", "25", "A"], ["聴力 4000Hz", "45", "C"]],
-    judgment: "restricted", note: "要産業医面談 / 時間外労働月45時間以内 / 糖尿病・肝機能障害あり内科受診", followup: "pending" },
+    judgment: "restricted", note: "要産業医面談 / 時間外労働月45時間以内 / 耐糖能異常・肝機能障害あり内科受診", followup: "pending" },
   { no: "1004", name: "遠藤 さくら", kana: "エンドウ サクラ", birth: "1992-06-18", sex: "female", dept: "製造部", date: "2026-07-14", grade: "C",
     items: [["BMI", "18.1", "B"], ["収縮期血圧", "104", "A"], ["拡張期血圧", "64", "A"], ["血色素量", "10.9", "C"], ["AST", "17", "A"], ["ALT", "12", "A"], ["中性脂肪", "65", "A"], ["LDLコレステロール", "95", "A"], ["HbA1c", "5.1", "A"], ["尿糖", "-", "A"], ["尿蛋白", "-", "A"], ["胸部エックス線", "異常なし", "A"], ["心電図", "異常なし", "A"], ["聴力 1000Hz", "15", "A"], ["聴力 4000Hz", "15", "A"]],
     judgment: "normal", followup: "none" },
@@ -222,7 +222,7 @@ export const DEMO_INTERVIEWS: DemoInterview[] = [
     method: "in_person",
     location: "本社 3F 相談室",
     status: "done",
-    pre_info: "直近3か月の時間外労働: 38・42・35時間。健診で糖尿病・肝機能の要医療判定。夜勤は月4回。本人は受診にやや消極的。",
+    pre_info: "直近3か月の時間外労働: 38・42・35時間。健診で耐糖能異常・肝機能の要医療判定。夜勤は月4回。本人は受診にやや消極的。",
     record: {
       conducted_date: "2026-09-16",
       notes: "HbA1c 7.1、ALT 78。自覚症状なし。飲酒は毎日ビール500ml×2。受診の必要性を説明し、かかりつけ内科への受診を約束。夜勤は当面継続可だが、血糖コントロールが付くまで時間外労働は月45時間以内とする。3か月後に再面談。",
@@ -289,7 +289,7 @@ export const DEMO_KARTE = {
   employee_no: "1003",
   birth_date: "1969-02-27",
   department: "製造部",
-  note: "夜勤あり（月4回）。2024年に高血圧で内科通院歴",
+  note: "夜勤あり（月4回）。2024年に血圧高値で内科通院歴",
   checkups: [
     { fiscal_year: 2026, checkup_type: "regular", checkup_date: "2026-07-14", overall_judgment: "D", work_judgment: "restricted" },
     { fiscal_year: 2025, checkup_type: "regular", checkup_date: "2025-07-10", overall_judgment: "C", work_judgment: "normal" },
@@ -303,6 +303,6 @@ export const DEMO_KARTE = {
     { doc_type: "referral_request", title: "診療情報提供依頼書", addressee: "○○内科クリニック 御中", issued_date: "2026-09-16", visibility: "shared" },
   ],
   files: [
-    { category: "medical_certificate", file_name: "診断書_2026-09.pdf", note: "内科（糖尿病）", visibility: "shared", created_at: "2026-09-25" },
+    { category: "medical_certificate", file_name: "診断書_2026-09.pdf", note: "内科（耐糖能異常）", visibility: "shared", created_at: "2026-09-25" },
   ],
 };
