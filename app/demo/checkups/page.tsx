@@ -10,8 +10,9 @@ export const metadata = { title: "健康診断管理(デモ) | 健康管理Web" 
 
 // 紹介用デモ: 健康診断管理(産業医事務所の画面と同じ集計・一覧を架空データで表示。閲覧のみ)
 export default function DemoCheckupsPage({ searchParams }: { searchParams: { view?: string } }) {
-  // 産業医事務所の画面(既定)と企業担当者の画面(有所見・要医療・就業制限の列を出さない簡易表示)を切り替えられる
-  const company = searchParams.view === "company";
+  // 企業担当者の画面(既定。有所見・要医療・就業制限の列を出さない簡易表示)と産業医事務所の画面を切り替えられる。
+  // デモは主に企業担当者にお見せするため、企業担当者の画面を先に出す
+  const company = searchParams.view !== "office";
   const { rows, items } = demoCheckups();
   const total = rows.length;
   const findings = rows.filter(
@@ -41,11 +42,11 @@ export default function DemoCheckupsPage({ searchParams }: { searchParams: { vie
         <DemoNotice />
         <p style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
           <span className="muted" style={{ fontSize: 13 }}>見る立場:</span>
-          <Link className={company ? "btn secondary" : "btn"} href="/demo/checkups" style={{ padding: "4px 12px", fontSize: 13 }}>
-            産業医事務所の画面
-          </Link>
-          <Link className={company ? "btn" : "btn secondary"} href="/demo/checkups?view=company" style={{ padding: "4px 12px", fontSize: 13 }}>
+          <Link className={company ? "btn" : "btn secondary"} href="/demo/checkups" style={{ padding: "4px 12px", fontSize: 13 }}>
             企業担当者の画面
+          </Link>
+          <Link className={company ? "btn secondary" : "btn"} href="/demo/checkups?view=office" style={{ padding: "4px 12px", fontSize: 13 }}>
+            産業医事務所の画面
           </Link>
           <span className="muted" style={{ fontSize: 12 }}>
             {company
