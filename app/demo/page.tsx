@@ -95,14 +95,14 @@ export default function DemoTopPage() {
         <div className="card">
           <p style={{ margin: 0, lineHeight: 1.9 }}>
             導入のご相談・お見積りは、
-            <a href="https://mestate.jp/" target="_blank" rel="noopener noreferrer" style={{ fontWeight: 700, textDecoration: "underline" }}>
+            <a href="https://mestate.jp/contact.html" target="_blank" rel="noopener noreferrer" style={{ fontWeight: 700, textDecoration: "underline" }}>
               うえまつ産業医事務所
             </a>
             までお問い合わせください。
           </p>
           <div style={{ marginTop: 12, display: "flex", gap: 10, flexWrap: "wrap" }}>
-            <a className="btn orange" href="https://mestate.jp/" target="_blank" rel="noopener noreferrer">
-              うえまつ産業医事務所のサイトを見る
+            <a className="btn orange" href="https://mestate.jp/contact.html" target="_blank" rel="noopener noreferrer">
+              お問い合わせページへ
             </a>
             <Link className="btn secondary" href="/login">
               ログイン画面へ
