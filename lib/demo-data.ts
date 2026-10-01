@@ -81,12 +81,99 @@ const PEOPLE: Person[] = [
     judgment: "normal", condition: "consult", note: "貧血あり内科（婦人科）受診", followup: "recommended" },
 ];
 
+
+// 上の15名(個別に意味のある例)に加えて、50名規模の事業場に見えるよう35名を規則的に生成する。
+// 乱数は固定の種で作るため、表示のたびに内容が変わることはない
+const SURNAMES = ["伊藤", "渡辺", "山本", "松本", "井上", "清水", "山田", "斎藤", "加藤", "吉田", "山口", "森", "池田", "橋本", "阿部", "石川", "山崎", "中島", "前田", "藤田", "岡田", "後藤", "長谷川", "村上", "近藤", "石田", "坂本", "遠山", "藤井", "三浦", "福田", "太田", "岡本", "松田", "中野"];
+const SURNAME_KANA = ["イトウ", "ワタナベ", "ヤマモト", "マツモト", "イノウエ", "シミズ", "ヤマダ", "サイトウ", "カトウ", "ヨシダ", "ヤマグチ", "モリ", "イケダ", "ハシモト", "アベ", "イシカワ", "ヤマザキ", "ナカジマ", "マエダ", "フジタ", "オカダ", "ゴトウ", "ハセガワ", "ムラカミ", "コンドウ", "イシダ", "サカモト", "トオヤマ", "フジイ", "ミウラ", "フクダ", "オオタ", "オカモト", "マツダ", "ナカノ"];
+const GIVEN_M: [string, string][] = [["拓也", "タクヤ"], ["智也", "トモヤ"], ["亮", "リョウ"], ["達也", "タツヤ"], ["正人", "マサト"], ["裕介", "ユウスケ"], ["和也", "カズヤ"], ["隆", "タカシ"], ["健", "ケン"], ["勇気", "ユウキ"], ["博", "ヒロシ"], ["聡", "サトシ"], ["慎一", "シンイチ"], ["学", "マナブ"], ["良太", "リョウタ"], ["洋平", "ヨウヘイ"], ["大樹", "ダイキ"], ["昌也", "マサヤ"]];
+const GIVEN_F: [string, string][] = [["美穂", "ミホ"], ["愛", "アイ"], ["明日香", "アスカ"], ["智子", "トモコ"], ["裕子", "ユウコ"], ["麻衣", "マイ"], ["奈々", "ナナ"], ["恵美", "エミ"], ["舞", "マイ"], ["千尋", "チヒロ"], ["香織", "カオリ"], ["里奈", "リナ"], ["春香", "ハルカ"], ["優子", "ユウコ"], ["真由", "マユ"], ["結衣", "ユイ"], ["沙織", "サオリ"]];
+const DEPTS: [string, string][] = [["製造部", "1"], ["営業部", "2"], ["開発部", "3"], ["管理部", "4"], ["品質保証部", "5"]];
+
+function rng(seed: number) {
+  let x = seed;
+  return () => {
+    x = (x * 1103515245 + 12345) & 0x7fffffff;
+    return x / 0x7fffffff;
+  };
+}
+
+function generatedPeople(count: number): Person[] {
+  const r = rng(20260701);
+  const out: Person[] = [];
+  const perDept: Record<string, number> = { "1": 5, "2": 4, "3": 3, "4": 2, "5": 1 }; // 既存15名の社員番号の続き
+  for (let i = 0; i < count; i++) {
+    const [dept, code] = DEPTS[i % DEPTS.length];
+    const male = r() < 0.6;
+    const sur = SURNAMES[i % SURNAMES.length];
+    const surK = SURNAME_KANA[i % SURNAME_KANA.length];
+    const [given, givenK] = male ? GIVEN_M[i % GIVEN_M.length] : GIVEN_F[i % GIVEN_F.length];
+    const age = 22 + Math.floor(r() * 40);
+    const birthY = 2026 - age;
+    const birth = `${birthY}-${String(1 + Math.floor(r() * 12)).padStart(2, "0")}-${String(1 + Math.floor(r() * 28)).padStart(2, "0")}`;
+    perDept[code] += 1;
+    const no = `${code}${String(perDept[code]).padStart(3, "0")}`;
+    const date = `2026-${["07", "07", "08", "08"][i % 4]}-${String(14 + (i % 12)).padStart(2, "0")}`;
+
+    // 年齢が高いほど異常が出やすい簡単なモデル
+    const risk = (age - 22) / 40;
+    const g = (ok: number, mild: number, hi: number) => {
+      const v = r();
+      if (v < ok - risk * 0.3) return "A";
+      if (v < ok + mild) return "B";
+      if (v < ok + mild + hi) return "C";
+      return "D";
+    };
+    const bmiV = 19 + r() * 7.5 + risk * 2.5;
+    const sbpV = Math.round(104 + r() * 30 + risk * 30);
+    const dbpV = Math.round(62 + r() * 18 + risk * 18);
+    const hbV = male ? 13.5 + r() * 3 : 11.2 + r() * 2.6;
+    const astV = Math.round(16 + r() * 18 + risk * 12);
+    const altV = Math.round(12 + r() * 20 + risk * 16);
+    const tgV = Math.round(60 + r() * 90 + risk * 70);
+    const ldlV = Math.round(88 + r() * 45 + risk * 25);
+    const a1cV = 5.0 + r() * 0.6 + risk * 0.5;
+    const grade = (v: number, b: number, c: number, d: number) => (v >= d ? "D" : v >= c ? "C" : v >= b ? "B" : "A");
+    const items: [string, string, string][] = [
+      ["BMI", bmiV.toFixed(1), grade(bmiV, 25, 27, 30)],
+      ["収縮期血圧", String(sbpV), grade(sbpV, 130, 140, 160)],
+      ["拡張期血圧", String(dbpV), grade(dbpV, 85, 90, 100)],
+      ["血色素量", hbV.toFixed(1), hbV < (male ? 12.0 : 10.0) ? "D" : hbV < (male ? 13.0 : 11.5) ? "C" : "A"],
+      ["AST", String(astV), grade(astV, 31, 36, 51)],
+      ["ALT", String(altV), grade(altV, 31, 41, 61)],
+      ["中性脂肪", String(tgV), grade(tgV, 150, 200, 300)],
+      ["LDLコレステロール", String(ldlV), grade(ldlV, 120, 140, 180)],
+      ["HbA1c", a1cV.toFixed(1), grade(a1cV, 5.6, 6.0, 6.5)],
+      ["尿糖", "-", "A"],
+      ["尿蛋白", r() < 0.06 ? "±" : "-", "A"],
+      ["胸部エックス線", "異常なし", "A"],
+      ["心電図", "異常なし", g(0.9, 0.05, 0.05)],
+      ["聴力 1000Hz", String(15 + Math.floor(r() * 3) * 5), "A"],
+      ["聴力 4000Hz", String(15 + Math.floor(r() * 4 + risk * 3) * 5), risk > 0.7 && r() < 0.3 ? "C" : "A"],
+    ];
+    const order = ["A", "B", "C", "D"];
+    const overall = items.reduce<string>((m, it) => (order.indexOf(it[2]) > order.indexOf(m) ? it[2] : m), "A") as Person["grade"];
+    const severe = overall === "D";
+    const followupRoll = r();
+    out.push({
+      no, name: `${sur} ${given}`, kana: `${surK} ${givenK}`, birth, sex: male ? "male" : "female", dept, date, grade: overall, items,
+      judgment: "normal",
+      condition: severe ? "consult" : null,
+      note: severe ? "要医療項目あり内科受診" : undefined,
+      followup: severe ? (followupRoll < 0.5 ? "pending" : followupRoll < 0.8 ? "recommended" : "done") : "none",
+    });
+  }
+  return out;
+}
+
+const ALL_PEOPLE: Person[] = [...PEOPLE, ...generatedPeople(35)].sort((a, b) => a.no.localeCompare(b.no));
+
 const id = (i: number) => `00000000-0000-4000-8000-${String(i + 1).padStart(12, "0")}`;
 
 export function demoCheckups(): { rows: CheckupRow[]; items: ReportItem[] } {
   const rows: CheckupRow[] = [];
   const items: ReportItem[] = [];
-  PEOPLE.forEach((p, i) => {
+  ALL_PEOPLE.forEach((p, i) => {
     const cid = id(i);
     p.items.forEach(([name, value, judgment]) => items.push({ checkup_id: cid, item_name: name, value, judgment }));
     rows.push({
