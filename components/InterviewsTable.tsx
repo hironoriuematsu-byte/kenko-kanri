@@ -18,9 +18,11 @@ type Row = {
 export default function InterviewsTable({
   interviews,
   showTarget = true,
+  hrefFor = (id) => `/interviews/${id}`,
 }: {
   interviews: Row[];
   showTarget?: boolean;
+  hrefFor?: (id: string) => string; // 詳細画面のリンク先(デモでは架空データの画面に向ける)
 }) {
   if (interviews.length === 0) {
     return <p className="muted">面談はまだ登録されていません。</p>;
@@ -40,7 +42,7 @@ export default function InterviewsTable({
         {interviews.map((i) => (
           <tr key={i.id}>
             <td>
-              <Link href={`/interviews/${i.id}`}>{formatDateTimeJa(i.scheduled_at)}</Link>
+              <Link href={hrefFor(i.id)}>{formatDateTimeJa(i.scheduled_at)}</Link>
             </td>
             {showTarget && <td>{i.target_name}</td>}
             <td>{INTERVIEW_TYPES[i.interview_type] ?? i.interview_type}</td>

@@ -1,8 +1,9 @@
 import { createServerClient, type CookieOptions } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
-// ログイン不要で読めるページ。/privacy は個人情報の取扱い(安全管理措置の概要)の公表ページ
-const PUBLIC_PATHS = ["/login", "/privacy"];
+// ログイン不要で読めるページ。/privacy は個人情報の取扱い(安全管理措置の概要)の公表ページ、
+// /demo は架空データによる紹介用デモ
+const PUBLIC_PATHS = ["/login", "/privacy", "/demo"];
 
 export async function middleware(request: NextRequest) {
   let response = NextResponse.next({ request });

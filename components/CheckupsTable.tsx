@@ -125,11 +125,13 @@ export default function CheckupsTable({
   canDelete,
   canJudge = false,
   canFollowup = false,
+  demo = false,
 }: {
   rows: CheckupRow[];
   canDelete: boolean;
   canJudge?: boolean;
   canFollowup?: boolean; // 受診勧奨の状態を変更できるか(実施者・企業担当者)
+  demo?: boolean; // 紹介用デモ: 氏名を個人票へのリンクにしない(閲覧のみ)
 }) {
   const router = useRouter();
 
@@ -811,7 +813,11 @@ export default function CheckupsTable({
                         {c.target_name_kana}
                       </div>
                     )}
-                    <Link href={`/checkup/${c.id}`}>{c.target_name}</Link>
+                    {demo ? (
+                      <span style={{ color: "var(--teal-dark)" }}>{c.target_name}</span>
+                    ) : (
+                      <Link href={`/checkup/${c.id}`}>{c.target_name}</Link>
+                    )}
                     {c.birth_date && (
                       <div className="muted" style={{ fontSize: 11 }}>
                         {formatDateJa(c.birth_date)}
