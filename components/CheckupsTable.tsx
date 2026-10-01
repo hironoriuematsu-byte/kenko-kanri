@@ -126,12 +126,14 @@ export default function CheckupsTable({
   canJudge = false,
   canFollowup = false,
   demo = false,
+  compact = false,
 }: {
   rows: CheckupRow[];
   canDelete: boolean;
   canJudge?: boolean;
   canFollowup?: boolean; // 受診勧奨の状態を変更できるか(実施者・企業担当者)
   demo?: boolean; // 紹介用デモ: 氏名を個人票へのリンクにしない(閲覧のみ)
+  compact?: boolean; // 企業担当者向け: 有所見(C)・要医療(D)・就業制限(R)の列と絞り込みを出さない(横スクロールを減らす)
 }) {
   const router = useRouter();
 
@@ -692,7 +694,9 @@ export default function CheckupsTable({
       <div style={{ display: "flex", gap: 8, alignItems: "flex-start", margin: "8px 0" }}>
         <span className="muted" style={{ fontSize: 13, lineHeight: "30px", flexShrink: 0 }}>表示:</span>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", flex: 1 }}>
-          {(Object.keys(VIEW_LABEL) as ViewFilter[]).map((k) => {
+          {(Object.keys(VIEW_LABEL) as ViewFilter[])
+            .filter((k) => !compact || !["d", "r", "dr"].includes(k))
+            .map((k) => {
             const active = view === k;
             const danger = k !== "all";
             // 要受診勧奨・要産業医面談は対応が必要な方の絞り込みなので、
@@ -758,22 +762,26 @@ export default function CheckupsTable({
                 <br />
                 判定
               </th>
-              {/* 有所見(C)(D)・就業制限(R)は2行の見出しでそろえる */}
-              <th style={nowrap}>
-                有所見
-                <br />
-                項目（C）
-              </th>
-              <th style={nowrap}>
-                要医療
-                <br />
-                項目（D）
-              </th>
-              <th style={nowrap}>
-                就業制限
-                <br />
-                項目（R）
-              </th>
+              {/* 有所見(C)(D)・就業制限(R)は2行の見出しでそろえる(企業担当者向けの表示では出さない) */}
+              {!compact && (
+                <>
+                  <th style={nowrap}>
+                    有所見
+                    <br />
+                    項目（C）
+                  </th>
+                  <th style={nowrap}>
+                    要医療
+                    <br />
+                    項目（D）
+                  </th>
+                  <th style={nowrap}>
+                    就業制限
+                    <br />
+                    項目（R）
+                  </th>
+                </>
+              )}
               <th style={{ minWidth: 130, ...nowrap }}>就業判定</th>
               <th style={{ minWidth: 200, ...nowrap }}>医師の意見</th>
               <th style={{ minWidth: 110, ...nowrap }}>受診勧奨</th>
@@ -782,7 +790,7 @@ export default function CheckupsTable({
           <tbody>
             {visibleRows.length === 0 && (
               <tr>
-                <td colSpan={showCheckbox ? 11 : 10} className="muted" style={{ textAlign: "center" }}>
+                <td colSpan={(showCheckbox ? 11 : 10) - (compact ? 3 : 0)} className="muted" style={{ textAlign: "center" }}>
                   {view === "all" ? "健診記録がありません。" : `${VIEW_LABEL[view]}の方はいません。`}
                 </td>
               </tr>
@@ -856,34 +864,38 @@ export default function CheckupsTable({
                       "—"
                     )}
                   </td>
-                  {/* 有所見項目は C と D で列を分ける。項目別判定が無い記録は、
-                      総合判定に合わせてどちらかの列に「有所見」と表示する */}
-                  <td style={{ fontSize: 13, minWidth: 150 }}>
-                    {findings.c.length > 0 ? (
-                      findingLabel(findings.c)
-                    ) : noItemFindings && !isSevereJudgment(c.overall_judgment) ? (
-                      <span className="badge orange">有所見</span>
-                    ) : (
-                      <span className="muted">—</span>
-                    )}
-                  </td>
-                  <td style={{ fontSize: 13, minWidth: 130, color: findings.d.length > 0 ? "var(--danger)" : undefined }}>
-                    {findings.d.length > 0 ? (
-                      <strong>{findingLabel(findings.d)}</strong>
-                    ) : noItemFindings && isSevereJudgment(c.overall_judgment) ? (
-                      <span className="badge orange">有所見</span>
-                    ) : (
-                      <span className="muted">—</span>
-                    )}
-                  </td>
-                  {/* 就業制限の検討が必要な水準(R)。コンセンサス値を超えた項目 */}
-                  <td style={{ fontSize: 13 }}>
-                    {findings.r.length > 0 ? (
-                      <strong style={{ color: "var(--danger)" }}>{findingLabel(findings.r)}</strong>
-                    ) : (
-                      <span className="muted">—</span>
-                    )}
-                  </td>
+                  {!compact && (
+                    <>
+                      {/* 有所見項目は C と D で列を分ける。項目別判定が無い記録は、
+                          総合判定に合わせてどちらかの列に「有所見」と表示する */}
+                      <td style={{ fontSize: 13, minWidth: 150 }}>
+                        {findings.c.length > 0 ? (
+                          findingLabel(findings.c)
+                        ) : noItemFindings && !isSevereJudgment(c.overall_judgment) ? (
+                          <span className="badge orange">有所見</span>
+                        ) : (
+                          <span className="muted">—</span>
+                        )}
+                      </td>
+                      <td style={{ fontSize: 13, minWidth: 130, color: findings.d.length > 0 ? "var(--danger)" : undefined }}>
+                        {findings.d.length > 0 ? (
+                          <strong>{findingLabel(findings.d)}</strong>
+                        ) : noItemFindings && isSevereJudgment(c.overall_judgment) ? (
+                          <span className="badge orange">有所見</span>
+                        ) : (
+                          <span className="muted">—</span>
+                        )}
+                      </td>
+                      {/* 就業制限の検討が必要な水準(R)。コンセンサス値を超えた項目 */}
+                      <td style={{ fontSize: 13 }}>
+                        {findings.r.length > 0 ? (
+                          <strong style={{ color: "var(--danger)" }}>{findingLabel(findings.r)}</strong>
+                        ) : (
+                          <span className="muted">—</span>
+                        )}
+                      </td>
+                    </>
+                  )}
                   <td>
                     {canJudge ? (
                       <select

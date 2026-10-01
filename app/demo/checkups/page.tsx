@@ -9,7 +9,9 @@ import { summarizeByCategory } from "@/lib/checkupReport";
 export const metadata = { title: "健康診断管理(デモ) | 健康管理Web" };
 
 // 紹介用デモ: 健康診断管理(産業医事務所の画面と同じ集計・一覧を架空データで表示。閲覧のみ)
-export default function DemoCheckupsPage() {
+export default function DemoCheckupsPage({ searchParams }: { searchParams: { view?: string } }) {
+  // 産業医事務所の画面(既定)と企業担当者の画面(有所見・要医療・就業制限の列を出さない簡易表示)を切り替えられる
+  const company = searchParams.view === "company";
   const { rows, items } = demoCheckups();
   const total = rows.length;
   const findings = rows.filter(
@@ -37,15 +39,33 @@ export default function DemoCheckupsPage() {
         </p>
         <h1 className="page-title">{DEMO_COMPANY} — 健康診断管理</h1>
         <DemoNotice />
+        <p style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+          <span className="muted" style={{ fontSize: 13 }}>見る立場:</span>
+          <Link className={company ? "btn secondary" : "btn"} href="/demo/checkups" style={{ padding: "4px 12px", fontSize: 13 }}>
+            産業医事務所の画面
+          </Link>
+          <Link className={company ? "btn" : "btn secondary"} href="/demo/checkups?view=company" style={{ padding: "4px 12px", fontSize: 13 }}>
+            企業担当者の画面
+          </Link>
+          <span className="muted" style={{ fontSize: 12 }}>
+            {company
+              ? "企業担当者には、就業判定・医師の意見・受診勧奨の状態が見えます(検査項目ごとの有所見は表示しません)。"
+              : "産業医事務所には、有所見項目(C)・要医療項目(D)・就業制限項目(R)も表示され、就業判定を入力できます。"}
+          </span>
+        </p>
         <div className="card">
           <p style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-            <span className="btn orange" aria-disabled style={{ opacity: 0.6, cursor: "default" }}>健康診断結果取込</span>
+            <span className="btn orange" aria-disabled style={{ opacity: 0.6, cursor: "default" }}>
+              {company ? "健康診断結果を送る（CSV・PDF）" : "健康診断結果取込"}
+            </span>
             <span className="btn secondary" aria-disabled style={{ opacity: 0.6, cursor: "default" }}>＋ 個別入力</span>
             <span className="btn" aria-disabled style={{ opacity: 0.6, cursor: "default" }}>就業判定結果出力</span>
             <span className="btn secondary" aria-disabled style={{ opacity: 0.6, cursor: "default" }}>健康診断結果出力</span>
           </p>
           <p className="muted" style={{ fontSize: 12.5 }}>
-            実際の画面では、健診機関のCSVの取込、1名ずつの個別入力、就業判定結果・健康診断結果のCSV出力ができます(デモでは無効)。
+            {company
+              ? "実際の画面では、健診機関のCSV・PDFをそのまま産業医事務所に送れます。就業判定結果・健康診断結果のCSV出力もできます(デモでは無効)。"
+              : "実際の画面では、健診機関のCSVの取込、1名ずつの個別入力、就業判定結果・健康診断結果のCSV出力ができます(デモでは無効)。"}
           </p>
 
           <p style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
@@ -92,10 +112,12 @@ export default function DemoCheckupsPage() {
                   </span>
                 </td>
               </tr>
-              <tr>
-                <th>就業制限項目（R）</th>
-                <td colSpan={3}>{restrictionCount > 0 ? <strong style={{ color: "var(--danger)" }}>{restrictionCount}名</strong> : "0名"}</td>
-              </tr>
+              {!company && (
+                <tr>
+                  <th>就業制限項目（R）</th>
+                  <td colSpan={3}>{restrictionCount > 0 ? <strong style={{ color: "var(--danger)" }}>{restrictionCount}名</strong> : "0名"}</td>
+                </tr>
+              )}
               <tr>
                 <th>就業制限・要休業</th>
                 <td colSpan={3}>
@@ -156,9 +178,11 @@ export default function DemoCheckupsPage() {
           </details>
 
           <p className="muted" style={{ fontSize: 12.5 }}>
-            実際の画面では、産業医事務所は一覧の「就業判定」「医師の意見」「判定条件」をその場で入力・一括判定でき、企業担当者は「受診勧奨」の状態を更新できます(デモでは閲覧のみ)。
+            {company
+              ? "実際の画面では、企業担当者は「受診勧奨」の状態(勧奨済・受診済)を更新できます(デモでは閲覧のみ)。"
+              : "実際の画面では、産業医事務所は一覧の「就業判定」「医師の意見」「判定条件」をその場で入力・一括判定できます(デモでは閲覧のみ)。"}
           </p>
-          <CheckupsTable rows={rows} canDelete={false} canJudge={false} canFollowup={false} demo />
+          <CheckupsTable rows={rows} canDelete={false} canJudge={false} canFollowup={false} demo compact={company} />
         </div>
       </main>
     </>

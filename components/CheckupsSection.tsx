@@ -329,6 +329,8 @@ export default async function CheckupsSection({
                   </span>
                 </td>
               </tr>
+              {/* 就業制限項目(R)の行は実施者の画面だけに出す(企業担当者には列も出さない) */}
+              {canDelete && (
               <tr>
                 <th>就業制限項目（R）</th>
                 <td colSpan={3}>
@@ -344,6 +346,7 @@ export default async function CheckupsSection({
                   )}
                 </td>
               </tr>
+              )}
               <tr>
                 <th>就業制限・要休業</th>
                 <td colSpan={3}>
@@ -442,6 +445,7 @@ export default async function CheckupsSection({
             canDelete={canDelete}
             canJudge={canJudge}
             canFollowup={canEdit}
+            compact={!canDelete}
           />
         </>
       ) : (
