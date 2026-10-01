@@ -991,12 +991,17 @@ export default function CheckupsTable({
                       </div>
                     ) : (
                       <>
-                        {opinion.presets.map((p) => (
-                          <span key={p} className="badge orange" style={{ marginRight: 4 }}>
-                            {p}
-                          </span>
-                        ))}
-                        {opinion.freeText && <span>{opinion.freeText}</span>}
+                        {/* 定型文(要産業医面談 など)は1行目、自由記入の意見は行を変えて出す */}
+                        {opinion.presets.length > 0 && (
+                          <div style={{ marginBottom: opinion.freeText ? 4 : 0 }}>
+                            {opinion.presets.map((p) => (
+                              <span key={p} className="badge orange" style={{ marginRight: 4 }}>
+                                {p}
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                        {opinion.freeText && <div>{opinion.freeText}</div>}
                         {!c.work_judgment_note && <span className="muted">—</span>}
                         {canJudge && (
                           <button
