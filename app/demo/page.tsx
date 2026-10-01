@@ -1,8 +1,7 @@
 import Link from "next/link";
 import DemoHeader from "@/components/DemoHeader";
 import DemoNotice from "./DemoNotice";
-import { DEMO_COMPANY, DEMO_FISCAL_YEAR, DEMO_INTERVIEWS, demoCheckups } from "@/lib/demo-data";
-import { isFindingJudgment } from "@/lib/checkups";
+import { DEMO_COMPANY, DEMO_FISCAL_YEAR, demoCheckups } from "@/lib/demo-data";
 
 export const metadata = {
   title: "サンプル(デモ) | 健康管理Web",
@@ -12,10 +11,6 @@ export const metadata = {
 // 広告・紹介用のデモ。ログイン不要で、架空データのみを表示する(ストレスチェックWebのデモと同じ構成)
 export default function DemoTopPage() {
   const { rows } = demoCheckups();
-  const findings = rows.filter(
-    (r) => r.has_findings || isFindingJudgment(r.overall_judgment) || (r.findingItems ?? []).some((it) => isFindingJudgment(it.judgment))
-  ).length;
-  const instructed = rows.filter((r) => (r.overall_judgment ?? "").startsWith("D")).length;
   const depts = Array.from(new Set(rows.map((r) => r.department ?? "")));
 
   const sections = [
@@ -55,7 +50,7 @@ export default function DemoTopPage() {
           <p style={{ margin: 0, lineHeight: 1.9 }}>
             産業医事務所が契約企業の<strong>健康診断の事後措置</strong>、<strong>産業医面談</strong>、
             <strong>従業員ごとのカルテ</strong>を管理する画面を、架空の企業「{DEMO_COMPANY}」
-            ({DEMO_FISCAL_YEAR}年度・受診者{rows.length}名・{depts.length}部署)のデータでご覧いただけます。
+            ({DEMO_FISCAL_YEAR}年度・従業員{rows.length}名)のデータでご覧いただけます。
             実際の画面と同じ部品で表示しており、産業医事務所と企業担当者のどちらにどこまで見えるかもそのままです。
           </p>
           <div className="notice" style={{ marginTop: 14 }}>
@@ -65,21 +60,11 @@ export default function DemoTopPage() {
         </div>
 
         <div className="card">
-          <h2>{DEMO_COMPANY} の概要(架空)</h2>
-          <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginTop: 6 }}>
-            {[
-              ["受診者数", `${rows.length} 名`],
-              ["有所見者数", `${findings} 名`],
-              ["医師の指示人数", `${instructed} 名`],
-              ["産業医面談", `${DEMO_INTERVIEWS.length} 件`],
-            ].map(([k, v]) => (
-              <div key={k} style={{ border: "1px solid var(--line)", borderRadius: 10, padding: "10px 18px", textAlign: "center" }}>
-                <div className="muted" style={{ fontSize: 11 }}>{k}</div>
-                <div style={{ fontSize: 18, fontWeight: 800, color: "var(--teal-dark)" }}>{v}</div>
-              </div>
-            ))}
-          </div>
-          <p className="muted" style={{ fontSize: 12.5, margin: "12px 0 0" }}>部署: {depts.join(" / ")}</p>
+          <h2>{DEMO_COMPANY}（架空）</h2>
+          <p style={{ margin: 0, lineHeight: 1.9 }}>
+            従業員数 <strong>{rows.length}名</strong>（{depts.join(" / ")}）。
+            以下の各画面は、この会社のデータで表示しています。
+          </p>
         </div>
 
         {sections.map((s) => (
