@@ -109,7 +109,8 @@ function normalizeHeader(s: string): string {
 
 // 法定項目と見出しが似ていても別の検査(B型・C型肝炎の抗原・抗体など)は自動で割り当てない。
 // 「HBs抗原」「HBc抗体」が「Hb」「HbA1c」に、「肝炎」が肝機能に誤って割り当たるのを防ぐ
-const NOT_LEGAL_HEADER = /hbs|hbc|hbe|hbv|hcv|hiv|htlv|肝炎|抗原|抗体|ウイルス|ウィルス/;
+// 尿沈渣(尿中の赤血球・白血球など)は法定項目ではなく、「尿沈渣赤血球」が血液の赤血球数に割り当たるのを防ぐ
+const NOT_LEGAL_HEADER = /hbs|hbc|hbe|hbv|hcv|hiv|htlv|肝炎|抗原|抗体|ウイルス|ウィルス|尿沈渣|沈渣|尿中赤血球|尿赤血球|尿潜血/;
 
 export function findLegalItemByHeader(header: string): string | null {
   const h = normalizeHeader(header);
