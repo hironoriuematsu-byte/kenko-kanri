@@ -77,9 +77,8 @@ export function summarizeByCategory(items: ReportItem[]): CategorySummary[] {
     if (!hasData) continue;
     if (!examined.has(cat)) examined.set(cat, new Set());
     examined.get(cat)!.add(it.checkup_id);
-    // 胸部エックス線は「所見があればB」としているため、Bも有所見に数える
-    const finding =
-      cat === "chest_xray" ? /^[BCDER]/i.test((it.judgment ?? "").trim()) : isFindingJudgment(it.judgment);
+    // 有所見は全区分とも C 以上(胸部エックス線も同じ。以前は B も数えていた)
+    const finding = isFindingJudgment(it.judgment);
     if (finding) {
       if (!findings.has(cat)) findings.set(cat, new Set());
       findings.get(cat)!.add(it.checkup_id);
