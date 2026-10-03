@@ -190,7 +190,7 @@ export default function CheckupImport({
       setDeptCol(find(["所属", "部署", "部門", "部課", "職場"]));
       setEmpNoCol(find(["社員番号", "社員No", "従業員番号", "職員番号"]));
       setSexCol(find(["性別", "性"]));
-      setBirthCol(find(["生年月日", "生年"]));
+      setBirthCol(find(["生年月日", "生年", "誕生日", "birth"]));
       setDateCol(find(["健診日", "受診日", "実施日"]));
       setJudgmentCol(find(["総合判定", "総合", "判定区分"]));
       // 見出しから法定項目を自動推定。法定項目(自動判定)以外の列はすべて「取り込まない」を既定にし、
