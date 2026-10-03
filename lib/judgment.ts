@@ -112,10 +112,12 @@ function normalizeHeader(s: string): string {
 // 「HBs抗原」「HBc抗体」が「Hb」「HbA1c」に、「肝炎」が肝機能に誤って割り当たるのを防ぐ
 // 尿沈渣(尿中の赤血球・白血球など)は法定項目ではなく、「尿沈渣赤血球」が血液の赤血球数に割り当たるのを防ぐ
 // (「尿沈査」の誤記、「尿沈」だけの略記にも対応)
-const NOT_LEGAL_HEADER = /hbs|hbc|hbe|hbv|hcv|hiv|htlv|肝炎|抗原|抗体|ウイルス|ウィルス|尿沈|沈渣|沈査|尿中赤血球|尿赤血球|尿潜血/;
+// non-HDL コレステロール、LDL/HDL 比(L/H 比)は法定項目ではなく、HDL・LDL に誤って割り当たるのを防ぐ
+const NOT_LEGAL_HEADER =
+  /hbs|hbc|hbe|hbv|hcv|hiv|htlv|肝炎|抗原|抗体|ウイルス|ウィルス|尿沈|沈渣|沈査|尿中赤血球|尿赤血球|尿潜血|non-?hdl|nonhdl|ノンhdl|\/hdl|hdl比|l\/h比|比$/;
 
 // 自動割り当ての版(取込画面に表示し、新しい判定が反映されているかを確かめられるようにする)
-export const HEADER_RULES_VERSION = "2026-10-03b";
+export const HEADER_RULES_VERSION = "2026-10-03c";
 
 export function findLegalItemByHeader(header: string): string | null {
   const h = normalizeHeader(header);
