@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/browser";
 import { getFiscalYear } from "@/lib/fiscal";
 import { normalizeGradeText } from "@/lib/gradeText";
+import { HEADER_RULES_VERSION } from "@/lib/judgment";
 import {
   CHECKUP_TYPES,
   DEFAULT_FINDINGS_JUDGMENTS,
@@ -591,6 +592,10 @@ export default function CheckupImport({
             {fileName}（データ {dataRows.length} 行）
           </span>
         )}
+        {/* 列の自動割り当ての版。画面が最新かどうかをここで確かめられる */}
+        <span className="muted" style={{ marginLeft: 10, fontSize: 11 }}>
+          自動割り当て {HEADER_RULES_VERSION}
+        </span>
       </div>
 
       {/* 事業者担当者向け: 見出しから自動で割り当てた結果を確認して、そのまま取り込む */}
