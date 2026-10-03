@@ -305,8 +305,19 @@ export function chestXrayDWords(text: string): string[] {
 // ------------------------------------------------------------
 // 聴力が「所見なし」「所見あり」のように文字で記載されている場合
 // ------------------------------------------------------------
+// 健診機関によっては聴力を「1 = 所見なし」「2 = 所見あり」の区分番号で記載する。
+// dB の実測値は 5dB 刻み(0・5・10…)なので、1・2 は区分番号として扱える
+export function judgeHearingCode(text: string): Grade | null {
+  const t = (text ?? "").normalize("NFKC").trim();
+  if (t === "1") return "A";
+  if (t === "2") return "C";
+  return null;
+}
+
 export function judgeHearingText(text: string): Grade | null {
   if (text == null) return null;
+  const code = judgeHearingCode(text);
+  if (code) return code;
   if (isNormalFinding(text)) return "A";
   const t = normalizeFinding(text);
   if (/難聴|要精査|要精密|異常|所見あり|所見有|低下/.test(t)) return "C";

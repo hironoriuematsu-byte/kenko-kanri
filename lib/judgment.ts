@@ -2,7 +2,7 @@
 // 複数該当・複数項目異常のときは最も重い判定を採用する。
 // 心電図・胸部エックス線・聴力の定性記載は、所見の文言から判定する(lib/textJudgment.ts)。
 
-import { judgeChestXrayText, judgeEcgText, judgeHearingText } from "@/lib/textJudgment";
+import { judgeChestXrayText, judgeEcgText, judgeHearingCode, judgeHearingText } from "@/lib/textJudgment";
 
 export type JudgmentRule = {
   id?: string;
@@ -162,9 +162,11 @@ export function judgeItem(
   );
   if (applicable.length === 0) return null; // 基準未設定の項目は判定しない
 
-  // 聴力が「所見なし」「所見あり」のように文字で記載されている場合
-  if ((itemKey === "hearing1000" || itemKey === "hearing4000") && parseNumber(rawValue) == null) {
-    return judgeHearingText(rawValue);
+  // 聴力が「1(所見なし)/2(所見あり)」の区分番号、または「所見なし」「所見あり」の文字で記載されている場合
+  if (itemKey === "hearing1000" || itemKey === "hearing4000") {
+    const code = judgeHearingCode(rawValue);
+    if (code) return code;
+    if (parseNumber(rawValue) == null) return judgeHearingText(rawValue);
   }
 
   const isQualitative = applicable.some((r) => r.match_text);
