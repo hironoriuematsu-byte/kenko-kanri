@@ -90,6 +90,27 @@ export default async function DocumentPage({ params }: { params: { id: string } 
             </div>
           </div>
 
+          {/* 診療情報提供依頼書: 本人が産業医と主治医の間の情報共有に同意する欄(印刷して署名してもらう) */}
+          {doc.doc_type === "referral_request" && (
+            <div style={{ marginTop: 32, borderTop: "1px solid var(--line)", paddingTop: 16 }}>
+              <h2 style={{ fontSize: 15, margin: "0 0 8px" }}>本人同意欄</h2>
+              <p style={{ margin: "0 0 14px", lineHeight: 1.9 }}>
+                私は、上記の目的のため、産業医（{companyName}の産業医　{doc.physician_name || ""}）と主治医
+                {doc.addressee ? `（${doc.addressee}）` : ""}
+                との間で、私の診療情報・健康診断結果などの健康情報を相互に提供し、共有することに同意します。
+              </p>
+              <div style={{ display: "flex", gap: 24, flexWrap: "wrap", alignItems: "flex-end" }}>
+                <div>
+                  同意日：　　　　年　　　月　　　日
+                </div>
+                <div style={{ flex: 1, minWidth: 260 }}>
+                  本人署名：
+                  <span style={{ display: "inline-block", width: 220, borderBottom: "1px solid var(--ink)", marginLeft: 8, height: 22, verticalAlign: "bottom" }} />
+                </div>
+              </div>
+            </div>
+          )}
+
           {isOffice && !companyInfo?.address && (
             <p className="notice no-print" style={{ marginTop: 16 }}>
               企業の所在地が未登録です。企業ページの「企業情報」で所在地を登録すると、文書に自動で記載されます。
