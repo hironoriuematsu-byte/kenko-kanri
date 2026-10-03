@@ -56,7 +56,7 @@ export default async function DocumentPage({ params }: { params: { id: string } 
             <h1 style={{ fontSize: 20, margin: 0 }}>{doc.title}</h1>
           </div>
 
-          {doc.addressee && <p>{doc.addressee}　御机下</p>}
+          {doc.addressee && <p>{doc.addressee}　先生御侍史</p>}
 
           <table className="list" style={{ marginBottom: 16, maxWidth: 560 }}>
             <tbody>
