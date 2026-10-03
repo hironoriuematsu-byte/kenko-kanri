@@ -158,13 +158,14 @@ export default function CheckupImport({
       setBirthCol(find(["生年月日", "生年"]));
       setDateCol(find(["健診日", "受診日", "実施日"]));
       setJudgmentCol(find(["総合判定", "総合", "判定区分"]));
-      // 見出しから法定項目を自動推定
+      // 見出しから法定項目を自動推定。法定項目・判定と分からない列は「取り込まない」を既定にし、
+      // 必要な列だけを実施者が「値のみ取込」などに切り替える
       const init: Record<number, ColumnMode> = {};
       h.forEach((c, i) => {
         const key = findLegalItemByHeader(c);
         if (/判定/.test(c)) init[i] = { kind: "judgment" };
         else if (key) init[i] = { kind: "legal", itemKey: key };
-        else init[i] = { kind: "value" };
+        else init[i] = { kind: "off" };
       });
       setColModes(init);
     } catch {
