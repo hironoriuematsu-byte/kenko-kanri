@@ -52,6 +52,8 @@ export default async function DocumentPage({ params }: { params: { id: string } 
         </p>
 
         <div className="card print-sheet">
+          {/* 発行日は文書の右上に置く */}
+          <div style={{ textAlign: "right", marginBottom: 6 }}>{formatDateJa(doc.issued_date)}</div>
           <div style={{ textAlign: "center", marginBottom: 20 }}>
             <h1 style={{ fontSize: 20, margin: 0 }}>{doc.title}</h1>
           </div>
@@ -85,7 +87,6 @@ export default async function DocumentPage({ params }: { params: { id: string } 
           <div style={{ whiteSpace: "pre-wrap", marginBottom: 24 }}>{doc.body || ""}</div>
 
           <div style={{ textAlign: "right", marginTop: 24 }}>
-            <div>発行日: {formatDateJa(doc.issued_date)}</div>
             <div style={{ marginTop: 8 }}>
               <div>{companyName}</div>
               {companyInfo?.address && <div>{companyInfo.address}</div>}
