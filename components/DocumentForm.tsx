@@ -44,6 +44,8 @@ export default function DocumentForm({
         !p.title || Object.values(DOC_TYPES).includes(p.title)
           ? (DOC_TYPES[t] ?? p.title)
           : p.title,
+      // 診療情報提供依頼書に切り替えたとき、本文が空なら定型文を入れる
+      body: t === "referral_request" && !p.body.trim() ? REFERRAL_REQUEST_TEMPLATE : p.body,
     }));
   };
 
@@ -135,15 +137,23 @@ export default function DocumentForm({
       <div className="form-row">
         <label>
           本文{" "}
-          {v.doc_type === "referral_request" && !v.body && (
+          {v.doc_type === "referral_request" && (
             <button
               type="button"
               className="btn secondary"
               style={{ padding: "2px 10px", fontSize: 12, marginLeft: 8 }}
-              onClick={() => set("body", REFERRAL_REQUEST_TEMPLATE)}
+              onClick={() => {
+                if (v.body.trim() && v.body !== REFERRAL_REQUEST_TEMPLATE && !window.confirm("本文を定型文に置き換えます。よろしいですか？")) return;
+                set("body", REFERRAL_REQUEST_TEMPLATE);
+              }}
             >
-              定型文を挿入
+              定型文に戻す
             </button>
+          )}
+          {v.doc_type === "referral_request" && (
+            <span className="muted" style={{ fontSize: 12, marginLeft: 8 }}>
+              宛名の敬称「先生御侍史」、対象者の氏名・生年月日・所属、発行者、本人同意欄は印刷時に自動で付きます
+            </span>
           )}
         </label>
         <textarea

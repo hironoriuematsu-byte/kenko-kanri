@@ -3,7 +3,7 @@ import Header from "@/components/Header";
 import DocumentForm from "@/components/DocumentForm";
 import { requireProfile } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
-import { DOC_TYPES } from "@/lib/karte";
+import { DOC_TYPES, REFERRAL_REQUEST_TEMPLATE } from "@/lib/karte";
 
 export const dynamic = "force-dynamic";
 
@@ -37,7 +37,8 @@ export default async function DocumentNewPage({
               doc_type: "referral_request",
               title: DOC_TYPES.referral_request,
               addressee: "",
-              body: "",
+              // 診療情報提供依頼書は定型文を最初から本文に入れ、編集欄で手直しできるようにする
+              body: REFERRAL_REQUEST_TEMPLATE,
               issued_date: new Date().toISOString().slice(0, 10),
               physician_name: profile.full_name ?? "上松弘典",
               visibility: "office_only",
