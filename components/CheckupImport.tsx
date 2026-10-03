@@ -87,6 +87,8 @@ export default function CheckupImport({
   const [sexCol, setSexCol] = useState<number>(-1);
   const [birthCol, setBirthCol] = useState<number>(-1);
   const [dateCol, setDateCol] = useState<number>(-1);
+  // CSVに健診日の列が無い(または空欄・読み取れない)ときに全員へ適用する健診日
+  const [commonDate, setCommonDate] = useState("");
   const [judgmentCol, setJudgmentCol] = useState<number>(-1);
   const [colModes, setColModes] = useState<Record<number, ColumnMode>>({});
   const [error, setError] = useState<string | null>(null);
@@ -119,13 +121,16 @@ export default function CheckupImport({
   // CSVの健診日から見た年度(4月〜翌3月)。指定した年度と食い違っていれば注意を出す
   // (2023年の健診を、既定の今年度のまま取り込んでしまう誤りを防ぐ)
   const csvFiscalYear = useMemo(() => {
-    if (dateCol < 0) return null;
-    for (const r of dataRows) {
-      const d = normalizeDate(r[dateCol] ?? "");
-      if (d) return getFiscalYear(new Date(d + "T00:00:00"));
+    if (dateCol >= 0) {
+      for (const r of dataRows) {
+        const d = normalizeDate(r[dateCol] ?? "");
+        if (d) return getFiscalYear(new Date(d + "T00:00:00"));
+      }
     }
+    const common = normalizeDate(commonDate);
+    if (common) return getFiscalYear(new Date(common + "T00:00:00"));
     return null;
-  }, [dataRows, dateCol]);
+  }, [dataRows, dateCol, commonDate]);
   const yearMismatch = csvFiscalYear != null && csvFiscalYear !== fiscalYear;
 
   // 生年月日・健診日の列に、日付として読み取れない値がある行(表記の確認用に最初の例を出す)
@@ -157,7 +162,17 @@ export default function CheckupImport({
             ：健診日 {badDate.count}行（例「{badDate.example}」）
           </>
         )}
-        。この行は生年月日・健診日が空のまま取り込まれます。表記(例: 2026/9/1、昭和45年3月12日、S45.3.12、20260901)をご確認ください。
+        。この行は生年月日・健診日が空のまま取り込まれます
+        {badDate.count > 0 && !normalizeDate(commonDate) && "(「全員共通の健診日」を入れるとその日付が使われます)"}
+        。表記(例: 2026/9/1、昭和45年3月12日、S45.3.12、20260901)をご確認ください。
+      </p>
+    ) : null;
+  // 健診日の列が見つからず、共通の健診日も未入力なら注意を出す(健診日が空のまま取り込まれてしまう)
+  const noDateWarning =
+    rows && dateCol < 0 && !normalizeDate(commonDate) ? (
+      <p className="error-message">
+        健診日の列が見つかりません。下の「健診日」で列を選ぶか、「全員共通の健診日」を入力してください。
+        そのまま取り込むと健診日が空のまま登録されます。
       </p>
     ) : null;
 
@@ -191,7 +206,32 @@ export default function CheckupImport({
       setEmpNoCol(find(["社員番号", "社員No", "従業員番号", "職員番号"]));
       setSexCol(find(["性別", "性"]));
       setBirthCol(find(["生年月日", "生年", "誕生日", "birth"]));
-      setDateCol(find(["健診日", "受診日", "実施日"]));
+      // 健診日の列: 健診機関ごとに見出しが異なる(健診年月日・受診年月日・検診日・健康診断日 など)。
+      // 「生年月日」「判定日」などの日付は除く
+      setDateCol(
+        find(
+          [
+            "健診日",
+            "健診年月日",
+            "健診実施日",
+            "受診日",
+            "受診年月日",
+            "受検日",
+            "検診日",
+            "検診年月日",
+            "健康診断日",
+            "健康診断年月日",
+            "健康診断実施日",
+            "実施日",
+            "実施年月日",
+            "検査日",
+            "検査年月日",
+            "診察日",
+            "測定日",
+          ],
+          /生年|誕生|判定日|作成日|発行日|入社|退職/
+        )
+      );
       setJudgmentCol(find(["総合判定", "総合", "判定区分"]));
       // 見出しから法定項目を自動推定。法定項目(自動判定)以外の列はすべて「取り込まない」を既定にし、
       // 必要な列だけを実施者が「判定として取込」「値のみ取込」に切り替える
@@ -375,7 +415,8 @@ export default function CheckupImport({
           birth_date: birthDate ?? "",
           person_id: person?.id ?? "",
           target_user_id: person?.user_id ?? "",
-          checkup_date: dateCol >= 0 ? normalizeDate(r[dateCol] ?? "") : null,
+          // 列の値が無い・読み取れないときは「全員共通の健診日」を使う
+          checkup_date: (dateCol >= 0 ? normalizeDate(r[dateCol] ?? "") : null) ?? normalizeDate(commonDate),
           overall_judgment: autoOverall ?? csvOverall,
           items: merged,
         };
@@ -690,6 +731,7 @@ export default function CheckupImport({
             </p>
           )}
           {dateWarning}
+          {noDateWarning}
           {error && <p className="error-message">{error}</p>}
           <button className="btn orange" onClick={onImport} disabled={busy || nameCol < 0}>
             {busy ? "取込中…" : `${dataRows.length}名分を${fiscalYear}年度として取り込む`}
@@ -743,7 +785,24 @@ export default function CheckupImport({
               </tr>
               <tr>
                 <th>健診日</th>
-                <td>{colSelect(dateCol, setDateCol)}</td>
+                <td>
+                  {colSelect(dateCol, setDateCol)}
+                  <div style={{ marginTop: 6, display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                    <label htmlFor="common-checkup-date" style={{ margin: 0 }}>
+                      全員共通の健診日
+                    </label>
+                    <input
+                      id="common-checkup-date"
+                      type="date"
+                      value={commonDate}
+                      onChange={(e) => setCommonDate(e.target.value)}
+                      style={{ width: 170 }}
+                    />
+                    <span className="muted">
+                      CSVに健診日の列が無い場合や、列の値が空欄・読み取れない行に使います
+                    </span>
+                  </div>
+                </td>
               </tr>
               <tr>
                 <th>総合判定（健診機関の判定）</th>
@@ -817,6 +876,7 @@ export default function CheckupImport({
             </p>
           )}
           {dateWarning}
+          {noDateWarning}
           {error && <p className="error-message">{error}</p>}
           <button className="btn orange" onClick={onImport} disabled={busy}>
             {busy ? "取込中…" : `この内容で ${dataRows.length} 行を${fiscalYear}年度として取り込む`}
