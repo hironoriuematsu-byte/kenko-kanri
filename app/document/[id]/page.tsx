@@ -95,9 +95,9 @@ export default async function DocumentPage({ params }: { params: { id: string } 
             <div style={{ marginTop: 32, borderTop: "1px solid var(--line)", paddingTop: 16 }}>
               <h2 style={{ fontSize: 15, margin: "0 0 8px" }}>本人同意欄</h2>
               <p style={{ margin: "0 0 14px", lineHeight: 1.9 }}>
-                私は、上記の目的のため、産業医（{companyName}の産業医　{doc.physician_name || ""}）と主治医
-                {doc.addressee ? `（${doc.addressee}）` : ""}
-                との間で、私の診療情報・健康診断結果などの健康情報を相互に提供し、共有することに同意します。
+                私は、上記の目的のため、主治医
+                {doc.addressee ? `（${/先生$/.test(doc.addressee.trim()) ? doc.addressee.trim() : `${doc.addressee.trim()}　先生`}）` : ""}
+                と産業医（{companyName}の産業医　{doc.physician_name || ""}）との間で、私の診療情報・健康診断結果などの健康情報を相互に提供し、共有することに同意します。
               </p>
               <div style={{ display: "flex", gap: 24, flexWrap: "wrap", alignItems: "flex-end" }}>
                 <div>
