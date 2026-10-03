@@ -163,8 +163,10 @@ export default function CheckupImport({
       // (見出しに「判定」を含む列も既定では取り込まない)
       const init: Record<number, ColumnMode> = {};
       h.forEach((c, i) => {
+        const head = c.normalize("NFKC").trim();
         const key = findLegalItemByHeader(c);
-        if (/判定/.test(c)) init[i] = { kind: "off" };
+        // 「判定」を含む列、「判」で始まる列(例: 判定 血圧、判 HbA1c)は、法定項目の語が続いても取り込まない
+        if (/判定/.test(head) || /^判/.test(head)) init[i] = { kind: "off" };
         else if (key) init[i] = { kind: "legal", itemKey: key };
         else init[i] = { kind: "off" };
       });
