@@ -1,6 +1,7 @@
 import { notFound, redirect } from "next/navigation";
 import Header from "@/components/Header";
 import DocumentForm from "@/components/DocumentForm";
+import DeleteDocumentButton from "@/components/DeleteDocumentButton";
 import { requireProfile } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 
@@ -43,6 +44,8 @@ export default async function DocumentEditPage({ params }: { params: { id: strin
               visibility: doc.visibility,
             }}
           />
+          {/* 文書の削除(実施者のみ。理由を記録して削除する) */}
+          <DeleteDocumentButton documentId={doc.id} title={doc.title ?? "文書"} backHref={`/karte/${doc.person_id}`} />
         </div>
       </main>
     </>
