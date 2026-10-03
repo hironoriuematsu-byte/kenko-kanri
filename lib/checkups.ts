@@ -1,3 +1,5 @@
+import { normalizeGradeText } from "@/lib/gradeText";
+
 export const CHECKUP_TYPES: Record<string, string> = {
   regular: "定期健診",
   hiring: "雇入時健診",
@@ -66,10 +68,12 @@ export const FOLLOWUP_STATUS: Record<string, string> = {
 // 有所見とみなす総合判定・項目判定(取込時の既定値)
 export const DEFAULT_FINDINGS_JUDGMENTS = ["C", "D", "E", "R"];
 
-// 判定文字が有所見に当たるか(C/D/E/R で始まるものを有所見扱い)
+// 判定文字が有所見に当たるか(C/D/E/R で始まるものを有所見扱い)。
+// 「要観察」「要精密検査」のような文言の判定も A〜E に読み替えて扱う(lib/gradeText)
 export function isFindingJudgment(judgment: string | null | undefined): boolean {
   if (!judgment) return false;
-  return /^[CDER]/i.test(judgment.trim());
+  const g = normalizeGradeText(judgment) ?? judgment.trim();
+  return /^[CDER]/i.test(g);
 }
 
 // 就業制限の検討が必要な水準(R)か。
@@ -86,7 +90,8 @@ export function isRestrictionJudgment(judgment: string | null | undefined): bool
 //   Rは就業制限の検討が必要な水準のため、当然に個別判定の対象とする
 export function isSevereJudgment(judgment: string | null | undefined): boolean {
   if (!judgment) return false;
-  return /^[DER]/i.test(judgment.trim());
+  const g = normalizeGradeText(judgment) ?? judgment.trim();
+  return /^[DER]/i.test(g);
 }
 
 // シンプルなCSVパーサ(ダブルクォート・改行・BOM対応)

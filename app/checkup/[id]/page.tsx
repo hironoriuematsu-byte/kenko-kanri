@@ -7,6 +7,7 @@ import DeleteCheckupButton from "@/components/DeleteCheckupButton";
 import { requireProfile, homePathFor } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { formatDateJa } from "@/lib/fiscal";
+import { gradeLabel } from "@/lib/gradeText";
 import {
   CHECKUP_TYPES,
   CHECKUP_WORK_JUDGMENTS,
@@ -262,10 +263,10 @@ export default async function CheckupDetailPage({ params }: { params: { id: stri
                       <td>
                         {finding ? (
                           <strong style={{ color: "var(--danger)" }}>
-                            {restriction ? `${it.judgment ?? ""}${it.judgment ? " / " : ""}R` : it.judgment}
+                            {restriction ? `${it.judgment ? gradeLabel(it.judgment) + " / " : ""}R` : gradeLabel(it.judgment)}
                           </strong>
                         ) : (
-                          (it.judgment ?? "—")
+                          gradeLabel(it.judgment)
                         )}
                       </td>
                     </tr>

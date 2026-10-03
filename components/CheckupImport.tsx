@@ -5,6 +5,7 @@ import { startNavigationProgress } from "@/lib/navigate";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/browser";
 import { getFiscalYear } from "@/lib/fiscal";
+import { normalizeGradeText } from "@/lib/gradeText";
 import {
   CHECKUP_TYPES,
   DEFAULT_FINDINGS_JUDGMENTS,
@@ -273,7 +274,8 @@ export default function CheckupImport({
             return;
           }
           if (mode.kind === "judgment") {
-            items.push({ name: h.trim(), judgment: cell.toUpperCase() });
+            // 「B」「要観察」などの表記は A〜E に読み替えて判定に入れ、元の表記は値として残す
+            items.push({ name: h.trim(), value: cell, judgment: normalizeGradeText(cell) ?? cell.toUpperCase() });
             return;
           }
           items.push({ name: h.trim(), value: cell });
@@ -314,8 +316,8 @@ export default function CheckupImport({
           merged.push(it);
         }
 
-        const csvOverall =
-          judgmentCol >= 0 ? (r[judgmentCol] ?? "").trim().toUpperCase() : "";
+        const csvOverallRaw = judgmentCol >= 0 ? (r[judgmentCol] ?? "").trim() : "";
+        const csvOverall = csvOverallRaw ? (normalizeGradeText(csvOverallRaw) ?? csvOverallRaw.toUpperCase()) : "";
         // 自動判定ONのときは、最も重い項目判定を総合判定とする
         // (Rは就業制限の検討を表す印のため、総合判定としてはDに読み替える)
         const autoOverall = autoJudge ? overallGrade(worstGrade(autoGrades)) : null;
