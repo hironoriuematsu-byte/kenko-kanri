@@ -3,8 +3,8 @@ import DemoHeader from "@/components/DemoHeader";
 import DemoNotice from "../DemoNotice";
 import CheckupsTable from "@/components/CheckupsTable";
 import { DEMO_COMPANY, DEMO_FISCAL_YEAR, DEMO_OFFICE, demoCheckups } from "@/lib/demo-data";
-import { isFindingJudgment, isRestrictionJudgment, needsAttention } from "@/lib/checkups";
-import { summarizeByCategory } from "@/lib/checkupReport";
+import Form6Sheet from "@/components/Form6Sheet";
+import { computeCheckupStats } from "@/lib/checkupList";
 
 export const metadata = { title: "健康診断管理(デモ) | 健康管理Web" };
 
@@ -14,22 +14,8 @@ export default function DemoCheckupsPage({ searchParams }: { searchParams: { vie
   // デモは主に企業担当者にお見せするため、企業担当者の画面を先に出す
   const company = searchParams.view !== "office";
   const { rows, items } = demoCheckups();
-  const total = rows.length;
-  const findings = rows.filter(
-    (c) => c.has_findings || isFindingJudgment(c.overall_judgment) || (c.findingItems ?? []).some((it) => isFindingJudgment(it.judgment))
-  ).length;
-  const instructed = rows.filter((c) => (c.overall_judgment ?? "").startsWith("D")).length;
-  const rate = Math.round((findings / total) * 1000) / 10;
-  const instructedRate = Math.round((instructed / total) * 1000) / 10;
-  const restrictionCount = rows.filter((c) => (c.findingItems ?? []).some((it) => isRestrictionJudgment(it.judgment))).length;
-  const attention = rows.filter((c) => needsAttention(c.work_judgment)).length;
-  const held = rows.filter((c) => c.work_judgment === "pending").length;
-  const restricted = rows.filter((c) => c.work_judgment === "restricted" || c.work_judgment === "leave").length;
-  const followupPending = rows.filter((c) => c.followup_status === "pending").length;
-  const followupRecommended = rows.filter((c) => c.followup_status === "recommended").length;
-  const followupDone = rows.filter((c) => c.followup_status === "done").length;
-  const categorySummary = summarizeByCategory(items);
-  const lastCheckupDate = rows.map((c) => c.checkup_date).filter(Boolean).sort().slice(-1)[0];
+  const { stats, form6 } = computeCheckupStats(rows, items);
+  const { total, findings, instructed, rate, instructedRate, restrictionCount, attention, held, restricted, followupPending, followupRecommended, followupDone } = stats;
 
   return (
     <>
@@ -62,6 +48,7 @@ export default function DemoCheckupsPage({ searchParams }: { searchParams: { vie
             <span className="btn secondary" aria-disabled style={{ opacity: 0.6, cursor: "default" }}>＋ 個別入力</span>
             <span className="btn" aria-disabled style={{ opacity: 0.6, cursor: "default" }}>就業判定結果出力</span>
             <span className="btn secondary" aria-disabled style={{ opacity: 0.6, cursor: "default" }}>健康診断結果出力</span>
+            <Link className="btn secondary" href="/demo/checkups/report">労基署報告（様式第6号）</Link>
           </p>
           <p className="muted" style={{ fontSize: 12.5 }}>
             {company
@@ -87,7 +74,7 @@ export default function DemoCheckupsPage({ searchParams }: { searchParams: { vie
               </tr>
               <tr>
                 <th>有所見率</th>
-                <td>{rate}%</td>
+                <td>{rate ?? 0}%</td>
                 <th>医師の指示人数</th>
                 <td>
                   {instructed}名
@@ -96,7 +83,7 @@ export default function DemoCheckupsPage({ searchParams }: { searchParams: { vie
               </tr>
               <tr>
                 <th>医師の指示人数率</th>
-                <td>{instructedRate}%</td>
+                <td>{instructedRate ?? 0}%</td>
                 <th>就業判定 要対応</th>
                 <td>
                   {attention > 0 ? <span className="badge orange">{attention}名</span> : "0名"}
@@ -135,47 +122,12 @@ export default function DemoCheckupsPage({ searchParams }: { searchParams: { vie
             </tbody>
           </table>
 
-          <details style={{ marginBottom: 14 }}>
+          <details open style={{ marginBottom: 14 }}>
             <summary style={{ cursor: "pointer", fontWeight: 700 }}>
               定期健康診断結果報告書（様式第6号）の転記用集計
-              <span className="muted" style={{ fontWeight: 400, marginLeft: 8, fontSize: 12 }}>健診項目ごとの受診者数・有所見者数</span>
+              <span className="muted" style={{ fontWeight: 400, marginLeft: 8, fontSize: 12 }}>健診項目ごとの受診者数・有所見者数（見出しを押すと折りたたみ）</span>
             </summary>
-            <div className="notice" style={{ marginTop: 10 }}>
-              労働基準監督署への報告は、厚生労働省の入力支援サービスで行えます。上の集計（受診者数・有所見者数・医師の指示人数）と下の健診項目別の人数をそのまま転記してください。
-            </div>
-            <table className="list" style={{ maxWidth: 560, marginBottom: 14 }}>
-              <tbody>
-                <tr>
-                  <th style={{ width: 220 }}>健診年月日（最終実施日）</th>
-                  <td>{lastCheckupDate ?? "—"}</td>
-                </tr>
-                <tr>
-                  <th>産業医</th>
-                  <td>
-                    {DEMO_OFFICE.physician_name}（{DEMO_OFFICE.office_name}）
-                    <div className="muted">{DEMO_OFFICE.address}</div>
-                  </td>
-                </tr>
-              </tbody>
-            </table>
-            <table className="list" style={{ maxWidth: 560 }}>
-              <thead>
-                <tr>
-                  <th>健診項目</th>
-                  <th style={{ width: 110 }}>受診者数</th>
-                  <th style={{ width: 110 }}>有所見者数</th>
-                </tr>
-              </thead>
-              <tbody>
-                {categorySummary.map((s) => (
-                  <tr key={s.key}>
-                    <td>{s.label}</td>
-                    <td>{s.examined > 0 ? s.examined : <span className="muted">0</span>}</td>
-                    <td>{s.findings > 0 ? <strong style={{ color: "var(--danger)" }}>{s.findings}</strong> : <span className="muted">0</span>}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+            <Form6Sheet variant="inline" companyName={DEMO_COMPANY} fiscalYear={DEMO_FISCAL_YEAR} stats={stats} form6={form6} officeInfo={DEMO_OFFICE} />
           </details>
 
           <p className="muted" style={{ fontSize: 12.5 }}>

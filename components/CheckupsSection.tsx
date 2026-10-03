@@ -1,18 +1,13 @@
 import Link from "next/link";
-import { createClient } from "@/lib/supabase/server";
-import CheckupsTable, { type CheckupRow } from "@/components/CheckupsTable";
+import CheckupsTable from "@/components/CheckupsTable";
 import RecentImports from "@/components/RecentImports";
 import CsvUploadsStatus from "@/components/CsvUploadsStatus";
 import CsvUploadsArchive from "@/components/CsvUploadsArchive";
 import RecomputeJudgments from "@/components/RecomputeJudgments";
 import WorkJudgmentReportButton from "@/components/WorkJudgmentReportButton";
 import CheckupListCsvButton from "@/components/CheckupListCsvButton";
-import { getOfficeInfo } from "@/lib/officeInfo";
-import { summarizeByCategory, type ReportItem } from "@/lib/checkupReport";
-import { isFindingJudgment, isRestrictionJudgment, needsAttention } from "@/lib/checkups";
-import { getJudgmentRules } from "@/lib/judgmentRules";
-import { fetchCheckupItems } from "@/lib/checkupItems";
-import { gradeFromValue } from "@/lib/gradeFromValue";
+import Form6Sheet from "@/components/Form6Sheet";
+import { loadCheckupList } from "@/lib/checkupList";
 
 // 健診一覧+集計(サーバーコンポーネント)。office/company共用
 export default async function CheckupsSection({
@@ -34,150 +29,8 @@ export default async function CheckupsSection({
   canDelete?: boolean;
   canJudge?: boolean;
 }) {
-  const supabase = createClient();
-  // 年度・実施回の一覧。1回の問い合わせで返る行数には上限(1000行)があり、
-  // 受診者×年度が1000件を超えると古い年度が欠けてしまうため、全件を分けて取得する
-  const fetchYearRows = async () => {
-    const PAGE = 1000;
-    const all: { fiscal_year: number; round: number | null }[] = [];
-    for (let from = 0; ; from += PAGE) {
-      const { data } = await supabase
-        .from("hm_checkups")
-        .select("fiscal_year, round")
-        .eq("company_id", companyId)
-        .order("fiscal_year", { ascending: false })
-        .order("round")
-        .range(from, from + PAGE - 1);
-      if (!data || data.length === 0) break;
-      all.push(...(data as { fiscal_year: number; round: number | null }[]));
-      if (data.length < PAGE) break;
-    }
-    return all;
-  };
-
-  // 互いに関係のない問い合わせは同時に行い、待ち時間を短くする
-  const [officeInfo, yearRows, rules] = await Promise.all([
-    getOfficeInfo(),
-    fetchYearRows(),
-    getJudgmentRules(),
-  ]);
-  const years = Array.from(new Set((yearRows ?? []).map((r) => r.fiscal_year)));
-  const year = selectedYear ?? years[0];
-  // その年度に存在する実施回(1回だけなら選択肢は出さない)
-  const rounds = Array.from(
-    new Set((yearRows ?? []).filter((r) => r.fiscal_year === year).map((r) => r.round ?? 1))
-  ).sort((a, b) => a - b);
-  const round = selectedRound ?? rounds[0] ?? 1;
-  const roundQuery = rounds.length > 1 ? `&round=${round}` : "";
-
-  const listCols =
-    "id, target_name, employee_no, sex, birth_date, checkup_type, special_kind, checkup_date, overall_judgment, has_findings, work_judgment, work_judgment_note, work_judgment_date, followup_status";
-  const fetchList = (cols: string) =>
-    supabase
-      .from("hm_checkups")
-      .select(cols)
-      .eq("company_id", companyId)
-      .eq("fiscal_year", year!)
-      .eq("round", round)
-      .order("employee_no", { ascending: true, nullsFirst: false })
-      .order("target_name");
-  // 判定条件(0132)・フリガナ/所属(0133)は後から追加した列。未適用の環境では列なしで取得する
-  let listRes = year
-    ? await fetchList(`${listCols}, work_judgment_condition, target_name_kana, department`)
-    : null;
-  if (listRes?.error) listRes = await fetchList(`${listCols}, work_judgment_condition`);
-  if (listRes?.error) listRes = await fetchList(listCols);
-  const checkups = (listRes?.data ?? []) as unknown as (CheckupRow & { sex: string | null })[];
-
-  // 有所見の検査項目を一覧に表示するため、該当年度分の項目をまとめて取得
-  const ids = (checkups ?? []).map((c) => c.id);
-  // 受診者が多いと項目は数千行になる。分割して全件取得する
-  // (取得漏れがあると、有所見項目が「有所見」だけの表示になってしまう)
-  const items = await fetchCheckupItems(ids);
-
-  // 健診機関の判定が項目ごとに入っていない場合に備え、事務所の判定基準で
-  // 補って表示する(どの項目がC・Dなのかを一覧で確認できるようにするため)
-  const sexById = new Map<string, "male" | "female" | null>(
-    (checkups ?? []).map((c) => [c.id, (c.sex as "male" | "female" | null) ?? null])
-  );
-
-  const gradeOf = (itemName: string, value: string | null, sex: "male" | "female" | null) =>
-    gradeFromValue(itemName, value, sex, rules);
-
-  const findingsByCheckup = new Map<
-    string,
-    { item_name: string; judgment: string | null; computed?: boolean }[]
-  >();
-  for (const it of items) {
-    // 就業制限の検討水準(R)は測定値そのもので決まるため、健診機関の判定が
-    // 入っている項目でも必ず値から確かめる(例: 健診機関がDでも随時血糖300以上ならR)
-    const g = gradeOf(it.item_name, it.value, sexById.get(it.checkup_id) ?? null);
-    let judgment = it.judgment;
-    let computed = false;
-    if (isRestrictionJudgment(g)) {
-      judgment = "R";
-      computed = true;
-    } else if (!isFindingJudgment(judgment)) {
-      // 判定が無い(または有所見に当たらない)項目は、事務所基準で判定してみる
-      if (judgment) continue;
-      if (!isFindingJudgment(g)) continue;
-      judgment = g;
-      computed = true;
-    }
-    const arr = findingsByCheckup.get(it.checkup_id) ?? [];
-    arr.push({ item_name: it.item_name, judgment, computed });
-    findingsByCheckup.set(it.checkup_id, arr);
-  }
-
-  const list = (checkups ?? []).map((c) => ({
-    ...c,
-    findingItems: findingsByCheckup.get(c.id) ?? [],
-  }));
-  const total = list.length;
-  // 有所見者: 取込時の判定(has_findings。総合判定または検査項目のいずれかが C・D・E・R)に加え、
-  // 事務所基準で補った項目判定も含めて C 以上の判定がある方。
-  // B(軽度異常)は有所見に数えない(健診項目別の集計・一覧の有所見項目と同じ基準)
-  const findings = list.filter(
-    (c) =>
-      c.has_findings ||
-      isFindingJudgment(c.overall_judgment) ||
-      c.findingItems.some((it) => isFindingJudgment(it.judgment))
-  ).length;
-  // 医師の指示人数は総合判定 D で集計する
-  const instructed = list.filter(
-    (c) => (c.overall_judgment ?? "").trim().charAt(0).toUpperCase() === "D"
-  ).length;
-  const instructedRate =
-    total >= 10 ? Math.round((instructed / total) * 1000) / 10 : null;
-  // 就業制限の検討が必要な水準(R)の項目を持つ方
-  const restrictionCount = list.filter((c) =>
-    c.findingItems.some((it) => isRestrictionJudgment(it.judgment))
-  ).length;
-  const attention = list.filter((c) => needsAttention(c.work_judgment)).length;
-  // 受診勧奨のフォローアップ状況
-  const followupPending = list.filter((c) => c.followup_status === "pending").length;
-  const followupRecommended = list.filter((c) => c.followup_status === "recommended").length;
-  const followupDone = list.filter((c) => c.followup_status === "done").length;
-  const held = list.filter((c) => c.work_judgment === "pending").length;
-  const restricted = list.filter(
-    (c) => c.work_judgment === "restricted" || c.work_judgment === "leave"
-  ).length;
-  // 個人特定防止: 10名未満のグループは率を表示しない
-  const rate = total >= 10 ? Math.round((findings / total) * 1000) / 10 : null;
-
-  // 定期健康診断結果報告書(様式第6号)の転記用: 定期健診だけを対象に、健診項目の区分ごとに集計する
-  // (以前は別ページだったが、上の集計と重なる項目が多かったためここに統合した)
-  const regularIds = new Set(list.filter((c) => c.checkup_type === "regular").map((c) => c.id));
-  const regularCount = regularIds.size;
-  const categorySummary = summarizeByCategory(
-    items.filter((it) => regularIds.has(it.checkup_id)) as ReportItem[]
-  );
-  const lastCheckupDate = list
-    .filter((c) => regularIds.has(c.id))
-    .map((c) => c.checkup_date)
-    .filter(Boolean)
-    .sort()
-    .slice(-1)[0];
+  const { officeInfo, rules, years, year, rounds, round, roundQuery, list, items, stats, form6 } =
+    await loadCheckupList(companyId, selectedYear, selectedRound);
 
   return (
     <div>
@@ -201,18 +54,22 @@ export default async function CheckupsSection({
               companyName={companyName}
               fiscalYear={year}
               round={rounds.length > 1 ? round : undefined}
-              rows={list as CheckupRow[]}
+              rows={list}
               officeInfo={officeInfo}
             />
-            {/* 検査値付きの一覧(以前は「定期健康診断結果報告書」ページにあったもの) */}
+            {/* 検査値付きの一覧 */}
             <CheckupListCsvButton
               companyName={companyName}
               fiscalYear={year}
               round={rounds.length > 1 ? round : undefined}
-              rows={list as CheckupRow[]}
-              items={items as ReportItem[]}
+              rows={list}
+              items={items}
               officeInfo={officeInfo}
             />
+            {/* 労働基準監督署への報告(様式第6号)に転記する数値を印刷・PDF保存できる画面 */}
+            <Link className="btn secondary" href={`${basePath}/report?year=${year}${roundQuery}`}>
+              労基署報告（様式第6号）
+            </Link>
           </>
         )}
       </p>
@@ -232,12 +89,7 @@ export default async function CheckupsSection({
         <p style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
           <span className="muted">年度:</span>
           {years.map((y) => (
-            <Link
-              key={y}
-              href={`${basePath}?year=${y}`}
-              className={y === year ? "badge" : ""}
-              style={y === year ? {} : { padding: "2px 8px" }}
-            >
+            <Link key={y} href={`${basePath}?year=${y}`} className={y === year ? "badge" : ""} style={y === year ? {} : { padding: "2px 8px" }}>
               {y}年度
             </Link>
           ))}
@@ -266,96 +118,66 @@ export default async function CheckupsSection({
             <tbody>
               <tr>
                 <th>受診者数</th>
-                <td>{total}名</td>
+                <td>{stats.total}名</td>
                 <th>有所見者数</th>
                 <td>
-                  {findings}名
-                  <span className="muted" style={{ marginLeft: 6, fontSize: 12 }}>
-                    （C以上の判定がある方）
-                  </span>
+                  {stats.findings}名
+                  <span className="muted" style={{ marginLeft: 6, fontSize: 12 }}>（C以上の判定がある方）</span>
                 </td>
               </tr>
               <tr>
                 <th>有所見率</th>
-                <td>
-                  {rate !== null ? (
-                    `${rate}%`
-                  ) : (
-                    <span className="muted">10名未満のため非表示</span>
-                  )}
-                </td>
+                <td>{stats.rate !== null ? `${stats.rate}%` : <span className="muted">10名未満のため非表示</span>}</td>
                 <th>医師の指示人数</th>
                 <td>
-                  {instructed}名
-                  <span className="muted" style={{ marginLeft: 6, fontSize: 12 }}>
-                    （総合判定D）
-                  </span>
+                  {stats.instructed}名
+                  <span className="muted" style={{ marginLeft: 6, fontSize: 12 }}>（総合判定D）</span>
                 </td>
               </tr>
               <tr>
                 <th>医師の指示人数率</th>
-                <td>
-                  {instructedRate !== null ? (
-                    `${instructedRate}%`
-                  ) : (
-                    <span className="muted">10名未満のため非表示</span>
-                  )}
-                </td>
+                <td>{stats.instructedRate !== null ? `${stats.instructedRate}%` : <span className="muted">10名未満のため非表示</span>}</td>
                 <th>就業判定 要対応</th>
                 <td>
-                  {attention > 0 ? (
-                    <span className="badge orange">{attention}名</span>
-                  ) : (
-                    "0名"
-                  )}
-                  {held > 0 && (
-                    <span className="muted" style={{ marginLeft: 6 }}>
-                      （うち判定保留 {held}名）
-                    </span>
-                  )}
+                  {stats.attention > 0 ? <span className="badge orange">{stats.attention}名</span> : "0名"}
+                  {stats.held > 0 && <span className="muted" style={{ marginLeft: 6 }}>（うち判定保留 {stats.held}名）</span>}
                 </td>
               </tr>
               <tr>
                 <th>受診勧奨</th>
                 <td colSpan={3}>
-                  {followupPending > 0 ? (
-                    <span className="badge orange">未対応 {followupPending}名</span>
-                  ) : (
-                    "未対応 0名"
-                  )}
+                  {stats.followupPending > 0 ? <span className="badge orange">未対応 {stats.followupPending}名</span> : "未対応 0名"}
                   <span className="muted" style={{ marginLeft: 8 }}>
-                    勧奨済 {followupRecommended}名 / 受診済 {followupDone}名
+                    勧奨済 {stats.followupRecommended}名 / 受診済 {stats.followupDone}名
                     （総合判定D以上の方は取込時に「受診勧奨」になります。一覧の「受診勧奨」欄で更新できます）
                   </span>
                 </td>
               </tr>
               {/* 就業制限項目(R)の行は実施者の画面だけに出す(企業担当者には列も出さない) */}
               {canDelete && (
-              <tr>
-                <th>就業制限項目（R）</th>
-                <td colSpan={3}>
-                  {restrictionCount > 0 ? (
-                    <>
-                      <strong style={{ color: "var(--danger)" }}>{restrictionCount}名</strong>
-                      <span className="muted" style={{ marginLeft: 8 }}>
-                        就業上の措置を検討する水準の項目があります（一覧の「就業制限項目（R）」欄）
-                      </span>
-                    </>
-                  ) : (
-                    "0名"
-                  )}
-                </td>
-              </tr>
+                <tr>
+                  <th>就業制限項目（R）</th>
+                  <td colSpan={3}>
+                    {stats.restrictionCount > 0 ? (
+                      <>
+                        <strong style={{ color: "var(--danger)" }}>{stats.restrictionCount}名</strong>
+                        <span className="muted" style={{ marginLeft: 8 }}>
+                          就業上の措置を検討する水準の項目があります（一覧の「就業制限項目（R）」欄）
+                        </span>
+                      </>
+                    ) : (
+                      "0名"
+                    )}
+                  </td>
+                </tr>
               )}
               <tr>
                 <th>就業制限・要休業</th>
                 <td colSpan={3}>
-                  {restricted > 0 ? (
+                  {stats.restricted > 0 ? (
                     <>
-                      <strong style={{ color: "var(--danger)" }}>{restricted}名</strong>
-                      <span className="muted" style={{ marginLeft: 8 }}>
-                        該当者の「医師の意見」欄をご確認のうえ、就業上の措置をご検討ください
-                      </span>
+                      <strong style={{ color: "var(--danger)" }}>{stats.restricted}名</strong>
+                      <span className="muted" style={{ marginLeft: 8 }}>該当者の「医師の意見」欄をご確認のうえ、就業上の措置をご検討ください</span>
                     </>
                   ) : (
                     "0名"
@@ -366,87 +188,26 @@ export default async function CheckupsSection({
           </table>
 
           {/* 労働基準監督署へ提出する定期健康診断結果報告書(様式第6号)に転記するための集計。
-              受診者数・有所見者数・医師の指示人数は上の表の値を使う */}
-          <details style={{ marginBottom: 14 }}>
+              最初から開いて表示し、見出しを押すと折りたたむ */}
+          <details open style={{ marginBottom: 14 }}>
             <summary style={{ cursor: "pointer", fontWeight: 700 }}>
               定期健康診断結果報告書（様式第6号）の転記用集計
               <span className="muted" style={{ fontWeight: 400, marginLeft: 8, fontSize: 12 }}>
-                健診項目ごとの受診者数・有所見者数
+                健診項目ごとの受診者数・有所見者数（見出しを押すと折りたたみ）
               </span>
             </summary>
-            <div className="notice" style={{ marginTop: 10 }}>
-              労働基準監督署への報告は、厚生労働省の
-              <a
-                href="https://www.chohyo-shien.mhlw.go.jp/inputsupport/servlet/com.inputsupport.ksinrepo"
-                target="_blank"
-                rel="noopener noreferrer"
-              >
-                入力支援サービス
-              </a>
-              で行えます。上の集計（受診者数・有所見者数・医師の指示人数）と下の健診項目別の人数をそのまま転記してください。
-              定期健診のみを集計し、受診者数・有所見者数は各区分の検査項目が記録されている方を1名として数えています（C以上の判定を有所見としています）。
-            </div>
-            <table className="list" style={{ maxWidth: 560, marginBottom: 14 }}>
-              <tbody>
-                <tr>
-                  <th style={{ width: 220 }}>健診年月日（最終実施日）</th>
-                  <td>{lastCheckupDate ?? "—"}</td>
-                </tr>
-                {regularCount !== total && (
-                  <tr>
-                    <th>受診労働者数（定期健診のみ）</th>
-                    <td>
-                      <strong>{regularCount}</strong>名
-                      <span className="muted" style={{ marginLeft: 8 }}>
-                        （上の集計には定期健診以外 {total - regularCount}名を含みます）
-                      </span>
-                    </td>
-                  </tr>
-                )}
-                <tr>
-                  <th>産業医</th>
-                  <td>
-                    {officeInfo?.physician_name ?? "上松弘典"}（{officeInfo?.office_name ?? "うえまつ産業医事務所"}）
-                    <div className="muted">
-                      {officeInfo?.address || "所在地が未登録です（事務所の設定から登録できます）"}
-                    </div>
-                  </td>
-                </tr>
-              </tbody>
-            </table>
-            <table className="list" style={{ maxWidth: 560 }}>
-              <thead>
-                <tr>
-                  <th>健診項目</th>
-                  <th style={{ width: 110 }}>受診者数</th>
-                  <th style={{ width: 110 }}>有所見者数</th>
-                </tr>
-              </thead>
-              <tbody>
-                {categorySummary.map((s) => (
-                  <tr key={s.key}>
-                    <td>{s.label}</td>
-                    <td>{s.examined > 0 ? s.examined : <span className="muted">0</span>}</td>
-                    <td>
-                      {s.findings > 0 ? (
-                        <strong style={{ color: "var(--danger)" }}>{s.findings}</strong>
-                      ) : (
-                        <span className="muted">0</span>
-                      )}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+            <Form6Sheet
+              variant="inline"
+              companyName={companyName}
+              fiscalYear={year}
+              round={rounds.length > 1 ? round : undefined}
+              stats={stats}
+              form6={form6}
+              officeInfo={officeInfo}
+            />
           </details>
 
-          <CheckupsTable
-            rows={list as CheckupRow[]}
-            canDelete={canDelete}
-            canJudge={canJudge}
-            canFollowup={canEdit}
-            compact={!canDelete}
-          />
+          <CheckupsTable rows={list} canDelete={canDelete} canJudge={canJudge} canFollowup={canEdit} compact={!canDelete} />
         </>
       ) : (
         <p className="muted">健診結果はまだ登録されていません。</p>
