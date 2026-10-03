@@ -145,14 +145,37 @@ export async function readCsvFile(file: File): Promise<string> {
 }
 
 // 「2026/6/1」「2026-06-01」「20260601」等を YYYY-MM-DD に正規化
+// 元号(明治・大正・昭和・平成・令和)の開始年
+const ERA_BASE: Record<string, number> = { M: 1867, 明治: 1867, T: 1911, 大正: 1911, S: 1925, 昭和: 1925, H: 1988, 平成: 1988, R: 2018, 令和: 2018 };
+
+// 日付の表記を YYYY-MM-DD にそろえる。健診機関のCSVで見かける次の表記に対応する:
+//   2026/9/1、2026-09-01、2026.9.1、20260901、2026年9月1日、
+//   S45.3.12、昭和45年3月12日、R7/9/1、令和7年9月1日、全角数字、Excelのシリアル値(例: 46176)
 export function normalizeDate(s: string): string | null {
-  const t = s.trim();
+  const t = (s ?? "").normalize("NFKC").trim().replace(/\s+/g, "");
   if (!t) return null;
-  let m = t.match(/^(\d{4})[\/\-.](\d{1,2})[\/\-.](\d{1,2})/);
-  if (!m) m = t.match(/^(\d{4})(\d{2})(\d{2})$/);
-  if (!m) return null;
-  const y = m[1];
-  const mo = m[2].padStart(2, "0");
-  const d = m[3].padStart(2, "0");
-  return `${y}-${mo}-${d}`;
+  const pad = (v: string | number) => String(v).padStart(2, "0");
+  const ok = (y: number, mo: number, d: number) =>
+    y >= 1868 && y <= 2100 && mo >= 1 && mo <= 12 && d >= 1 && d <= 31 ? `${y}-${pad(mo)}-${pad(d)}` : null;
+
+  let m = t.match(/^(\d{4})[\/\-.年](\d{1,2})[\/\-.月](\d{1,2})日?/);
+  if (m) return ok(Number(m[1]), Number(m[2]), Number(m[3]));
+  m = t.match(/^(\d{4})(\d{2})(\d{2})$/);
+  if (m) return ok(Number(m[1]), Number(m[2]), Number(m[3]));
+  // 和暦: S45.3.12 / 昭和45年3月12日 / R7/9/1 / 令和元年5月1日
+  m = t.match(/^(明治|大正|昭和|平成|令和|[MTSHR])\.?(元|\d{1,2})[\/\-.年](\d{1,2})[\/\-.月](\d{1,2})日?/i);
+  if (m) {
+    const base = ERA_BASE[m[1].toUpperCase()] ?? ERA_BASE[m[1]];
+    const yy = m[2] === "元" ? 1 : Number(m[2]);
+    if (base != null) return ok(base + yy, Number(m[3]), Number(m[4]));
+  }
+  // Excel のシリアル値(1900年起点)。1950〜2100年の範囲だけを日付として扱う
+  if (/^\d{5}$/.test(t)) {
+    const serial = Number(t);
+    if (serial >= 18264 && serial <= 73415) {
+      const d = new Date(Date.UTC(1899, 11, 30) + serial * 86400000);
+      return ok(d.getUTCFullYear(), d.getUTCMonth() + 1, d.getUTCDate());
+    }
+  }
+  return null;
 }

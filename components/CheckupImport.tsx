@@ -128,6 +128,39 @@ export default function CheckupImport({
   }, [dataRows, dateCol]);
   const yearMismatch = csvFiscalYear != null && csvFiscalYear !== fiscalYear;
 
+  // 生年月日・健診日の列に、日付として読み取れない値がある行(表記の確認用に最初の例を出す)
+  const unreadableDates = (col: number) => {
+    if (col < 0) return { count: 0, example: "" };
+    let count = 0;
+    let example = "";
+    for (const r of dataRows) {
+      const raw = (r[col] ?? "").trim();
+      if (!raw || normalizeDate(raw)) continue;
+      count += 1;
+      if (!example) example = raw;
+    }
+    return { count, example };
+  };
+  const badBirth = unreadableDates(birthCol);
+  const badDate = unreadableDates(dateCol);
+  const dateWarning =
+    badBirth.count + badDate.count > 0 ? (
+      <p className="error-message">
+        日付として読み取れない値があります
+        {badBirth.count > 0 && (
+          <>
+            ：生年月日 {badBirth.count}行（例「{badBirth.example}」）
+          </>
+        )}
+        {badDate.count > 0 && (
+          <>
+            ：健診日 {badDate.count}行（例「{badDate.example}」）
+          </>
+        )}
+        。この行は生年月日・健診日が空のまま取り込まれます。表記(例: 2026/9/1、昭和45年3月12日、S45.3.12、20260901)をご確認ください。
+      </p>
+    ) : null;
+
   // CSVの文字列を読み込み、見出しから列を自動で割り当てる
   const loadCsv = (text: string, name: string) => {
     setError(null);
@@ -656,6 +689,7 @@ export default function CheckupImport({
               直してから取り込んでください（このままでも取り込めますが、{fiscalYear}年度として登録されます）。
             </p>
           )}
+          {dateWarning}
           {error && <p className="error-message">{error}</p>}
           <button className="btn orange" onClick={onImport} disabled={busy || nameCol < 0}>
             {busy ? "取込中…" : `${dataRows.length}名分を${fiscalYear}年度として取り込む`}
@@ -782,6 +816,7 @@ export default function CheckupImport({
               <strong>{fiscalYear}年度</strong>になっています。上の「年度」をご確認ください。
             </p>
           )}
+          {dateWarning}
           {error && <p className="error-message">{error}</p>}
           <button className="btn orange" onClick={onImport} disabled={busy}>
             {busy ? "取込中…" : `この内容で ${dataRows.length} 行を${fiscalYear}年度として取り込む`}
