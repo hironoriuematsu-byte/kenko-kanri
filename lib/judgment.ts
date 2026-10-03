@@ -107,8 +107,13 @@ function normalizeHeader(s: string): string {
   return s.normalize("NFKC").toLowerCase().replace(/[\s　()（）]/g, "");
 }
 
+// 法定項目と見出しが似ていても別の検査(B型・C型肝炎の抗原・抗体など)は自動で割り当てない。
+// 「HBs抗原」「HBc抗体」が「Hb」「HbA1c」に、「肝炎」が肝機能に誤って割り当たるのを防ぐ
+const NOT_LEGAL_HEADER = /hbs|hbc|hbe|hbv|hcv|hiv|htlv|肝炎|抗原|抗体|ウイルス|ウィルス/;
+
 export function findLegalItemByHeader(header: string): string | null {
   const h = normalizeHeader(header);
+  if (NOT_LEGAL_HEADER.test(h)) return null;
   // 「HbA1c」を「Hb」より優先するため、別名の長い順に判定する
   const candidates = LEGAL_ITEMS.flatMap((it) =>
     it.aliases.map((a) => ({ key: it.key, alias: normalizeHeader(a) }))
