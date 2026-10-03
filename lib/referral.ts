@@ -61,8 +61,8 @@ function categoryOf(itemName: string): Category | null {
 export type ReferralItem = { item_name: string; judgment: string | null; value?: string | null };
 
 // 血色素量・赤血球数の異常が「高い側(多血)」かどうか。
-// 要医療(D)の基準は Hb 男性 18.1 以上 / 女性 16.1 以上(低い側は男性 12.0 以下 / 女性 11.0 以下)なので、
-// 基準の中間より上なら多血とみなす
+// 要医療(D)の高値側の基準そのものを使う:
+//   血色素量 男性 18.1 以上 / 女性 16.1 以上(0117)、赤血球数 男性 600 以上 / 女性 550 以上(0125、×10^4/μL)
 const POLYCYTHEMIA_CATEGORY: Category = { label: "多血", dept: "内科" };
 function isHighBloodCount(itemName: string, value: string | null | undefined, sex: "male" | "female" | null): boolean {
   if (value == null) return false;
@@ -70,19 +70,15 @@ function isHighBloodCount(itemName: string, value: string | null | undefined, se
   if (!Number.isFinite(num)) return false;
   const key = findLegalItemByHeader(itemName);
   const name = itemName.normalize("NFKC");
-  if (key === "hb" || /血色素|ヘモグロビン|hgb|\bhb\b/i.test(name)) return num >= (sex === "female" ? 13.5 : 15.0);
+  if (key === "hb" || /血色素|ヘモグロビン|hgb|\bhb\b/i.test(name)) return num >= (sex === "female" ? 16.1 : 18.1);
   if (key === "rbc" || /赤血球/.test(name)) {
     // 赤血球数は ×10^4/μL(例: 450)で扱う。×10^6/μL(例: 4.50)なら換算する
     const n = num < 100 ? num * 100 : num;
-    return n >= (sex === "female" ? 460 : 520);
+    return n >= (sex === "female" ? 550 : 600);
   }
-  if (/ヘマトクリット|hct/i.test(name)) return num >= (sex === "female" ? 41 : 46);
   return false;
 }
 
-// 要医療項目(D)・就業制限項目(R)から受診勧奨の文章を作る。該当が無ければ空文字。
-//   同じ受診先は「・」でまとめ、受診先ごとに「、」で区切る
-//   区分に当てはまらない項目は「<項目名>異常あり医療機関受診」とする
 export function referralNote(items: ReferralItem[], sex: "male" | "female" | null): string {
   // 受診先 → 異常の区分(重複なし・出現順)
   const byDept = new Map<string, string[]>();
