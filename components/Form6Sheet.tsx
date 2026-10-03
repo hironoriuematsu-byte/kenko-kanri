@@ -3,7 +3,8 @@ import type { OfficeInfo } from "@/lib/officeInfo";
 import type { CheckupStats, Form6Summary } from "@/lib/checkupList";
 import { formatDateJa } from "@/lib/fiscal";
 
-const MHLW_URL = "https://www.chohyo-shien.mhlw.go.jp/inputsupport/servlet/com.inputsupport.ksinrepo";
+// 入力支援サービスのトップページ(個別の様式のURLは直接開くとセッションエラーになるため)
+const MHLW_URL = "https://www.chohyo-shien.mhlw.go.jp/index.html";
 
 // 定期健康診断結果報告書(様式第6号)に転記するための集計。
 //   variant="inline": 健康診断管理の集計表の下に出す(受診者数などは上の表にあるので省く)
