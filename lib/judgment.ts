@@ -49,7 +49,8 @@ export const LEGAL_ITEMS: {
   aliases: string[];
   textJudged?: boolean; // 所見の文言で判定する(数値の基準を持たない)
 }[] = [
-  { key: "bmi", label: "BMI", unit: "kg/m2", aliases: ["bmi", "肥満度"] },
+  // 「肥満度」(標準体重に対する%)は BMI とは別の指標なので割り当てない
+  { key: "bmi", label: "BMI", unit: "kg/m2", aliases: ["bmi"] },
   { key: "waist", label: "腹囲", unit: "cm", sexSpecific: true, aliases: ["腹囲", "ウエスト"] },
   // 視力・聴力は右・左の列がそれぞれこの項目に対応づく。各列を判定し、
   // 総合判定には最も重いもの(=悪い側)が反映される
@@ -114,10 +115,10 @@ function normalizeHeader(s: string): string {
 // (「尿沈査」の誤記、「尿沈」だけの略記にも対応)
 // non-HDL コレステロール、LDL/HDL 比(L/H 比)は法定項目ではなく、HDL・LDL に誤って割り当たるのを防ぐ
 const NOT_LEGAL_HEADER =
-  /hbs|hbc|hbe|hbv|hcv|hiv|htlv|肝炎|抗原|抗体|ウイルス|ウィルス|尿沈|沈渣|沈査|尿中赤血球|尿赤血球|尿潜血|non-?hdl|nonhdl|ノンhdl|\/hdl|hdl比|l\/h比|比$/;
+  /hbs|hbc|hbe|hbv|hcv|hiv|htlv|肝炎|抗原|抗体|ウイルス|ウィルス|尿沈|沈渣|沈査|尿中赤血球|尿赤血球|尿潜血|non-?hdl|nonhdl|ノンhdl|\/hdl|hdl比|l\/h比|比$|肥満度/;
 
 // 自動割り当ての版(取込画面に表示し、新しい判定が反映されているかを確かめられるようにする)
-export const HEADER_RULES_VERSION = "2026-10-03c";
+export const HEADER_RULES_VERSION = "2026-10-03d";
 
 export function findLegalItemByHeader(header: string): string | null {
   const h = normalizeHeader(header);
