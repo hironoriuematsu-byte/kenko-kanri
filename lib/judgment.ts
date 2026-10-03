@@ -118,11 +118,15 @@ const NOT_LEGAL_HEADER =
   /hbs|hbc|hbe|hbv|hcv|hiv|htlv|肝炎|抗原|抗体|ウイルス|ウィルス|尿沈|沈渣|沈査|尿中赤血球|尿赤血球|尿潜血|non-?hdl|nonhdl|ノンhdl|\/hdl|hdl比|l\/h比|比$|肥満度/;
 
 // 自動割り当ての版(取込画面に表示し、新しい判定が反映されているかを確かめられるようにする)
-export const HEADER_RULES_VERSION = "2026-10-03d";
+export const HEADER_RULES_VERSION = "2026-10-03e";
 
 export function findLegalItemByHeader(header: string): string | null {
   const h = normalizeHeader(header);
   if (NOT_LEGAL_HEADER.test(h)) return null;
+  // 全角のハイフン・長音・スラッシュなど、記号の表記ゆれに影響されないよう、記号を除いた形でも確かめる
+  // (例: 「ｎｏｎ－ＨＤＬ」「ＬＤＬ／ＨＤＬ比」「non‐HDL」)
+  const compact = h.replace(/[\s\-‐‑‒–—―ー－_\/／∕・･.,:;()（）\[\]【】%％]/g, "");
+  if (/nonhdl|ノンhdl|ldlhdl|hdl比|比$|肥満度/.test(compact)) return null;
   // 「HbA1c」を「Hb」より優先するため、別名の長い順に判定する
   const candidates = LEGAL_ITEMS.flatMap((it) =>
     it.aliases.map((a) => ({ key: it.key, alias: normalizeHeader(a) }))
