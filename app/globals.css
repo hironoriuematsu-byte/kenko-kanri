@@ -276,9 +276,19 @@ table.list td {
 }
 
 /* ---- print (帳票: 既存方式) ---- */
+/* ブラウザが余白に印字する URL・日付・ページ題名(ヘッダー/フッター)を出さないため、
+   ページ余白を 0 にし、代わりに帳票側(.print-sheet)に余白を持たせる
+   (診療情報提供依頼書や意見書など、相手方に渡す文書にアプリのURLが印字されないようにする) */
+@page {
+  margin: 0;
+}
 @media print {
   body {
     background: #fff;
+  }
+  .print-sheet {
+    padding: 18mm 16mm;
+    box-sizing: border-box;
   }
   .no-print {
     display: none !important;
@@ -294,6 +304,13 @@ table.list td {
   }
   .print-sheet {
     font-size: 12pt;
+  }
+  /* 帳票以外のページ(一覧など)を印刷するときも、紙の端に文字が付かないよう最低限の余白を取る */
+  main.container {
+    padding: 14mm 12mm;
+  }
+  main.container .print-sheet {
+    padding: 4mm 4mm;
   }
   .sheet-break {
     page-break-after: always;
