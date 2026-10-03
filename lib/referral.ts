@@ -24,7 +24,8 @@ const CATEGORY_BY_KEY: Record<string, Category> = {
   casual_glucose: { label: "耐糖能異常", dept: "内科" },
   hba1c: { label: "耐糖能異常", dept: "内科" },
   urine_glucose: { label: "耐糖能異常", dept: "内科" },
-  // 貧血: 女性は婦人科の要因も考えられるため受診先を分ける
+  // 貧血: 女性は婦人科の要因も考えられるため受診先を分ける。
+  // 値が高いほう(多血)の要医療は「多血」とする(値での見分けは referralNote 内)
   hb: { label: "貧血", dept: (sex) => (sex === "female" ? "内科（婦人科）" : "内科") },
   rbc: { label: "貧血", dept: (sex) => (sex === "female" ? "内科（婦人科）" : "内科") },
   ecg: { label: "心電図異常", dept: "内科（循環器内科）" },
@@ -57,7 +58,27 @@ function categoryOf(itemName: string): Category | null {
   return null;
 }
 
-export type ReferralItem = { item_name: string; judgment: string | null };
+export type ReferralItem = { item_name: string; judgment: string | null; value?: string | null };
+
+// 血色素量・赤血球数の異常が「高い側(多血)」かどうか。
+// 要医療(D)の基準は Hb 男性 18.1 以上 / 女性 16.1 以上(低い側は男性 12.0 以下 / 女性 11.0 以下)なので、
+// 基準の中間より上なら多血とみなす
+const POLYCYTHEMIA_CATEGORY: Category = { label: "多血", dept: "内科" };
+function isHighBloodCount(itemName: string, value: string | null | undefined, sex: "male" | "female" | null): boolean {
+  if (value == null) return false;
+  const num = Number(String(value).normalize("NFKC").replace(/[^\d.]/g, ""));
+  if (!Number.isFinite(num)) return false;
+  const key = findLegalItemByHeader(itemName);
+  const name = itemName.normalize("NFKC");
+  if (key === "hb" || /血色素|ヘモグロビン|hgb|\bhb\b/i.test(name)) return num >= (sex === "female" ? 13.5 : 15.0);
+  if (key === "rbc" || /赤血球/.test(name)) {
+    // 赤血球数は ×10^4/μL(例: 450)で扱う。×10^6/μL(例: 4.50)なら換算する
+    const n = num < 100 ? num * 100 : num;
+    return n >= (sex === "female" ? 460 : 520);
+  }
+  if (/ヘマトクリット|hct/i.test(name)) return num >= (sex === "female" ? 41 : 46);
+  return false;
+}
 
 // 要医療項目(D)・就業制限項目(R)から受診勧奨の文章を作る。該当が無ければ空文字。
 //   同じ受診先は「・」でまとめ、受診先ごとに「、」で区切る
@@ -72,7 +93,9 @@ export function referralNote(items: ReferralItem[], sex: "male" | "female" | nul
   };
   for (const it of items) {
     if (!(isSevereJudgment(it.judgment) || isRestrictionJudgment(it.judgment))) continue;
-    const cat = categoryOf(it.item_name);
+    let cat = categoryOf(it.item_name);
+    // 貧血の区分でも、値が高い側(多血)なら「多血あり内科受診」にする
+    if (cat && cat.label === "貧血" && isHighBloodCount(it.item_name, it.value, sex)) cat = POLYCYTHEMIA_CATEGORY;
     if (cat) {
       add(typeof cat.dept === "function" ? cat.dept(sex) : cat.dept, cat.label);
     } else {

@@ -21,7 +21,7 @@ import {
   parseOpinionNote,
 } from "@/lib/checkups";
 
-export type FindingItem = { item_name: string; judgment: string | null; computed?: boolean };
+export type FindingItem = { item_name: string; judgment: string | null; computed?: boolean; value?: string | null };
 
 export type CheckupRow = {
   id: string;

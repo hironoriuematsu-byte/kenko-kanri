@@ -151,7 +151,7 @@ export async function loadCheckupList(
   const sexById = new Map<string, "male" | "female" | null>(
     checkups.map((c) => [c.id, (c.sex as "male" | "female" | null) ?? null])
   );
-  const findingsByCheckup = new Map<string, { item_name: string; judgment: string | null; computed?: boolean }[]>();
+  const findingsByCheckup = new Map<string, { item_name: string; judgment: string | null; computed?: boolean; value?: string | null }[]>();
   for (const it of items) {
     // 就業制限の検討水準(R)は測定値そのもので決まるため、健診機関の判定が
     // 入っている項目でも必ず値から確かめる(例: 健診機関がDでも随時血糖300以上ならR)
@@ -169,7 +169,8 @@ export async function loadCheckupList(
       computed = true;
     }
     const arr = findingsByCheckup.get(it.checkup_id) ?? [];
-    arr.push({ item_name: it.item_name, judgment, computed });
+    // 値も持たせる(受診勧奨の文章で「貧血」か「多血」かを値で見分けるため)
+    arr.push({ item_name: it.item_name, judgment, computed, value: it.value });
     findingsByCheckup.set(it.checkup_id, arr);
   }
   const list: CheckupRow[] = checkups.map((c) => ({ ...c, findingItems: findingsByCheckup.get(c.id) ?? [] }));

@@ -193,7 +193,7 @@ export function demoCheckups(): { rows: CheckupRow[]; items: ReportItem[] } {
       work_judgment_date: p.judgment ? JUDGED : null,
       work_judgment_condition: p.condition ?? null,
       followup_status: p.followup ?? "none",
-      findingItems: p.items.filter(([, , j]) => /^[CDER]/.test(j)).map(([name, , j]) => ({ item_name: name, judgment: j })),
+      findingItems: p.items.filter(([, , j]) => /^[CDER]/.test(j)).map(([name, v, j]) => ({ item_name: name, judgment: j, value: v })),
     });
   });
   return { rows, items };
