@@ -57,7 +57,7 @@ export default async function DocumentPage({ params }: { params: { id: string } 
           </div>
 
           {doc.addressee && (
-            <p style={{ fontSize: "1.25em", fontWeight: 700, margin: "0 0 16px" }}>
+            <p style={{ fontSize: "1.12em", margin: "0 0 16px" }}>
               {doc.addressee}　先生御侍史
             </p>
           )}
