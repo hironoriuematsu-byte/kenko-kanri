@@ -3,6 +3,7 @@
 // 心電図・胸部エックス線・聴力の定性記載は、所見の文言から判定する(lib/textJudgment.ts)。
 
 import { judgeChestXrayText, judgeEcgText, judgeHearingCode, judgeHearingText } from "@/lib/textJudgment";
+import { normalizeGradeText } from "@/lib/gradeText";
 
 export type JudgmentRule = {
   id?: string;
@@ -163,6 +164,15 @@ export function judgeItem(
   sex: "male" | "female" | null,
   rules: JudgmentRule[]
 ): Grade | null {
+  // 健診機関の判定記号(B・C・E など)や指導区分の文言(要観察・要精密検査 など)が
+  // そのまま値として入っている列は、その記号を判定にする
+  // (「胸部X線指導区分 = C」を所見文として読んで A にしないため)
+  {
+    const coded = normalizeGradeText(rawValue);
+    const bareCode = /^[A-Ea-e](?![A-Za-z])/.test((rawValue ?? "").normalize("NFKC").trim());
+    if (coded && coded !== "R" && (bareCode || itemKey === "ecg" || itemKey === "chest_xray")) return coded;
+  }
+
   // 所見の文言から判定する項目(数値の基準は使わない)
   if (itemKey === "ecg") return judgeEcgText(rawValue);
   if (itemKey === "chest_xray") return judgeChestXrayText(rawValue);
