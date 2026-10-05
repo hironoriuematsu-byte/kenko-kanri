@@ -274,16 +274,25 @@ export function ChemicalReportSheet({
       {report.codes.length === 0 ? (
         <p className="muted">物質コードの記録がありません（取込時に「物質コード」「判定」の列を取り込んでください）。</p>
       ) : (
-        <table className="list" style={{ maxWidth: 820, marginBottom: 14 }}>
+        <table className="list" style={{ maxWidth: 1000, marginBottom: 14 }}>
           <thead>
             <tr>
-              <th style={th}>業務コード</th>
-              <th>特定化学物質・業務内容</th>
-              <th style={num}>従事労働者数</th>
-              <th style={num}>受診労働者数</th>
-              <th style={num}>第二次健診を要する者</th>
-              <th style={num}>有所見者数</th>
-              <th style={num}>疾病にかかっていると診断された者</th>
+              <th style={{ ...th, width: 80 }}>業務コード</th>
+              {/* 物質名・業務内容・判定の内訳が入るため、この列を広くとる */}
+              <th style={{ minWidth: 300, width: "36%" }}>特定化学物質・業務内容</th>
+              <th style={{ ...num, width: 96 }}>従事労働者数</th>
+              <th style={{ ...num, width: 96 }}>受診労働者数</th>
+              <th style={{ ...num, width: 110 }}>
+                第二次健診を
+                <br />
+                要する者
+              </th>
+              <th style={{ ...num, width: 90 }}>有所見者数</th>
+              <th style={{ ...num, width: 130 }}>
+                疾病にかかって
+                <br />
+                いると診断された者
+              </th>
             </tr>
           </thead>
           <tbody>
@@ -292,9 +301,9 @@ export function ChemicalReportSheet({
                 <td style={num}>
                   <strong>{c.code}</strong>
                 </td>
-                <td>
-                  {c.names.join("・") || "—"}
-                  <div className="muted" style={{ fontSize: 12 }}>
+                <td style={{ whiteSpace: "normal" }}>
+                  <span style={{ whiteSpace: "nowrap" }}>{c.names.join("・") || "—"}</span>
+                  <div className="muted" style={{ fontSize: 12, whiteSpace: "nowrap" }}>
                     {c.works.join("・")}
                     {Object.keys(c.judgments).length > 0 && (
                       <>
