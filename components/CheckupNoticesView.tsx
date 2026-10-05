@@ -685,10 +685,6 @@ export default function CheckupNoticesView({
                     </tr>
                   </tbody>
                 </table>
-                <div className="muted" style={{ fontSize: 11, marginTop: 4 }}>
-                  受診結果のわかる書類（結果報告書・診断書など）があれば添えてご提出ください。提出先：
-                  {contact || "担当部署"}
-                </div>
               </div>
             )}
           </div>
