@@ -35,3 +35,41 @@ export function gradeLabel(text: string | null | undefined): string {
   if (raw.toUpperCase().startsWith(g)) return raw;
   return `${g}（${raw}）`;
 }
+
+// 「17 A」「0.9 B」のように数値の右に判定記号が付いた表記を、値と判定に分ける
+// (有機溶剤健診のAST・ALT・γ-GTP など)。判定が無ければ grade は null
+export function splitValueGrade(text: string | null | undefined): { value: string; grade: GradeLetter | null } {
+  const t = String(text ?? "").normalize("NFKC").trim();
+  const m = t.match(/^(.*?\d)\s*([A-ERa-er])$/);
+  if (m) return { value: m[1].trim(), grade: m[2].toUpperCase() as GradeLetter };
+  return { value: t, grade: null };
+}
+
+// 生物学的モニタリング(尿中馬尿酸 など)の分布区分。
+// 「0.16①」「0.16 (1)」「0.16 1」「2」のように数値の右または単独で 1〜3 が書かれる。
+//   分布1 → A(基準値内)、分布2 → B(基準値を超えるが要注意)、分布3 → C(要措置)
+const DIST_GRADE: Record<string, GradeLetter> = { "1": "A", "2": "B", "3": "C" };
+export function splitDistribution(text: string | null | undefined): { value: string; dist: string | null; grade: GradeLetter | null } {
+  const raw = String(text ?? "").trim();
+  // 丸数字(NFKC で ①→1 になるため、先に見ておく)
+  const circled = raw.match(/[①②③]/);
+  let t = raw.normalize("NFKC").trim();
+  let dist: string | null = null;
+  if (circled) {
+    dist = { "①": "1", "②": "2", "③": "3" }[circled[0]] ?? null;
+    t = raw.replace(/[①②③]/g, "").trim();
+  } else {
+    // 単独の「1」〜「3」、または「0.16 (1)」「0.16 1」「0.16-2」のように値と区分が区切られている場合だけ読む
+    // (「0.5」のような小数の末尾を分布と誤認しない)
+    const alone = t.match(/^([123])$/);
+    const sep = t.match(/^(.*?\S)[\s(（\-\/]+([123])[)）]?$/);
+    if (alone) {
+      dist = alone[1];
+      t = "";
+    } else if (sep) {
+      dist = sep[2];
+      t = sep[1].trim();
+    }
+  }
+  return { value: t, dist, grade: dist ? DIST_GRADE[dist] : null };
+}

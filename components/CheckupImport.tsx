@@ -5,7 +5,7 @@ import { startNavigationProgress } from "@/lib/navigate";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/browser";
 import { getFiscalYear } from "@/lib/fiscal";
-import { normalizeGradeText } from "@/lib/gradeText";
+import { normalizeGradeText, splitValueGrade, splitDistribution } from "@/lib/gradeText";
 import { HEADER_RULES_VERSION } from "@/lib/judgment";
 import {
   CHECKUP_TYPES,
@@ -43,7 +43,12 @@ export type UploadedCsv = {
 };
 
 // 列の扱い: 法定項目(自動判定) / 値のみ / 判定として取込 / 取り込まない
-type ColumnMode = { kind: "legal"; itemKey: string } | { kind: "value" } | { kind: "judgment" } | { kind: "off" };
+type ColumnMode =
+  | { kind: "legal"; itemKey: string }
+  | { kind: "value" }
+  | { kind: "judgment" }
+  | { kind: "distribution" } // 生物学的モニタリングの分布区分(1〜3 → A〜C)
+  | { kind: "off" };
 
 export default function CheckupImport({
   companyId,
@@ -242,6 +247,8 @@ export default function CheckupImport({
         const key = findLegalItemByHeader(c);
         // 「判定」を含む列、「判」で始まる列(例: 判定 血圧、判 HbA1c)は、法定項目の語が続いても取り込まない
         if (/判定/.test(head) || /^判/.test(head)) init[i] = { kind: "off" };
+        // 「尿中馬尿酸分布」のような分布区分の列は 1〜3 を A〜C に読み替える
+        else if (/分布/.test(head)) init[i] = { kind: "distribution" };
         else if (key) init[i] = { kind: "legal", itemKey: key };
         else init[i] = { kind: "off" };
       });
@@ -348,8 +355,24 @@ export default function CheckupImport({
             return;
           }
           if (mode.kind === "judgment") {
+            // 「17 A」のように数値の右に判定が付いた表記は値と判定に分ける。
             // 「B」「要観察」などの表記は A〜E に読み替えて判定に入れ、元の表記は値として残す
+            const vg = splitValueGrade(cell);
+            if (vg.grade) {
+              items.push({ name: h.trim(), value: vg.value, judgment: vg.grade });
+              return;
+            }
             items.push({ name: h.trim(), value: cell, judgment: normalizeGradeText(cell) ?? cell.toUpperCase() });
+            return;
+          }
+          if (mode.kind === "distribution") {
+            // 生物学的モニタリングの分布区分: 「0.16①」「2」などの 1〜3 を A〜C として判定に入れる
+            const d = splitDistribution(cell);
+            items.push({
+              name: h.trim(),
+              value: d.dist ? `${d.value ? d.value + " " : ""}分布${d.dist}` : cell,
+              judgment: d.grade ?? undefined,
+            });
             return;
           }
           items.push({ name: h.trim(), value: cell });
@@ -820,7 +843,7 @@ export default function CheckupImport({
 
           <h3 style={{ color: "var(--teal-dark)", fontSize: 15 }}>検査項目の割り当て</h3>
           <p className="muted">
-            法定項目に割り当てた列は、事務所基準で自動判定されます（「値のみ」は保存だけ、「判定として取込」は健診機関の判定をそのまま使用）。
+            法定項目に割り当てた列は、事務所基準で自動判定されます（「値のみ」は保存だけ、「判定として取込」は健診機関の判定をそのまま使用。「17 A」のように数値の右に判定が付いた列もそのまま読めます。「分布区分」は有機溶剤健診の生物学的モニタリングの 1〜3 を A〜C として判定に入れます）。
           </p>
           <table className="list" style={{ marginBottom: 14 }}>
             <thead>
@@ -860,6 +883,7 @@ export default function CheckupImport({
                         </optgroup>
                         <option value="value">値のみ取込（判定しない）</option>
                         <option value="judgment">判定（A〜E）として取込</option>
+                        <option value="distribution">分布区分（1→A・2→B・3→C）として取込</option>
                         <option value="off">取り込まない</option>
                       </select>
                     </td>
