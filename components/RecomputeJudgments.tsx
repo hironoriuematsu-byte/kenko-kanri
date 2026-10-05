@@ -6,6 +6,25 @@ import { createClient } from "@/lib/supabase/browser";
 import { gradeFromValue } from "@/lib/gradeFromValue";
 import { isFindingJudgment, isRestrictionJudgment } from "@/lib/checkups";
 import { overallGrade, worstGrade, type Grade, type JudgmentRule } from "@/lib/judgment";
+import { referralNote } from "@/lib/referral";
+
+// 医師の意見のうち、一括判定で自動で入れた受診勧奨の文章(例: 「肝機能異常あり内科（消化器内科）受診、脂質異常あり内科受診」)
+// を見分ける。定型文・自由記入とは " / " で区切られている
+const isReferralSegment = (seg: string) => /あり.+受診$/.test(seg.trim());
+
+// 判定を計算し直したあと、医師の意見の受診勧奨の文章を新しい要医療項目(D)・就業制限項目(R)に合わせる。
+// 自動で入れた文章だけを差し替え、定型文や自由記入は触らない。戻り値は新しい意見(変更がなければ null)
+export function reconcileReferralNote(note: string | null, newReferral: string): string | null {
+  if (!note) return null;
+  const segs = note.split("/").map((x) => x.trim()).filter(Boolean);
+  const idx = segs.findIndex(isReferralSegment);
+  if (idx < 0) return null; // 自動の文章が無い(手入力のみ)なら触らない
+  if (segs[idx] === newReferral) return null;
+  const next = [...segs];
+  if (newReferral) next[idx] = newReferral;
+  else next.splice(idx, 1);
+  return next.join(" / ");
+}
 
 type ItemRow = {
   id: string;
@@ -37,7 +56,8 @@ export default function RecomputeJudgments({
         `・対象は測定値がある法定項目です（健診機関の判定は上書きされます）\n` +
         `・法定項目以外の判定はそのまま残ります\n` +
         `・総合判定と有所見も計算し直します\n` +
-        `・就業判定（医師の意見）は変更しません\n\n` +
+        `・就業判定は変更しません（総合判定がDに上がった方の「通常勤務可」は判定保留に戻します）\n` +
+        `・医師の意見のうち自動で入れた受診勧奨の文章（例: 肝機能異常あり内科（消化器内科）受診）は新しい判定に合わせます\n\n` +
         `よろしいですか？`
     );
     if (!ok) return;
@@ -50,7 +70,7 @@ export default function RecomputeJudgments({
     // 対象の健診結果(性別は判定に使う)
     const { data: checkups, error: cErr } = await supabase
       .from("hm_checkups")
-      .select("id, sex")
+      .select("id, sex, work_judgment_note")
       .eq("company_id", companyId)
       .eq("fiscal_year", fiscalYear);
     if (cErr || !checkups || checkups.length === 0) {
@@ -102,7 +122,21 @@ export default function RecomputeJudgments({
       ]);
     }
 
-    if (changed === 0) {
+    // 医師の意見の受診勧奨の文章を、新しい判定(D・R)に合わせる(自動で入れた文章だけ)。
+    // 判定に変更が無くても、以前の再計算で判定だけ変わって意見が古いままの方を直す
+    const newJudgmentById = new Map<string, string | null>();
+    byCheckup.forEach((list) => list.forEach((it) => newJudgmentById.set(it.id, it.judgment)));
+    const noteUpdates: { id: string; note: string }[] = [];
+    for (const c of checkups as { id: string; sex: string | null; work_judgment_note: string | null }[]) {
+      if (!c.work_judgment_note) continue;
+      const its = items
+        .filter((it) => it.checkup_id === c.id)
+        .map((it) => ({ item_name: it.item_name, value: it.value, judgment: newJudgmentById.get(it.id) ?? it.judgment }));
+      const next = reconcileReferralNote(c.work_judgment_note, referralNote(its, sexById.get(c.id) ?? null));
+      if (next !== null) noteUpdates.push({ id: c.id, note: next });
+    }
+
+    if (changed === 0 && noteUpdates.length === 0) {
       setMessage("判定基準どおりでした（変更はありません）。");
       setBusy(false);
       return;
@@ -143,8 +177,16 @@ export default function RecomputeJudgments({
       }
     }
 
+    // 医師の意見の受診勧奨の文章を更新する
+    let notesUpdated = 0;
+    for (const u of noteUpdates) {
+      const { error: nErr } = await supabase.rpc("hm_save_work_judgment_note", { p_id: u.id, p_note: u.note });
+      if (!nErr) notesUpdated += 1;
+    }
+
     setMessage(
       `${saved}名分の判定を計算し直しました（項目 ${changed}件を更新）。` +
+        (notesUpdated > 0 ? ` 医師の意見の受診勧奨の文章を ${notesUpdated}名分、新しい判定に合わせました。` : "") +
         (resetPending > 0
           ? ` 総合判定がDに上がった ${resetPending}名の就業判定を「判定保留」に戻しました。一覧の「要対応」からご確認のうえ、再判定と医師の意見の入力をお願いします。`
           : "")
