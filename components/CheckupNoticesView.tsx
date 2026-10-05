@@ -245,12 +245,12 @@ export default function CheckupNoticesView({
               <thead>
                 <tr>
                   <th style={{ width: 34 }}></th>
-                  <th>氏名</th>
-                  <th>所属</th>
-                  <th>総合判定</th>
-                  <th>就業判定</th>
-                  <th>受診勧奨</th>
-                  <th>医師の意見</th>
+                  <th style={{ whiteSpace: "nowrap" }}>氏名</th>
+                  <th style={{ whiteSpace: "nowrap" }}>所属</th>
+                  <th style={{ whiteSpace: "nowrap" }}>総合判定</th>
+                  <th style={{ whiteSpace: "nowrap" }}>就業判定</th>
+                  <th style={{ whiteSpace: "nowrap" }}>受診勧奨</th>
+                  <th style={{ width: "40%" }}>医師の意見</th>
                 </tr>
               </thead>
               <tbody>
@@ -264,7 +264,7 @@ export default function CheckupNoticesView({
                         aria-label={`${c.target_name}を選択`}
                       />
                     </td>
-                    <td>
+                    <td style={{ whiteSpace: "nowrap" }}>
                       {c.target_name}
                       {c.employee_no && (
                         <span className="muted" style={{ fontSize: 11, marginLeft: 4 }}>
@@ -274,13 +274,13 @@ export default function CheckupNoticesView({
                     </td>
                     <td style={{ fontSize: 13 }}>{c.department || "—"}</td>
                     <td>{c.overall_judgment || "—"}</td>
-                    <td style={{ fontSize: 13 }}>
+                    <td style={{ fontSize: 13, whiteSpace: "nowrap" }}>
                       {c.work_judgment ? CHECKUP_WORK_JUDGMENTS[c.work_judgment] : "—"}
                       {c.work_judgment_condition && (
                         <span className="muted">（{conditionLabel(c.work_judgment_condition)}）</span>
                       )}
                     </td>
-                    <td style={{ fontSize: 13 }}>
+                    <td style={{ fontSize: 13, whiteSpace: "nowrap" }}>
                       <span style={c.followup_status === "pending" ? { color: "var(--orange)", fontWeight: 700 } : {}}>
                         {FOLLOWUP_STATUS[c.followup_status ?? "none"] ?? "—"}
                       </span>
