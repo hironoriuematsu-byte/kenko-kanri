@@ -324,13 +324,28 @@ export function judgeHearingText(text: string): Grade | null {
   return null; // 判断できない記載は判定しない
 }
 
-// 自覚症状・他覚症状(他覚所見): 記載があれば C(有所見)、「なし」「特になし」「異常なし」「-」などは A。
+// 自覚症状・他覚症状(他覚所見): 記載があれば C(有所見)、「なし」「特になし」「特記事項なし」「自覚症状なし」
+// 「異常を認めず」などの“無い”ことを表す記載や空欄は A。
 // 健診機関の区分番号(1=なし・2=あり、または 0=なし・1=あり)にも対応する
+const NONE_TAIL = /^(なし|無し|無|ない|ありません|ありませぬ|認めず|認めない|認められない|認められず|を認めず|を認めない|を認めません|みとめず|-|−|—|―|ー|なし等|無し等)$/;
+const NONE_HEAD = /^(特記すべき事項|特記すべきこと|特記すべき|特記事項|特記|特にない|特に|特別な|その他|自覚症状|他覚症状|他覚所見|自覚|他覚|異常所見|症状|所見|異常|問題|訴え|申告|記載|該当|現在|とくに)+/;
+export function isNoneStatement(text: string): boolean {
+  const raw = (text ?? "").normalize("NFKC").trim();
+  // 「1,2,7,12」のような症状番号の羅列は“あり”(0・1 単独だけを“なし”とみなす)
+  if (/^[0-9][0-9,、，.\s/／]*$/.test(raw)) return /^(0|1)$/.test(raw);
+  let t = normalizeFinding(text);
+  if (t === "") return true;
+  if (/^(np|nil|none|wnl|normal)$/.test(t)) return true;
+  // 「特になし」「自覚症状なし」「特記事項を認めず」→ 先頭の修飾語を取り除いて“無い”で終わるか
+  const stripped = t.replace(NONE_HEAD, "").replace(/^(は|も|の|が)/, "");
+  if (NONE_TAIL.test(stripped)) return true;
+  if (isNormalFinding(t)) return true;
+  return false;
+}
+
 export function judgePresenceText(text: string): Grade | null {
   const t = (text ?? "").normalize("NFKC").trim();
-  if (t === "" || t === "0" || t === "1") return "A";
   if (t === "2") return "C";
-  if (/^(なし|無し|無|ない|特になし|特記なし|特記事項なし|該当なし|n\.?p\.?|none|nil|-|−|—|ー)$/i.test(t)) return "A";
-  if (isNormalFinding(t)) return "A";
+  if (isNoneStatement(t)) return "A";
   return "C";
 }
