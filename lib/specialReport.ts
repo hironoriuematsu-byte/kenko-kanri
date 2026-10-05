@@ -23,6 +23,7 @@ export type SpecialRow = {
   special_kind: string | null;
   checkup_date: string | null;
   overall_judgment: string | null;
+  round?: number | null; // 実施回
 };
 
 export function isOrganicKind(kind: string | null | undefined): boolean {
@@ -295,34 +296,55 @@ export function computeChemicalReport(rows: SpecialRow[], items: ReportItem[]): 
 // 読み込み(企業×年度の特殊健診。実施回は問わない)
 // ------------------------------------------------------------
 export type SpecialReportData = {
-  organicRows: SpecialRow[];
+  organicRows: SpecialRow[]; // 選択した実施回の受診者
   chemicalRows: SpecialRow[];
+  organicTotal: number; // 年度全体(全実施回)の受診者数
+  chemicalTotal: number;
+  organicRounds: number[]; // その年度に存在する実施回
+  chemicalRounds: number[];
+  organicRound: number; // 選択中の実施回
+  chemicalRound: number;
   otherKinds: string[]; // 有機溶剤・特定化学物質以外の特殊健診の種類
   organic: OrganicReport;
   chemical: ChemicalReport;
 };
 
-export async function loadSpecialReport(companyId: string, year: number): Promise<SpecialReportData> {
+// 実施回(第1回・第2回)ごとに分けて集計する。round を省略すると、その種類の最初の実施回
+export async function loadSpecialReport(companyId: string, year: number, round?: number): Promise<SpecialReportData> {
   const supabase = createClient();
   const { data } = await supabase
     .from("hm_checkups")
-    .select("id, target_name, special_kind, checkup_date, overall_judgment")
+    .select("id, target_name, special_kind, checkup_date, overall_judgment, round")
     .eq("company_id", companyId)
     .eq("fiscal_year", year)
     .eq("checkup_type", "special")
     .order("target_name");
   const rows = (data ?? []) as SpecialRow[];
-  const organicRows = rows.filter((r) => isOrganicKind(r.special_kind));
-  const chemicalRows = rows.filter((r) => isChemicalKind(r.special_kind));
+  const roundsOf = (rs: SpecialRow[]) => Array.from(new Set(rs.map((r) => r.round ?? 1))).sort((a, b) => a - b);
+  const pick = (rs: SpecialRow[]) => {
+    const rounds = roundsOf(rs);
+    const sel = round != null && rounds.includes(round) ? round : rounds[0] ?? 1;
+    return { rounds, round: sel, rows: rs.filter((r) => (r.round ?? 1) === sel) };
+  };
+  const organicAll = rows.filter((r) => isOrganicKind(r.special_kind));
+  const chemicalAll = rows.filter((r) => isChemicalKind(r.special_kind));
+  const organic = pick(organicAll);
+  const chemical = pick(chemicalAll);
   const otherKinds = Array.from(
     new Set(rows.filter((r) => !isOrganicKind(r.special_kind) && !isChemicalKind(r.special_kind)).map((r) => r.special_kind || "（種類未設定）"))
   );
-  const items = (await fetchCheckupItems([...organicRows, ...chemicalRows].map((r) => r.id))) as ReportItem[];
+  const items = (await fetchCheckupItems([...organic.rows, ...chemical.rows].map((r) => r.id))) as ReportItem[];
   return {
-    organicRows,
-    chemicalRows,
+    organicRows: organic.rows,
+    chemicalRows: chemical.rows,
+    organicTotal: organicAll.length,
+    chemicalTotal: chemicalAll.length,
+    organicRounds: organic.rounds,
+    chemicalRounds: chemical.rounds,
+    organicRound: organic.round,
+    chemicalRound: chemical.round,
     otherKinds,
-    organic: computeOrganicReport(organicRows, items),
-    chemical: computeChemicalReport(chemicalRows, items),
+    organic: computeOrganicReport(organic.rows, items),
+    chemical: computeChemicalReport(chemical.rows, items),
   };
 }

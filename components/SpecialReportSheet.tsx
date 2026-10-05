@@ -24,6 +24,7 @@ function Head({
   formName,
   companyName,
   fiscalYear,
+  round,
   lastDate,
   count,
   officeInfo,
@@ -32,6 +33,7 @@ function Head({
   formName: string;
   companyName: string;
   fiscalYear: number;
+  round?: number; // 実施回(同じ年度に複数回あるときだけ表示)
   lastDate: string | undefined;
   count: number;
   officeInfo: OfficeInfo | null;
@@ -45,7 +47,7 @@ function Head({
           {title}（{formName}）転記用集計
         </h1>
         <div className="muted" style={{ marginTop: 4 }}>
-          {companyName} / {fiscalYear}年度
+          {companyName} / {fiscalYear}年度{round ? `・第${round}回` : ""}
         </div>
       </div>
       <div className="notice no-print">
@@ -71,7 +73,9 @@ function Head({
           </tr>
           <tr>
             <th style={th}>対象年</th>
-            <td>{fiscalYear}年（期間・報告回目は{blank}）</td>
+            <td>
+              {fiscalYear}年（期間は{blank}。報告回目は{round ? `第${round}回の健診分として` : ""}{blank}）
+            </td>
           </tr>
           <tr>
             <th style={th}>健診年月日（最終実施日）</th>
@@ -102,11 +106,13 @@ function Head({
 export function OrganicReportSheet({
   companyName,
   fiscalYear,
+  round,
   report,
   officeInfo,
 }: {
   companyName: string;
   fiscalYear: number;
+  round?: number;
   report: OrganicReport;
   officeInfo: OfficeInfo | null;
 }) {
@@ -120,6 +126,7 @@ export function OrganicReportSheet({
         formName="様式第3号の2"
         companyName={companyName}
         fiscalYear={fiscalYear}
+        round={round}
         lastDate={report.lastCheckupDate}
         count={report.count}
         officeInfo={officeInfo}
@@ -240,11 +247,13 @@ export function OrganicReportSheet({
 export function ChemicalReportSheet({
   companyName,
   fiscalYear,
+  round,
   report,
   officeInfo,
 }: {
   companyName: string;
   fiscalYear: number;
+  round?: number;
   report: ChemicalReport;
   officeInfo: OfficeInfo | null;
 }) {
@@ -255,6 +264,7 @@ export function ChemicalReportSheet({
         formName="様式第3号"
         companyName={companyName}
         fiscalYear={fiscalYear}
+        round={round}
         lastDate={report.lastCheckupDate}
         count={report.count}
         officeInfo={officeInfo}

@@ -31,7 +31,7 @@ export default async function OfficeCheckupReportPage({
   if (!company || !data.year) notFound();
   // 特殊健診(有機溶剤・特定化学物質)の報告書用の集計。様式はクエリ form で切り替える
   const form: ReportForm = searchParams.form === "organic" || searchParams.form === "chemical" ? searchParams.form : "6";
-  const special = await loadSpecialReport(company.id, data.year);
+  const special = await loadSpecialReport(company.id, data.year, round);
 
   await supabase.rpc("hm_log_access", {
     p_action: "report_summary",
@@ -49,14 +49,16 @@ export default async function OfficeCheckupReportPage({
         </p>
         <div className="card">
           <ReportTabs
-            basePath={`/office/${company.id}/checkups/report?year=${data.year}${data.roundQuery}`}
+            basePath={`/office/${company.id}/checkups/report?year=${data.year}`}
             current={form}
-            counts={{ regular: data.form6.regularCount, organic: special.organic.count, chemical: special.chemical.count }}
+            counts={{ regular: data.form6.regularCount, organic: special.organicTotal, chemical: special.chemicalTotal }}
+            rounds={form === "organic" ? special.organicRounds : form === "chemical" ? special.chemicalRounds : data.rounds}
+            round={form === "organic" ? special.organicRound : form === "chemical" ? special.chemicalRound : data.round}
           />
           {form === "organic" ? (
-            <OrganicReportSheet companyName={company.name} fiscalYear={data.year} report={special.organic} officeInfo={data.officeInfo} />
+            <OrganicReportSheet companyName={company.name} fiscalYear={data.year} round={special.organicRounds.length > 1 ? special.organicRound : undefined} report={special.organic} officeInfo={data.officeInfo} />
           ) : form === "chemical" ? (
-            <ChemicalReportSheet companyName={company.name} fiscalYear={data.year} report={special.chemical} officeInfo={data.officeInfo} />
+            <ChemicalReportSheet companyName={company.name} fiscalYear={data.year} round={special.chemicalRounds.length > 1 ? special.chemicalRound : undefined} report={special.chemical} officeInfo={data.officeInfo} />
           ) : (
             <Form6Sheet
               variant="sheet"
