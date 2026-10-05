@@ -17,7 +17,13 @@ import {
   roundLabel,
 } from "@/lib/checkups";
 import { INTERVIEW_METHODS } from "@/lib/interviews";
-import { NOTICE_KINDS, NOTICE_TEMPLATES, type NoticeKind } from "@/lib/notice";
+import {
+  NOTICE_KINDS,
+  NOTICE_TEMPLATES,
+  REPORT_FORM_RESULTS,
+  REPORT_FORM_TITLE,
+  type NoticeKind,
+} from "@/lib/notice";
 
 // 従業員へ渡す通知文書(受診勧奨通知・産業医面談通知):
 // 対象者を選び、1人1ページで連続表示してまとめて印刷/PDF保存する
@@ -50,6 +56,9 @@ export default function CheckupNoticesView({
   const [closing, setClosing] = useState(tpl.closing);
   const [issuedDate, setIssuedDate] = useState(today);
   const [contact, setContact] = useState("");
+  // 受診勧奨通知: 文書の下に付ける「受診報告」欄(提出期限は全員共通・任意)
+  const [withReportForm, setWithReportForm] = useState(true);
+  const [reportDeadline, setReportDeadline] = useState("");
   // 産業医面談通知: 面談の日時・場所(文書に印字し、そのまま面談予定の登録にも使う)
   const [interviewDate, setInterviewDate] = useState("");
   const [interviewTime, setInterviewTime] = useState("");
@@ -345,6 +354,37 @@ export default function CheckupNoticesView({
             />
           </div>
         </div>
+        {tpl.hasReportForm && (
+          <div
+            className="form-row"
+            style={{ background: "var(--teal-light)", border: "1px solid var(--teal)", borderRadius: 8, padding: "10px 14px" }}
+          >
+            <label htmlFor="with-report-form" style={{ display: "inline-flex", alignItems: "center", gap: 6, fontWeight: 700 }}>
+              <input
+                id="with-report-form"
+                type="checkbox"
+                checked={withReportForm}
+                onChange={(e) => setWithReportForm(e.target.checked)}
+                style={{ width: 16, height: 16 }}
+              />
+              文書の下に「受診報告」欄を付ける（本人が受診後に記入し、担当部署へ提出する雛形）
+            </label>
+            <div style={{ display: "flex", gap: 12, flexWrap: "wrap", alignItems: "flex-end", marginTop: 6 }}>
+              <div>
+                <label className="muted" style={{ display: "block", fontSize: 12 }}>報告の提出期限（任意・全員に共通）</label>
+                <input
+                  type="date"
+                  value={reportDeadline}
+                  onChange={(e) => setReportDeadline(e.target.value)}
+                  disabled={!withReportForm}
+                />
+              </div>
+              <span className="muted" style={{ fontSize: 12 }}>
+                受診日・医療機関・診療科・受診結果・医師からの指示・本人署名の欄が入ります。
+              </span>
+            </div>
+          </div>
+        )}
         <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
           <PrintButton />
           <span className="muted" style={{ fontSize: 12 }}>
@@ -453,6 +493,68 @@ export default function CheckupNoticesView({
                 <span className="muted">（{officeName}）</span>
               </div>
             </div>
+
+            {/* 受診報告欄: 本人が受診後に記入して担当部署へ提出する雛形(切り取り線の下) */}
+            {tpl.hasReportForm && withReportForm && (
+              <div style={{ marginTop: 22, borderTop: "1px dashed #888", paddingTop: 10, fontSize: 12 }}>
+                <div className="muted" style={{ fontSize: 11, marginTop: -18, marginBottom: 8, background: "#fff", display: "inline-block", padding: "0 6px" }}>
+                  ✂ キリトリ線
+                </div>
+                <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 6 }}>{REPORT_FORM_TITLE}</div>
+                <table className="list" style={{ fontSize: 12 }}>
+                  <tbody>
+                    <tr>
+                      <th style={{ width: 130 }}>氏名</th>
+                      <td style={{ width: "40%" }}>
+                        {c.target_name}
+                        {c.employee_no && <span className="muted">（{c.employee_no}）</span>}
+                      </td>
+                      <th style={{ width: 100 }}>受診日</th>
+                      <td>　　　年　　月　　日</td>
+                    </tr>
+                    <tr>
+                      <th>医療機関名</th>
+                      <td></td>
+                      <th>診療科</th>
+                      <td></td>
+                    </tr>
+                    <tr>
+                      <th>受診結果</th>
+                      <td colSpan={3}>
+                        {REPORT_FORM_RESULTS.map((r) => (
+                          <span key={r} style={{ marginRight: 12, whiteSpace: "nowrap" }}>
+                            □ {r}
+                          </span>
+                        ))}
+                      </td>
+                    </tr>
+                    <tr>
+                      <th>診断名・医師からの指示</th>
+                      <td colSpan={3} style={{ height: 44, verticalAlign: "top" }}>
+                        <span className="muted" style={{ fontSize: 11 }}>
+                          （例: 通院治療中、就業上の注意、次回受診の予定 など）
+                        </span>
+                      </td>
+                    </tr>
+                    <tr>
+                      <th>提出日・署名</th>
+                      <td colSpan={3}>
+                        　　　年　　月　　日　　署名：
+                        {reportDeadline && (
+                          <span style={{ marginLeft: 12, fontWeight: 700 }}>
+                            提出期限：{formatDateJa(reportDeadline)}
+                          </span>
+                        )}
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+                <div className="muted" style={{ fontSize: 11, marginTop: 4 }}>
+                  受診結果のわかる書類（結果報告書・診断書など）があれば添えてご提出ください。提出先：
+                  {contact || "担当部署"}
+                </div>
+              </div>
+            )}
           </div>
         );
       })}
