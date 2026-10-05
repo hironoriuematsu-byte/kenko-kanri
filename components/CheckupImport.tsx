@@ -358,7 +358,8 @@ export default function CheckupImport({
               }
             }
             const g = judgeItem(mode.itemKey, cell, sex, rules);
-            autoGrades.push(g);
+            // 自覚症状・他覚症状の「あり」(C)は有所見項目として残すが、総合判定(最も重い項目判定)には含めない
+            if (mode.itemKey !== "symptoms" && mode.itemKey !== "signs") autoGrades.push(g);
             items.push({ name: h.trim(), value: cell, judgment: g ?? undefined });
             return;
           }
@@ -448,7 +449,8 @@ export default function CheckupImport({
           target_user_id: person?.user_id ?? "",
           // 列の値が無い・読み取れないときは「全員共通の健診日」を使う
           checkup_date: (dateCol >= 0 ? normalizeDate(r[dateCol] ?? "") : null) ?? normalizeDate(commonDate),
-          overall_judgment: autoOverall ?? csvOverall,
+          // 特殊健診は健診機関の総合判定(A・B1・B2・C・R・T)を優先する(無ければ事務所基準の自動判定)
+          overall_judgment: checkupType === "special" ? csvOverall || autoOverall || "" : autoOverall ?? csvOverall,
           items: merged,
         };
       })

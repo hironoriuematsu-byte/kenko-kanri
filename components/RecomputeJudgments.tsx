@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/browser";
 import { gradeFromValue } from "@/lib/gradeFromValue";
 import { isFindingJudgment, isRestrictionJudgment } from "@/lib/checkups";
-import { overallGrade, worstGrade, type Grade, type JudgmentRule } from "@/lib/judgment";
+import { findLegalItemByHeader, overallGrade, worstGrade, type Grade, type JudgmentRule } from "@/lib/judgment";
 import { referralNote } from "@/lib/referral";
 
 // 医師の意見のうち、一括判定で自動で入れた受診勧奨の文章(例: 「肝機能異常あり内科（消化器内科）受診、脂質異常あり内科受診」)
@@ -70,7 +70,7 @@ export default function RecomputeJudgments({
     // 対象の健診結果(性別は判定に使う)
     const { data: checkups, error: cErr } = await supabase
       .from("hm_checkups")
-      .select("id, sex, work_judgment_note")
+      .select("id, sex, work_judgment_note, checkup_type, overall_judgment")
       .eq("company_id", companyId)
       .eq("fiscal_year", fiscalYear);
     if (cErr || !checkups || checkups.length === 0) {
@@ -113,7 +113,11 @@ export default function RecomputeJudgments({
     for (const it of items) {
       const g = gradeFromValue(it.item_name, it.value, sexById.get(it.checkup_id) ?? null, rules);
       if (!g) continue; // 法定項目以外・測定値なしはそのまま
-      gradesByCheckup.set(it.checkup_id, [...(gradesByCheckup.get(it.checkup_id) ?? []), g]);
+      // 自覚症状・他覚症状は有所見項目には残すが、総合判定(最も重い項目判定)には含めない
+      const key = findLegalItemByHeader(it.item_name);
+      if (key !== "symptoms" && key !== "signs") {
+        gradesByCheckup.set(it.checkup_id, [...(gradesByCheckup.get(it.checkup_id) ?? []), g]);
+      }
       if (g === it.judgment) continue;
       changed += 1;
       byCheckup.set(it.checkup_id, [
@@ -143,13 +147,22 @@ export default function RecomputeJudgments({
     }
 
     // 保存する形に組み立てる(総合判定・有所見も入れ直す)
+    const typeById = new Map<string, { type: string; overall: string | null }>(
+      (checkups as { id: string; checkup_type?: string; overall_judgment?: string | null }[]).map((c) => [
+        c.id,
+        { type: c.checkup_type ?? "regular", overall: c.overall_judgment ?? null },
+      ])
+    );
     const payload = Array.from(byCheckup.keys()).map((checkupId) => {
       const grades = gradesByCheckup.get(checkupId) ?? [];
       const worst = overallGrade(worstGrade(grades));
       const hasFindings = grades.some((g) => isFindingJudgment(g) || isRestrictionJudgment(g));
+      // 特殊健診は健診機関の総合判定(A・B1・B2・C・R・T)を保つ(項目判定だけ事務所基準で入れ直す)
+      const meta = typeById.get(checkupId);
+      const keepOverall = meta?.type === "special" && !!meta.overall;
       return {
         checkup_id: checkupId,
-        overall_judgment: worst ?? "",
+        overall_judgment: keepOverall ? meta!.overall! : worst ?? "",
         has_findings: hasFindings,
         items: byCheckup.get(checkupId) ?? [],
       };
