@@ -14,7 +14,7 @@ import {
   CHECKUP_WORK_JUDGMENTS,
   FOLLOWUP_STATUS,
   conditionLabel,
-  isFindingJudgment,
+  isSevereJudgment,
   roundLabel,
 } from "@/lib/checkups";
 import { INTERVIEW_METHODS } from "@/lib/interviews";
@@ -215,9 +215,11 @@ export default function CheckupNoticesView({
     router.refresh();
   };
 
+  // 文書に載せる項目は要医療(D)・就業制限の検討(R)の項目だけ。
+  // C(要経過観察)は受診勧奨の対象ではないため載せない(例: BMI 25.7(C) は載せない)
   const findingsText = (c: CheckupRow) =>
     (c.findingItems ?? [])
-      .filter((f) => isFindingJudgment(f.judgment))
+      .filter((f) => isSevereJudgment(f.judgment))
       .map((f) => `${f.item_name}${f.value ? ` ${f.value}` : ""}（${f.judgment}）`)
       .join("、");
 
@@ -320,7 +322,7 @@ export default function CheckupNoticesView({
         <h2>2. 通知文を確認・編集する（全員に共通）</h2>
         <p className="muted">
           「印刷 / PDFとして保存」を押すと、選択した <strong>{targets.length}名</strong>
-          分が1人1ページで出力されます。各ページには、その方の健診日・総合判定・所見のあった項目・
+          分が1人1ページで出力されます。各ページには、その方の健診日・総合判定・受診をお勧めする項目（要医療D・就業制限Rの項目のみ）・
           就業判定・医師の意見が自動で入ります。
         </p>
         <div className="form-row">
@@ -517,7 +519,7 @@ export default function CheckupNoticesView({
                 </tr>
                 {findings && (
                   <tr>
-                    <th>所見のあった項目</th>
+                    <th>受診をお勧めする項目</th>
                     <td>{findings}</td>
                   </tr>
                 )}
