@@ -2,7 +2,7 @@
 // 複数該当・複数項目異常のときは最も重い判定を採用する。
 // 心電図・胸部エックス線・聴力の定性記載は、所見の文言から判定する(lib/textJudgment.ts)。
 
-import { judgeChestXrayText, judgeEcgText, judgeHearingCode, judgeHearingText } from "@/lib/textJudgment";
+import { judgeChestXrayText, judgeEcgText, judgeHearingCode, judgeHearingText, judgePresenceText } from "@/lib/textJudgment";
 import { normalizeGradeText } from "@/lib/gradeText";
 
 export type JudgmentRule = {
@@ -94,6 +94,9 @@ export const LEGAL_ITEMS: {
   { key: "urine_protein", label: "尿蛋白", aliases: ["尿蛋白", "尿たん白", "尿タンパク"] },
   // 所見の文言から判定する項目(数値の基準は持たない)
   { key: "ecg", label: "心電図（所見の文言から判定）", aliases: ["心電図", "ecg", "ekg"], textJudged: true },
+  // 自覚症状・他覚症状: 記載があれば C(有所見)、なし・空欄は A。区分番号(1=なし・2=あり)にも対応
+  { key: "symptoms", label: "自覚症状（記載があればC、なし・空欄はA）", aliases: ["自覚症状", "自覚"], textJudged: true },
+  { key: "signs", label: "他覚症状（記載があればC、なし・空欄はA）", aliases: ["他覚症状", "他覚所見", "他覚"], textJudged: true },
   {
     key: "chest_xray",
     label: "胸部エックス線（所見があればB、精査を要する語句があればD）",
@@ -118,7 +121,7 @@ const NOT_LEGAL_HEADER =
   /hbs|hbc|hbe|hbv|hcv|hiv|htlv|肝炎|抗原|抗体|ウイルス|ウィルス|尿沈|沈渣|沈査|尿中赤血球|尿赤血球|尿潜血|non-?hdl|nonhdl|ノンhdl|\/hdl|hdl比|l\/h比|比$|肥満度/;
 
 // 自動割り当ての版(取込画面に表示し、新しい判定が反映されているかを確かめられるようにする)
-export const HEADER_RULES_VERSION = "2026-10-05a";
+export const HEADER_RULES_VERSION = "2026-10-05b";
 
 export function findLegalItemByHeader(header: string): string | null {
   const h = normalizeHeader(header);
@@ -182,6 +185,7 @@ export function judgeItem(
   }
 
   // 所見の文言から判定する項目(数値の基準は使わない)
+  if (itemKey === "symptoms" || itemKey === "signs") return judgePresenceText(rawValue);
   if (itemKey === "ecg") return judgeEcgText(rawValue);
   if (itemKey === "chest_xray") return judgeChestXrayText(rawValue);
 

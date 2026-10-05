@@ -327,7 +327,9 @@ export default function CheckupImport({
           if (baseCols.includes(i)) return;
           const mode = colModes[i] ?? { kind: "off" as const };
           if (mode.kind === "off") return;
-          const cell = (r[i] ?? "").trim();
+          let cell = (r[i] ?? "").trim();
+          // 自覚症状・他覚症状は空欄を「なし」(A)として記録する(実施者数に数えるため)
+          if (!cell && mode.kind === "legal" && (mode.itemKey === "symptoms" || mode.itemKey === "signs")) cell = "なし";
           if (!cell) return;
 
           // 各回の血圧は値だけ保存し、判定は平均で行う

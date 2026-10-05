@@ -323,3 +323,14 @@ export function judgeHearingText(text: string): Grade | null {
   if (/難聴|要精査|要精密|異常|所見あり|所見有|低下/.test(t)) return "C";
   return null; // 判断できない記載は判定しない
 }
+
+// 自覚症状・他覚症状(他覚所見): 記載があれば C(有所見)、「なし」「特になし」「異常なし」「-」などは A。
+// 健診機関の区分番号(1=なし・2=あり、または 0=なし・1=あり)にも対応する
+export function judgePresenceText(text: string): Grade | null {
+  const t = (text ?? "").normalize("NFKC").trim();
+  if (t === "" || t === "0" || t === "1") return "A";
+  if (t === "2") return "C";
+  if (/^(なし|無し|無|ない|特になし|特記なし|特記事項なし|該当なし|n\.?p\.?|none|nil|-|−|—|ー)$/i.test(t)) return "A";
+  if (isNormalFinding(t)) return "A";
+  return "C";
+}

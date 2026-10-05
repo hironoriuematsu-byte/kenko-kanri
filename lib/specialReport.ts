@@ -12,6 +12,7 @@
 
 import { splitDistribution } from "@/lib/gradeText";
 import { isFindingJudgment } from "@/lib/checkups";
+import { isNormalFinding } from "@/lib/textJudgment";
 import { createClient } from "@/lib/supabase/server";
 import { fetchCheckupItems } from "@/lib/checkupItems";
 import type { ReportItem } from "@/lib/checkupReport";
@@ -140,7 +141,8 @@ export function computeOrganicReport(rows: SpecialRow[], items: ReportItem[]): O
       if (c.key === "other") {
         // 他覚所見は全員に行われる。番号・所見の記載があれば有所見
         categories[idx].examined += 1;
-        if (mine.some(({ it }) => (it.value ?? "").trim() !== "" && !/なし|無|特になし|−|-/.test(it.value ?? ""))) categories[idx].findings += 1;
+        if (mine.some(({ it }) => isFindingJudgment(it.judgment) || ((it.value ?? "").trim() !== "" && !isNormalFinding(it.value ?? ""))))
+          categories[idx].findings += 1;
         return;
       }
       if (mine.some(({ it }) => hasValue(it))) categories[idx].examined += 1;
