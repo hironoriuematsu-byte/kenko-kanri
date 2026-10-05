@@ -11,6 +11,7 @@ export default function CheckupListCsvButton({
   companyName,
   fiscalYear,
   round,
+  groupLabel,
   rows,
   items,
   officeInfo,
@@ -18,6 +19,7 @@ export default function CheckupListCsvButton({
   companyName: string;
   fiscalYear: number;
   round?: number;
+  groupLabel?: string; // 健診の区分(定期健診 / 特殊健診（有機溶剤） など)
   rows: CheckupRow[];
   items: ReportItem[];
   officeInfo?: OfficeInfo | null;
@@ -52,7 +54,7 @@ export default function CheckupListCsvButton({
 
     const csv: (string | number | null)[][] = [
       [
-        `${companyName} ${fiscalYear}年度${round ? `（第${round}回）` : ""} 健康診断結果一覧`,
+        `${companyName} ${fiscalYear}年度${round ? `（第${round}回）` : ""}${groupLabel ? ` ${groupLabel}` : ""} 健康診断結果一覧`,
         `産業医: ${officeInfo?.physician_name ?? "上松弘典"}`,
         `${officeInfo?.office_name ?? "うえまつ産業医事務所"}`,
         `${officeInfo?.address ?? ""}`,
@@ -84,7 +86,7 @@ export default function CheckupListCsvButton({
         ];
       }),
     ];
-    downloadCsv(`健康診断結果_${companyName}_${fiscalYear}年度${round ? `_第${round}回` : ""}.csv`, csv);
+    downloadCsv(`健康診断結果_${companyName}_${fiscalYear}年度${round ? `_第${round}回` : ""}${groupLabel ? `_${groupLabel}` : ""}.csv`, csv);
     // 健康情報の出力としてアクセスログに残す
     createClient()
       .rpc("hm_log_access", {

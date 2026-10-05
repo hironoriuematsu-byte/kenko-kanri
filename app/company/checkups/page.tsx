@@ -11,7 +11,7 @@ export const dynamic = "force-dynamic";
 export default async function CompanyCheckupsPage({
   searchParams,
 }: {
-  searchParams: { year?: string; round?: string };
+  searchParams: { year?: string; round?: string; group?: string };
 }) {
   const { profile } = await requireProfile();
   if (profile.role !== "company" || !profile.company_id) redirect("/");
@@ -38,6 +38,7 @@ export default async function CompanyCheckupsPage({
             basePath="/company/checkups"
             selectedYear={searchParams.year ? Number(searchParams.year) : undefined}
             selectedRound={searchParams.round ? Number(searchParams.round) : undefined}
+            selectedGroup={searchParams.group}
             canEdit={!profile.view_only}
           />
         </div>

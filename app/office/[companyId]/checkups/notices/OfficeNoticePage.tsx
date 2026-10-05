@@ -18,7 +18,7 @@ export default async function OfficeNoticePage({
 }: {
   kind: NoticeKind;
   params: { companyId: string };
-  searchParams: { year?: string; round?: string };
+  searchParams: { year?: string; round?: string; group?: string };
 }) {
   const tpl = NOTICE_TEMPLATES[kind];
   const supabase = createClient();
@@ -27,7 +27,7 @@ export default async function OfficeNoticePage({
   const [{ profile }, { data: company }, data, companyAddress] = await Promise.all([
     requireProfile(),
     supabase.from("companies").select("id, name").eq("id", params.companyId).single(),
-    loadCheckupList(params.companyId, year, round),
+    loadCheckupList(params.companyId, year, round, searchParams.group),
     getCompanyAddress(params.companyId),
   ]);
   if (profile.role !== "office") redirect("/");

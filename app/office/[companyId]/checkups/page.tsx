@@ -12,7 +12,7 @@ export default async function OfficeCheckupsPage({
   searchParams,
 }: {
   params: { companyId: string };
-  searchParams: { year?: string; round?: string };
+  searchParams: { year?: string; round?: string; group?: string };
 }) {
   const supabase = createClient();
   // ログイン確認と企業の取得は同時に行う(待ち時間の短縮)
@@ -38,6 +38,7 @@ export default async function OfficeCheckupsPage({
             basePath={`/office/${company.id}/checkups`}
             selectedYear={searchParams.year ? Number(searchParams.year) : undefined}
             selectedRound={searchParams.round ? Number(searchParams.round) : undefined}
+            selectedGroup={searchParams.group}
             canEdit
             canDelete
             canJudge

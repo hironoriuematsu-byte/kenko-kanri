@@ -16,7 +16,7 @@ export default async function CompanyNoticePage({
   searchParams,
 }: {
   kind: NoticeKind;
-  searchParams: { year?: string; round?: string };
+  searchParams: { year?: string; round?: string; group?: string };
 }) {
   const tpl = NOTICE_TEMPLATES[kind];
   const { profile } = await requireProfile();
@@ -27,7 +27,7 @@ export default async function CompanyNoticePage({
   const round = searchParams.round ? Number(searchParams.round) : undefined;
   const [{ data: company }, data, companyAddress] = await Promise.all([
     supabase.from("companies").select("id, name").eq("id", profile.company_id).single(),
-    loadCheckupList(profile.company_id, year, round),
+    loadCheckupList(profile.company_id, year, round, searchParams.group),
     getCompanyAddress(profile.company_id),
   ]);
   if (!data.year) redirect("/company/checkups");

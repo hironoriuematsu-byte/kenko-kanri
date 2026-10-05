@@ -25,7 +25,7 @@ export default async function OfficeCheckupReportPage({
   const [{ profile }, { data: company }, data] = await Promise.all([
     requireProfile(),
     supabase.from("companies").select("id, name").eq("id", params.companyId).single(),
-    loadCheckupList(params.companyId, year, round),
+    loadCheckupList(params.companyId, year, round, "regular"),
   ]);
   if (profile.role !== "office") redirect("/");
   if (!company || !data.year) notFound();

@@ -21,7 +21,7 @@ export default async function CompanyCheckupReportPage({ searchParams }: { searc
   const round = searchParams.round ? Number(searchParams.round) : undefined;
   const [{ data: company }, data] = await Promise.all([
     supabase.from("companies").select("id, name").eq("id", profile.company_id).single(),
-    loadCheckupList(profile.company_id, year, round),
+    loadCheckupList(profile.company_id, year, round, "regular"),
   ]);
   if (!data.year) notFound();
   const form: ReportForm = searchParams.form === "organic" || searchParams.form === "chemical" ? searchParams.form : "6";

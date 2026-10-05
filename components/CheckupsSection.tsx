@@ -16,6 +16,7 @@ export default async function CheckupsSection({
   basePath,
   selectedYear,
   selectedRound,
+  selectedGroup,
   canEdit,
   canDelete = false,
   canJudge = false,
@@ -25,12 +26,22 @@ export default async function CheckupsSection({
   basePath: string;
   selectedYear?: number;
   selectedRound?: number; // 実施回(年に複数回の定期健診を行う事業場向け)
+  selectedGroup?: string; // 健診の区分(定期 / 雇入時 / 特殊健診の種類)
   canEdit: boolean;
   canDelete?: boolean;
   canJudge?: boolean;
 }) {
-  const { officeInfo, rules, years, year, rounds, round, roundQuery, list, items, stats, form6 } =
-    await loadCheckupList(companyId, selectedYear, selectedRound);
+  const { officeInfo, groups, group, groupQuery, rules, years, year, rounds, round, roundQuery, list, items, stats, form6 } =
+    await loadCheckupList(companyId, selectedYear, selectedRound, selectedGroup);
+  const isRegular = group?.type === "regular";
+  const groupLabel = group && groups.length > 1 ? group.label : undefined;
+  // 労基署報告の様式: 特殊健診(有機溶剤・特定化学物質)はその様式のタブを開く
+  const reportForm =
+    group?.type === "special" && /有機/.test(group.kind ?? "")
+      ? "&form=organic"
+      : group?.type === "special" && /特定化学|特化/.test(group.kind ?? "")
+        ? "&form=chemical"
+        : "";
 
   return (
     <div>
@@ -54,6 +65,7 @@ export default async function CheckupsSection({
               companyName={companyName}
               fiscalYear={year}
               round={rounds.length > 1 ? round : undefined}
+              groupLabel={groupLabel}
               rows={list}
               officeInfo={officeInfo}
             />
@@ -62,19 +74,20 @@ export default async function CheckupsSection({
               companyName={companyName}
               fiscalYear={year}
               round={rounds.length > 1 ? round : undefined}
+              groupLabel={groupLabel}
               rows={list}
               items={items}
               officeInfo={officeInfo}
             />
             {/* 労働基準監督署への報告(様式第6号)に転記する数値を印刷・PDF保存できる画面 */}
-            <Link className="btn secondary" href={`${basePath}/report?year=${year}${roundQuery}`}>
+            <Link className="btn secondary" href={`${basePath}/report?year=${year}${roundQuery}${reportForm}`}>
               労基署報告（様式第6号・特殊健診）
             </Link>
             {/* 受診勧奨・産業医面談となった従業員へ渡す通知文書(1人1ページ・まとめて印刷/PDF)。種類ごとに別の画面 */}
-            <Link className="btn" href={`${basePath}/notices?year=${year}${roundQuery}`}>
+            <Link className="btn" href={`${basePath}/notices?year=${year}${roundQuery}${groupQuery}`}>
               受診勧奨通知書（1人1ページ）
             </Link>
-            <Link className="btn" href={`${basePath}/interview-notices?year=${year}${roundQuery}`}>
+            <Link className="btn" href={`${basePath}/interview-notices?year=${year}${roundQuery}${groupQuery}`}>
               産業医面談通知書（1人1ページ）
             </Link>
           </>
@@ -107,7 +120,7 @@ export default async function CheckupsSection({
               {rounds.map((r) => (
                 <Link
                   key={r}
-                  href={`${basePath}?year=${year}&round=${r}`}
+                  href={`${basePath}?year=${year}&round=${r}${groupQuery}`}
                   className={r === round ? "badge" : ""}
                   style={r === round ? {} : { padding: "2px 8px" }}
                 >
@@ -119,8 +132,34 @@ export default async function CheckupsSection({
         </p>
       )}
 
+      {/* 健診の区分(定期健診・雇入時健診・特殊健診の種類)。区分ごとに一覧と集計を分けて表示する */}
+      {year && groups.length > 1 && (
+        <p style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+          <span className="muted">区分:</span>
+          {groups.map((g) => (
+            <Link
+              key={g.key}
+              href={`${basePath}?year=${year}&group=${encodeURIComponent(g.key)}`}
+              className={g.key === group?.key ? "badge" : ""}
+              style={g.key === group?.key ? {} : { padding: "2px 8px" }}
+            >
+              {g.label}
+              <span style={{ marginLeft: 4, opacity: 0.8 }}>{g.count}名</span>
+            </Link>
+          ))}
+        </p>
+      )}
+
       {year ? (
         <>
+          {group && groups.length > 1 && (
+            <p style={{ margin: "0 0 8px", fontWeight: 700 }}>
+              {year}年度{rounds.length > 1 ? ` 第${round}回` : ""} {group.label}
+              <span className="muted" style={{ fontWeight: 400, marginLeft: 8, fontSize: 12 }}>
+                （この区分のみの一覧・集計です）
+              </span>
+            </p>
+          )}
           <table className="list" style={{ marginBottom: 14, maxWidth: 560 }}>
             <tbody>
               <tr>
@@ -196,6 +235,14 @@ export default async function CheckupsSection({
 
           {/* 労働基準監督署へ提出する定期健康診断結果報告書(様式第6号)に転記するための集計。
               最初から開いて表示し、見出しを押すと折りたたむ */}
+          {!isRegular && group && (
+            <p className="notice" style={{ marginBottom: 14 }}>
+              {group.type === "special"
+                ? "特殊健診の労基署報告（有機溶剤 様式第3号の2・特定化学物質 様式第3号）は「労基署報告」ボタンから該当の様式のタブを開いてください。"
+                : "この区分は定期健康診断結果報告書（様式第6号）の集計対象外です。"}
+            </p>
+          )}
+          {isRegular && (
           <details open style={{ marginBottom: 14 }}>
             <summary style={{ cursor: "pointer", fontWeight: 700 }}>
               定期健康診断結果報告書（様式第6号）の転記用集計
@@ -213,6 +260,7 @@ export default async function CheckupsSection({
               officeInfo={officeInfo}
             />
           </details>
+          )}
 
           <CheckupsTable rows={list} canDelete={canDelete} canJudge={canJudge} canFollowup={canEdit} compact={!canDelete} />
         </>
