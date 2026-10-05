@@ -295,29 +295,6 @@ table.list td {
     padding: 18mm 16mm;
     box-sizing: border-box;
   }
-  .notice-sheet {
-    page: notice;
-    padding: 14mm 16mm 12mm;
-    font-size: 10.5pt;
-    line-height: 1.6;
-    width: 210mm;
-    min-height: 0;
-    box-sizing: border-box;
-  }
-  .notice-sheet table.list th,
-  .notice-sheet table.list td {
-    padding: 4px 8px;
-  }
-  /* 産業医面談通知は文章量が少ないので、余白と行間を広めにとる */
-  .notice-sheet.notice-roomy {
-    padding: 24mm 20mm 20mm;
-    font-size: 11.5pt;
-    line-height: 1.9;
-  }
-  .notice-sheet.notice-roomy table.list th,
-  .notice-sheet.notice-roomy table.list td {
-    padding: 8px 10px;
-  }
   .no-print {
     display: none !important;
   }
@@ -345,6 +322,29 @@ table.list td {
   }
   .sheet-break:last-child {
     page-break-after: auto;
+  }
+  /* 従業員への通知書(1人1枚): A4縦。main.container の余白(14mm 12mm)に加えて用紙側の余白をとる。
+     幅は指定しない(指定すると右端が用紙からはみ出して右余白が消える) */
+  main.container .notice-sheet {
+    page: notice;
+    padding: 2mm 6mm 0;
+    font-size: 10.5pt;
+    line-height: 1.6;
+    box-sizing: border-box;
+  }
+  main.container .notice-sheet table.list th,
+  main.container .notice-sheet table.list td {
+    padding: 4px 8px;
+  }
+  /* 産業医面談通知は文章量が少ないので、余白と行間を広めにとる */
+  main.container .notice-sheet.notice-roomy {
+    padding: 10mm 12mm 0;
+    font-size: 11.5pt;
+    line-height: 1.9;
+  }
+  main.container .notice-sheet.notice-roomy table.list th,
+  main.container .notice-sheet.notice-roomy table.list td {
+    padding: 8px 10px;
   }
 }
 

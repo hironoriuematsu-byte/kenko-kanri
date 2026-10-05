@@ -400,7 +400,7 @@ export default function CheckupNoticesView({
             <input type="date" value={issuedDate} onChange={(e) => setIssuedDate(e.target.value)} />
           </div>
           <div style={{ flex: 1, minWidth: 220 }}>
-            <label>担当部署・連絡先（任意）</label>
+            <label>担当部署・連絡先（差出人欄の産業医の上に「担当部署　○○」と印字。空欄なら手書き用の空白）</label>
             <input
               type="text"
               value={contact}
@@ -588,7 +588,8 @@ export default function CheckupNoticesView({
             <div style={{ textAlign: "right" }}>
               <div>{companyName}</div>
               {companyAddress && <div className="muted">{companyAddress}</div>}
-              {contact && <div>{contact}</div>}
+              {/* 担当部署(問い合わせ先)は産業医の上に必ず載せる。未入力なら手書き用の空欄 */}
+              <div>担当部署　{contact || "　　　　　　　　　　　　"}</div>
               <div style={{ marginTop: 6 }}>
                 産業医　{physicianName}
                 <span className="muted">（{officeName}）</span>
