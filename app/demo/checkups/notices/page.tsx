@@ -30,7 +30,9 @@ export default function DemoCheckupNoticesPage({ searchParams }: { searchParams:
             ? "就業判定が要就業制限・要休業の方と、医師の意見に「産業医面談」を含む方へ渡す面談の案内です。実際の画面では、面談日を入れて「産業医面談管理に登録」を押すと面談予定がまとめて登録されます(デモでは無効)。"
             : "受診勧奨となった方へ渡す受診の案内です。各ページのQRコードを読み取ると、本人のスマートフォンに受診報告の画面が開きます(デモのQRコードはサンプルの報告画面を開きます。送信しても保存されません)。実際の画面では、出力後に「通知した方を勧奨済にする」で一覧の受診勧奨をまとめて更新できます(デモでは無効)。"}
         </div>
+        {/* key: タブ(通知の種類)を切り替えたら文面などの入力状態を作り直す */}
         <CheckupNoticesView
+          key={kind}
           kind={kind}
           tabBasePath="/demo/checkups/notices?year=2026"
           companyName={DEMO_COMPANY}

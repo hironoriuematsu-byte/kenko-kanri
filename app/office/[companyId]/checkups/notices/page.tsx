@@ -52,7 +52,9 @@ export default async function OfficeCheckupNoticesPage({
         <h1 className="page-title no-print">
           {company.name} — {NOTICE_TEMPLATES[kind].label}書の作成（{data.year}年度）
         </h1>
+        {/* key: タブ(通知の種類)を切り替えたら文面などの入力状態を作り直す */}
         <CheckupNoticesView
+          key={kind}
           kind={kind}
           tabBasePath={`/office/${company.id}/checkups/notices?year=${data.year}${data.roundQuery}`}
           companyName={company.name}

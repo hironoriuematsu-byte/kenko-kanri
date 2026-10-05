@@ -55,7 +55,9 @@ export default async function CompanyCheckupNoticesPage({
             : "産業医の就業判定で受診勧奨となった従業員へ、医療機関の受診を案内する文書です。"}
           対象者を確認し、文面を調整してから印刷またはPDF保存し、ご本人にお渡しください。
         </div>
+        {/* key: タブ(通知の種類)を切り替えたら文面などの入力状態を作り直す */}
         <CheckupNoticesView
+          key={kind}
           kind={kind}
           tabBasePath={`/company/checkups/notices?year=${data.year}${data.roundQuery}`}
           companyName={company?.name ?? ""}
