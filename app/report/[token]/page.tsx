@@ -1,3 +1,4 @@
+import Link from "next/link";
 import ConsultReportForm from "@/components/ConsultReportForm";
 
 export const dynamic = "force-dynamic";
@@ -17,6 +18,9 @@ export default function ConsultReportPage({ params }: { params: { token: string 
         </div>
       </div>
       <ConsultReportForm token={params.token} />
+      <p className="muted" style={{ fontSize: 12, marginTop: 12 }}>
+        <Link href="/privacy">個人情報の取扱いについて</Link>
+      </p>
     </main>
   );
 }
