@@ -93,12 +93,12 @@ function dateLines(dateStr: string | null | undefined): [string, string] | null 
 }
 
 // 一覧の絞り込み(有所見D・就業制限Rの方だけを確認できるようにする)
-type ViewFilter = "all" | "d" | "r" | "dr" | "followup" | "restricted" | "interview";
+type ViewFilter = "all" | "d" | "r" | "pending" | "followup" | "restricted" | "interview";
 const VIEW_LABEL: Record<ViewFilter, string> = {
   all: "すべて",
   d: "要医療項目（D）あり",
   r: "就業制限項目（R）あり",
-  dr: "DまたはRあり",
+  pending: "判定保留あり",
   followup: "要受診勧奨",
   restricted: "要就業制限",
   interview: "要産業医面談",
@@ -236,7 +236,7 @@ export default function CheckupsTable({
   const visibleRows = useMemo(() => {
     if (view === "d") return rows.filter((r) => dIds.has(r.id));
     if (view === "r") return rows.filter((r) => restrictionIds.has(r.id));
-    if (view === "dr") return rows.filter((r) => dIds.has(r.id) || restrictionIds.has(r.id));
+    if (view === "pending") return rows.filter((r) => r.work_judgment === "pending");
     if (view === "followup") return rows.filter(needsFollowup);
     if (view === "restricted") return rows.filter(isRestricted);
     if (view === "interview") return rows.filter(needsInterview);
@@ -246,7 +246,7 @@ export default function CheckupsTable({
     all: rows.length,
     d: dRows.length,
     r: restrictionRows.length,
-    dr: rows.filter((r) => dIds.has(r.id) || restrictionIds.has(r.id)).length,
+    pending: rows.filter((r) => r.work_judgment === "pending").length,
     followup: rows.filter(needsFollowup).length,
     restricted: rows.filter(isRestricted).length,
     interview: rows.filter(needsInterview).length,
@@ -711,14 +711,14 @@ export default function CheckupsTable({
         <span className="muted" style={{ fontSize: 13, lineHeight: "30px", flexShrink: 0 }}>表示:</span>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", flex: 1 }}>
           {(Object.keys(VIEW_LABEL) as ViewFilter[])
-            .filter((k) => !compact || !["d", "r", "dr"].includes(k))
+            .filter((k) => !compact || !["d", "r"].includes(k))
             .map((k) => {
             const active = view === k;
             const danger = k !== "all";
             // 要受診勧奨・要産業医面談は対応が必要な方の絞り込みなので、
             // 該当者がいるときは緑の塗りで目立たせる(選択中はほかと同じ橙)
             const important =
-              (k === "followup" || k === "restricted" || k === "interview") && viewCounts[k] > 0;
+              (k === "pending" || k === "followup" || k === "restricted" || k === "interview") && viewCounts[k] > 0;
             const className = active ? (danger ? "btn orange" : "btn") : important ? "btn" : "btn secondary";
             return (
               <button
@@ -737,6 +737,7 @@ export default function CheckupsTable({
       {view !== "all" && (
         <p className="muted" style={{ fontSize: 12, margin: "0 0 8px" }}>
           {VIEW_LABEL[view]}の {visibleRows.length}名を表示中。
+          {view === "pending" && "就業判定が「判定保留」の方です（判定の再計算で総合判定がDに上がり、再判定を待っている方を含みます）。"}
           {view === "followup" && "受診勧奨が「未対応」の方です（勧奨済・受診済は含みません）。"}
           {view === "restricted" && "就業判定が「要就業制限」または「要休業」の方です。"}
           {view === "interview" && "就業判定が「要就業制限」の方と、医師の意見に「産業医面談」が含まれる方です。"}
