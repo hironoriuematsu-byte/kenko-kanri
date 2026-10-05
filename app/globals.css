@@ -282,6 +282,11 @@ table.list td {
 @page {
   margin: 0;
 }
+/* 従業員への通知書(1人1枚)はA4縦に固定し、1枚に収まるよう余白と文字を詰める */
+@page notice {
+  size: A4 portrait;
+  margin: 0;
+}
 @media print {
   body {
     background: #fff;
@@ -289,6 +294,19 @@ table.list td {
   .print-sheet {
     padding: 18mm 16mm;
     box-sizing: border-box;
+  }
+  .notice-sheet {
+    page: notice;
+    padding: 14mm 16mm 12mm;
+    font-size: 10.5pt;
+    line-height: 1.6;
+    width: 210mm;
+    min-height: 0;
+    box-sizing: border-box;
+  }
+  .notice-sheet table.list th,
+  .notice-sheet table.list td {
+    padding: 4px 8px;
   }
   .no-print {
     display: none !important;

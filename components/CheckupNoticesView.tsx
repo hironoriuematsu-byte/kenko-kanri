@@ -480,9 +480,9 @@ export default function CheckupNoticesView({
         const findings = findingsText(c);
         const type = `${CHECKUP_TYPES[c.checkup_type] ?? c.checkup_type}${roundLabel(round)}`;
         return (
-          <div className="card sheet-break print-sheet" key={c.id}>
+          <div className="card sheet-break print-sheet notice-sheet" key={c.id}>
             <div style={{ textAlign: "right", fontSize: 13 }}>{formatDateJa(issuedDate)}</div>
-            <div style={{ margin: "8px 0 18px", fontSize: 16 }}>
+            <div style={{ margin: "6px 0 12px", fontSize: 16 }}>
               {c.department && <span className="muted">{c.department}　</span>}
               {c.employee_no && <span className="muted">社員番号 {c.employee_no}　</span>}
               <strong>{c.target_name} 様</strong>
@@ -492,7 +492,7 @@ export default function CheckupNoticesView({
               style={{
                 textAlign: "center",
                 fontSize: 18,
-                margin: "0 0 18px",
+                margin: "0 0 12px",
                 border: "none",
                 padding: 0,
                 color: "var(--ink)",
@@ -578,7 +578,7 @@ export default function CheckupNoticesView({
               </div>
             )}
 
-            <div style={{ whiteSpace: "pre-wrap", marginBottom: 28 }}>{closing}</div>
+            <div style={{ whiteSpace: "pre-wrap", marginBottom: 18 }}>{closing}</div>
 
             <div style={{ textAlign: "right" }}>
               <div>{companyName}</div>
