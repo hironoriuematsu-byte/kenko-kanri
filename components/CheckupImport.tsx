@@ -246,7 +246,13 @@ export default function CheckupImport({
         const head = c.normalize("NFKC").trim();
         const key = findLegalItemByHeader(c);
         // 「判定」を含む列、「判」で始まる列(例: 判定 血圧、判 HbA1c)は、法定項目の語が続いても取り込まない
-        if (/判定/.test(head) || /^判/.test(head)) init[i] = { kind: "off" };
+        // 特殊健診の労基署報告(様式第3号・第3号の2)の集計に使う列は「値のみ取込」を既定にする:
+        //   作業条件(作業時間・作業日数・保護具・換気装置・工程変更・取扱量・大量ばく露)、業務名番号、有機溶剤名番号、
+        //   眼底検査、物質コード・特定化学物質・業務内容・業務歴・有所見項目、物質ごとの「判定」(見出しがちょうど「判定」)
+        const SPECIAL_VALUE =
+          /作業時間|作業日数|保護具|換気|工程変更|取扱量|ばく露|暴露|業務名番号|業務名\(番号\)|有機溶剤名|有機溶剤コード|眼底|物質コード|^特定化学物質$|業務内容|業務歴|有所見項目|有機既往歴|有機業務の経歴|区分$/;
+        if (head === "判定" || SPECIAL_VALUE.test(head)) init[i] = { kind: "value" };
+        else if (/判定/.test(head) || /^判/.test(head)) init[i] = { kind: "off" };
         // 「尿中馬尿酸分布」のような分布区分の列は 1〜3 を A〜C に読み替える
         else if (/分布/.test(head)) init[i] = { kind: "distribution" };
         else if (key) init[i] = { kind: "legal", itemKey: key };
