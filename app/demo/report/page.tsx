@@ -25,7 +25,7 @@ export default function DemoReportPage() {
       </div>
       <ConsultReportForm token="demo" demoInfo={DEMO_REPORT} />
       <p className="muted" style={{ fontSize: 12, marginTop: 12, display: "flex", gap: 14 }}>
-        <Link href="/demo/checkups/notices">← 通知書のデモに戻る</Link>
+        <Link href="/demo/checkups/notices">← 受診勧奨通知書のデモに戻る</Link>
         <Link href="/privacy">個人情報の取扱いについて</Link>
       </p>
     </main>

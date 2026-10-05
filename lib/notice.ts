@@ -8,7 +8,7 @@ export type NoticeTemplate = {
   title: string; // 表題
   body: string; // 本文(判定内容の前)
   closing: string; // 結び(判定内容の後)
-  targetHint: string; // 「1. 通知する方を選ぶ」の説明
+  targetHint: string; // 「1. 通知する方」の説明(どういう方が対象か)
   isTarget: (c: CheckupRow) => boolean; // 最初からチェックを入れる方
   canMarkRecommended: boolean; // 出力後に受診勧奨の状態を「勧奨済」にできるか
   canRegisterInterview: boolean; // 面談日を決めて産業医面談管理に予定をまとめて登録できるか
@@ -49,7 +49,7 @@ export const NOTICE_TEMPLATES: Record<NoticeKind, NoticeTemplate> = {
     hasReportForm: true,
     hasQrReport: true,
     targetHint:
-      "受診勧奨が「未対応」「勧奨済」の方、判定条件が「受診が条件」の方、医師の意見に「受診」を含む方に、はじめからチェックが入っています。",
+      "受診勧奨が「未対応」「勧奨済」の方、判定条件が「受診が条件」の方、医師の意見に「受診」を含む方が対象です。",
     isTarget: isConsultTarget,
     canMarkRecommended: true,
     canRegisterInterview: false,
@@ -63,15 +63,15 @@ export const NOTICE_TEMPLATES: Record<NoticeKind, NoticeTemplate> = {
 面談では、健康診断の結果と現在の体調・勤務の状況をうかがい、必要な就業上の配慮についてご相談します。面談の日時・場所は下記のとおりです（記載がない場合は担当部署からご案内します）。お薬手帳や医療機関の受診結果があればお持ちください。`,
     closing: `面談でお話しいただいた内容は産業医が守秘し、就業上必要な範囲に限って会社へ伝えます。ご不明な点がある場合は、担当部署までお問い合わせください。`,
     targetHint:
-      "就業判定が「要就業制限」「要休業」の方と、医師の意見に「産業医面談」を含む方に、はじめからチェックが入っています。",
+      "就業判定が「要就業制限」「要休業」の方と、医師の意見に「産業医面談」を含む方が対象です。",
     isTarget: isInterviewTarget,
     canMarkRecommended: false,
     canRegisterInterview: true,
   },
 };
 
-export const NOTICE_KINDS: NoticeKind[] = ["consult", "interview"];
-
-export function noticeKindOf(value: string | undefined): NoticeKind {
-  return value === "interview" ? "interview" : "consult";
-}
+// 通知の種類ごとの画面(受診勧奨通知と産業医面談通知は別の画面にする)
+export const NOTICE_PATHS: Record<NoticeKind, string> = {
+  consult: "notices",
+  interview: "interview-notices",
+};

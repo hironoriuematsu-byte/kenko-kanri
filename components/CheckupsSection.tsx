@@ -70,9 +70,12 @@ export default async function CheckupsSection({
             <Link className="btn secondary" href={`${basePath}/report?year=${year}${roundQuery}`}>
               労基署報告（様式第6号）
             </Link>
-            {/* 受診勧奨・産業医面談となった従業員へ渡す通知文書(1人1ページ・まとめて印刷/PDF) */}
+            {/* 受診勧奨・産業医面談となった従業員へ渡す通知文書(1人1ページ・まとめて印刷/PDF)。種類ごとに別の画面 */}
             <Link className="btn" href={`${basePath}/notices?year=${year}${roundQuery}`}>
-              受診勧奨・産業医面談の通知書（1人1ページ）
+              受診勧奨通知書（1人1ページ）
+            </Link>
+            <Link className="btn" href={`${basePath}/interview-notices?year=${year}${roundQuery}`}>
+              産業医面談通知書（1人1ページ）
             </Link>
           </>
         )}

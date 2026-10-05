@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import PrintButton from "@/components/PrintButton";
@@ -19,7 +18,6 @@ import {
 } from "@/lib/checkups";
 import { INTERVIEW_METHODS } from "@/lib/interviews";
 import {
-  NOTICE_KINDS,
   NOTICE_TEMPLATES,
   REPORT_FORM_RESULTS,
   REPORT_FORM_TITLE,
@@ -27,10 +25,9 @@ import {
 } from "@/lib/notice";
 
 // 従業員へ渡す通知文書(受診勧奨通知・産業医面談通知):
-// 対象者を選び、1人1ページで連続表示してまとめて印刷/PDF保存する
+// 対象者(あらかじめ絞り込み済み・全員チェック付き)を1人1ページで連続表示し、まとめて印刷/PDF保存する
 export default function CheckupNoticesView({
   kind,
-  tabBasePath,
   companyName,
   companyAddress,
   officeInfo,
@@ -41,13 +38,12 @@ export default function CheckupNoticesView({
   demo = false,
 }: {
   kind: NoticeKind;
-  tabBasePath: string; // タブのリンク先(?year=...&round=... まで含む)
   companyName: string;
   companyAddress: string | null;
   officeInfo: OfficeInfo | null;
   fiscalYear: number;
   round?: number;
-  rows: CheckupRow[];
+  rows: CheckupRow[]; // 通知の対象者(呼び出し側で絞り込み済み)
   canFollowup: boolean; // 通知後に受診勧奨の状態を「勧奨済」にできるか
   demo?: boolean; // 紹介用デモ(データベースに触れない。QRコードはデモの受診報告ページを指す)
 }) {
@@ -67,19 +63,8 @@ export default function CheckupNoticesView({
   const [interviewTime, setInterviewTime] = useState("");
   const [interviewMethod, setInterviewMethod] = useState("in_person");
   const [interviewLocation, setInterviewLocation] = useState("");
-  const [selected, setSelected] = useState<Set<string>>(
-    () => new Set(rows.filter(tpl.isTarget).map((c) => c.id))
-  );
-  // タブ(通知の種類)が切り替わったら、文面と対象者をその種類の既定に戻す
-  // (呼び出し側の key で作り直す前提だが、万一同じ部品が使い回されても文面が混ざらないようにする)
-  useEffect(() => {
-    setTitle(tpl.title);
-    setBody(tpl.body);
-    setClosing(tpl.closing);
-    setSelected(new Set(rows.filter(tpl.isTarget).map((c) => c.id)));
-    setMessage(null);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [kind]);
+  // 対象者は呼び出し側で絞り込み済み。最初は全員にチェックが入り、外したい方だけチェックを外す
+  const [selected, setSelected] = useState<Set<string>>(() => new Set(rows.map((c) => c.id)));
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
 
@@ -235,44 +220,25 @@ export default function CheckupNoticesView({
 
   return (
     <div>
-      {/* 通知の種類(タブ) */}
-      <p className="no-print" style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
-        <span className="muted">通知の種類:</span>
-        {NOTICE_KINDS.map((k) => (
-          <Link
-            key={k}
-            href={`${tabBasePath}&kind=${k}`}
-            className={k === kind ? "badge" : ""}
-            style={k === kind ? {} : { padding: "2px 8px" }}
-          >
-            {NOTICE_TEMPLATES[k].label}
-          </Link>
-        ))}
-      </p>
-
       <div className="card no-print">
-        <h2>1. 通知する方を選ぶ</h2>
-        <p className="muted">{tpl.targetHint} 就業判定が未入力・判定保留の方は一覧に出ません。</p>
-        <div style={{ display: "flex", gap: 10, marginBottom: 8, flexWrap: "wrap" }}>
-          <button
-            className="btn secondary"
-            style={{ padding: "3px 10px", fontSize: 12 }}
-            onClick={() => setSelected(new Set(rows.filter(tpl.isTarget).map((c) => c.id)))}
-          >
-            {tpl.label}の対象のみ選択
-          </button>
-          {/* 「全選択」は置かない: 対象外の方にも文書が出てしまう操作ミスを防ぐため。
-              対象外の方を加えたいときは1人ずつチェックする */}
-          <button
-            className="btn secondary"
-            style={{ padding: "3px 10px", fontSize: 12 }}
-            onClick={() => setSelected(new Set())}
-          >
-            全解除
-          </button>
-        </div>
+        <h2>1. 通知する方（{rows.length}名・あらかじめ絞り込み済み）</h2>
+        <p className="muted">
+          {tpl.targetHint}
+          全員にチェックが入っています。今回は通知しない方がいればチェックを外してください（就業判定が未入力・判定保留の方は含まれません）。
+        </p>
+        {selected.size < rows.length && (
+          <div style={{ marginBottom: 8 }}>
+            <button
+              className="btn secondary"
+              style={{ padding: "3px 10px", fontSize: 12 }}
+              onClick={() => setSelected(new Set(rows.map((c) => c.id)))}
+            >
+              全員にチェックを戻す
+            </button>
+          </div>
+        )}
         {rows.length === 0 ? (
-          <p className="muted">この年度に就業判定が確定した健診結果はありません。</p>
+          <p className="muted">この年度に{tpl.label}の対象となる方はいません。</p>
         ) : (
           <div style={{ overflowX: "auto", maxHeight: 360, overflowY: "auto" }}>
             <table className="list">
@@ -289,7 +255,7 @@ export default function CheckupNoticesView({
               </thead>
               <tbody>
                 {rows.map((c) => (
-                  <tr key={c.id} style={tpl.isTarget(c) ? { background: "#fffaf5" } : {}}>
+                  <tr key={c.id} style={selected.has(c.id) ? {} : { opacity: 0.5 }}>
                     <td>
                       <input
                         type="checkbox"
