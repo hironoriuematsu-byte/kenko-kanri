@@ -68,7 +68,7 @@ npm run dev
 
 1. https://vercel.com で「Add New > Project」→ このGitHubリポジトリをImport
 2. Environment Variables に上記2つを設定してDeploy
-3. 本運用時はドメイン（例: kenko.mestate.jp）を割り当て
+3. 本運用のURLは https://kenko.mestate.jp（Vercelチーム mestate の kenko-kanri プロジェクト）。ストレスチェックWebは https://stres.mestate.jp
 
 ## 本運用への切替（重要）
 
@@ -84,7 +84,7 @@ npm run dev
 | 1 | `supabase/migrations/0016_hm_link.sql` | stres（profilesの別名列・`companies.hm_enabled` を追加） |
 | 2 | `supabase/migrations/0101〜0104, 0106〜0114, 0117〜0122` | kenko-kanri（本リポジトリ） |
 | 3 | `supabase/hm-stress-link.sql` | stres（連携用の読み取り関数3つ） |
-| 4 | Vercel環境変数 `NEXT_PUBLIC_KENKO_URL` を設定 | stres側のVercel |
+| 4 | Vercel環境変数 `NEXT_PUBLIC_KENKO_URL=https://kenko.mestate.jp` を設定 | stres側のVercel |
 | 5 | 企業管理で対象企業の「健康管理Web」にチェック | ストレスチェックWebの画面 |
 
 注意点:
@@ -93,7 +93,8 @@ npm run dev
 - ストレスチェック連携の関数は、stresリポジトリの `supabase/hm-stress-link.sql` を使う
   （本リポジトリの旧テンプレート `0105_...` は削除済み）
 - Vercelの環境変数を本番プロジェクトのURL/keyに差し替えてRedeploy
-- ヘッダーにストレスチェックWebへのリンクを出す場合は `NEXT_PUBLIC_STRESS_URL` を設定する
+- ヘッダーにストレスチェックWebへのリンクを出す場合は `NEXT_PUBLIC_STRESS_URL=https://stres.mestate.jp` を設定する
+- 古い個人アカウント側のVercelプロジェクト(`kenko-kanri-khaki.vercel.app`)は更新されないため、残っていれば削除する。利用者には https://kenko.mestate.jp を案内する
 - 既存テーブル・既存ポリシー・既存関数は一切変更しない（追加のみ・読み取りのみ）
 - ストレスチェック側の `profiles` の `user_id / name / emp_id / dept` は列名を変更しない
   （0016の別名列の定義が壊れるため）
