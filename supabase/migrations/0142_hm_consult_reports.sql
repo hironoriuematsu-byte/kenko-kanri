@@ -83,7 +83,8 @@ begin
   delete from public.hm_report_tokens t
    where t.checkup_id = any(p_ids) and t.created_at < now() - interval '1 year';
   insert into public.hm_report_tokens (checkup_id, token)
-  select c.id, encode(gen_random_bytes(16), 'hex')
+  -- 受付番号は UUID(乱数122ビット)の16進32桁。pgcrypto(extensionsスキーマ)に頼らない
+  select c.id, replace(gen_random_uuid()::text, '-', '')
     from public.hm_checkups c
    where c.id = any(p_ids)
   on conflict (checkup_id) do nothing;
