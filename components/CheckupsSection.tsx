@@ -68,7 +68,7 @@ export default async function CheckupsSection({
             />
             {/* 労働基準監督署への報告(様式第6号)に転記する数値を印刷・PDF保存できる画面 */}
             <Link className="btn secondary" href={`${basePath}/report?year=${year}${roundQuery}`}>
-              労基署報告（様式第6号）
+              労基署報告（様式第6号・特殊健診）
             </Link>
             {/* 受診勧奨・産業医面談となった従業員へ渡す通知文書(1人1ページ・まとめて印刷/PDF)。種類ごとに別の画面 */}
             <Link className="btn" href={`${basePath}/notices?year=${year}${roundQuery}`}>
