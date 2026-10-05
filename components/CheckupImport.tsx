@@ -423,7 +423,13 @@ export default function CheckupImport({
         }
 
         const csvOverallRaw = judgmentCol >= 0 ? (r[judgmentCol] ?? "").trim() : "";
-        const csvOverall = csvOverallRaw ? (normalizeGradeText(csvOverallRaw) ?? csvOverallRaw.toUpperCase()) : "";
+        // 特殊健診の管理区分(A・B1・B2・C・R・T)はそのまま残す(B1 と B2 を区別するため)。それ以外は A〜E に読み替える
+        const specialCode = csvOverallRaw.normalize("NFKC").trim().toUpperCase();
+        const csvOverall = csvOverallRaw
+          ? checkupType === "special" && /^(A|B1|B2|C|R|T)$/.test(specialCode)
+            ? specialCode
+            : (normalizeGradeText(csvOverallRaw) ?? csvOverallRaw.toUpperCase())
+          : "";
         // 自動判定ONのときは、最も重い項目判定を総合判定とする
         // (Rは就業制限の検討を表す印のため、総合判定としてはDに読み替える)
         const autoOverall = autoJudge ? overallGrade(worstGrade(autoGrades)) : null;
