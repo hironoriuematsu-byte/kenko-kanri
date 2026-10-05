@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import PrintButton from "@/components/PrintButton";
@@ -15,15 +16,13 @@ import {
   isFindingJudgment,
   roundLabel,
 } from "@/lib/checkups";
-import {
-  NOTICE_DEFAULT_BODY,
-  NOTICE_DEFAULT_CLOSING,
-  NOTICE_DEFAULT_TITLE,
-  isRecommendTarget,
-} from "@/lib/notice";
+import { NOTICE_KINDS, NOTICE_TEMPLATES, type NoticeKind } from "@/lib/notice";
 
-// 受診勧奨通知: 対象者を選び、1人1ページで連続表示してまとめて印刷/PDF保存する
+// 従業員へ渡す通知文書(受診勧奨通知・産業医面談通知):
+// 対象者を選び、1人1ページで連続表示してまとめて印刷/PDF保存する
 export default function CheckupNoticesView({
+  kind,
+  tabBasePath,
   companyName,
   companyAddress,
   officeInfo,
@@ -32,6 +31,8 @@ export default function CheckupNoticesView({
   rows,
   canFollowup,
 }: {
+  kind: NoticeKind;
+  tabBasePath: string; // タブのリンク先(?year=...&round=... まで含む)
   companyName: string;
   companyAddress: string | null;
   officeInfo: OfficeInfo | null;
@@ -41,14 +42,16 @@ export default function CheckupNoticesView({
   canFollowup: boolean; // 通知後に受診勧奨の状態を「勧奨済」にできるか
 }) {
   const router = useRouter();
+  const tpl = NOTICE_TEMPLATES[kind];
   const today = new Date().toISOString().slice(0, 10);
-  const [title, setTitle] = useState(NOTICE_DEFAULT_TITLE);
-  const [body, setBody] = useState(NOTICE_DEFAULT_BODY);
-  const [closing, setClosing] = useState(NOTICE_DEFAULT_CLOSING);
+  const [title, setTitle] = useState(tpl.title);
+  const [body, setBody] = useState(tpl.body);
+  const [closing, setClosing] = useState(tpl.closing);
   const [issuedDate, setIssuedDate] = useState(today);
   const [contact, setContact] = useState("");
+  const [extra, setExtra] = useState("");
   const [selected, setSelected] = useState<Set<string>>(
-    () => new Set(rows.filter(isRecommendTarget).map((c) => c.id))
+    () => new Set(rows.filter(tpl.isTarget).map((c) => c.id))
   );
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
@@ -105,19 +108,31 @@ export default function CheckupNoticesView({
 
   return (
     <div>
+      {/* 通知の種類(タブ) */}
+      <p className="no-print" style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+        <span className="muted">通知の種類:</span>
+        {NOTICE_KINDS.map((k) => (
+          <Link
+            key={k}
+            href={`${tabBasePath}&kind=${k}`}
+            className={k === kind ? "badge" : ""}
+            style={k === kind ? {} : { padding: "2px 8px" }}
+          >
+            {NOTICE_TEMPLATES[k].label}
+          </Link>
+        ))}
+      </p>
+
       <div className="card no-print">
         <h2>1. 通知する方を選ぶ</h2>
-        <p className="muted">
-          受診勧奨が「未対応」「勧奨済」の方、判定条件が「受診が条件」の方、医師の意見に「受診」を含む方に、
-          はじめからチェックが入っています。就業判定が未入力・判定保留の方は一覧に出ません。
-        </p>
+        <p className="muted">{tpl.targetHint} 就業判定が未入力・判定保留の方は一覧に出ません。</p>
         <div style={{ display: "flex", gap: 10, marginBottom: 8, flexWrap: "wrap" }}>
           <button
             className="btn secondary"
             style={{ padding: "3px 10px", fontSize: 12 }}
-            onClick={() => setSelected(new Set(rows.filter(isRecommendTarget).map((c) => c.id)))}
+            onClick={() => setSelected(new Set(rows.filter(tpl.isTarget).map((c) => c.id)))}
           >
-            受診勧奨の対象のみ選択
+            {tpl.label}の対象のみ選択
           </button>
           <button
             className="btn secondary"
@@ -152,7 +167,7 @@ export default function CheckupNoticesView({
               </thead>
               <tbody>
                 {rows.map((c) => (
-                  <tr key={c.id} style={isRecommendTarget(c) ? { background: "#fffaf5" } : {}}>
+                  <tr key={c.id} style={tpl.isTarget(c) ? { background: "#fffaf5" } : {}}>
                     <td>
                       <input
                         type="checkbox"
@@ -206,6 +221,17 @@ export default function CheckupNoticesView({
           <label>本文（判定内容の前に入ります）</label>
           <textarea value={body} onChange={(e) => setBody(e.target.value)} style={{ minHeight: 130 }} />
         </div>
+        {tpl.extraLabel && (
+          <div className="form-row">
+            <label>{tpl.extraLabel}</label>
+            <input
+              type="text"
+              value={extra}
+              onChange={(e) => setExtra(e.target.value)}
+              placeholder={tpl.extraPlaceholder}
+            />
+          </div>
+        )}
         <div className="form-row">
           <label>結び（判定内容の後に入ります）</label>
           <textarea value={closing} onChange={(e) => setClosing(e.target.value)} style={{ minHeight: 60 }} />
@@ -231,7 +257,7 @@ export default function CheckupNoticesView({
             印刷ダイアログで「送信先: PDFに保存」を選ぶと、全員分が1つのPDFになります。
           </span>
         </div>
-        {canFollowup && notYetRecommended.length > 0 && (
+        {tpl.canMarkRecommended && canFollowup && notYetRecommended.length > 0 && (
           <div style={{ marginTop: 12, paddingTop: 12, borderTop: "1px solid var(--line)" }}>
             <button className="btn secondary" onClick={markRecommended} disabled={busy}>
               {busy ? "処理中…" : `通知した ${notYetRecommended.length}名を「勧奨済」にする`}
@@ -311,6 +337,14 @@ export default function CheckupNoticesView({
                     <strong>{c.work_judgment_note || "—"}</strong>
                   </td>
                 </tr>
+                {tpl.extraLabel && extra && (
+                  <tr>
+                    <th>面談の日時・場所</th>
+                    <td>
+                      <strong>{extra}</strong>
+                    </td>
+                  </tr>
+                )}
               </tbody>
             </table>
 

@@ -7,6 +7,7 @@ import { createClient } from "@/lib/supabase/server";
 import { loadCheckupList } from "@/lib/checkupList";
 import { needsAttention } from "@/lib/checkups";
 import { getCompanyAddress } from "@/lib/noticeData";
+import { NOTICE_TEMPLATES, noticeKindOf } from "@/lib/notice";
 
 export const dynamic = "force-dynamic";
 
@@ -16,11 +17,12 @@ export default async function OfficeCheckupNoticesPage({
   searchParams,
 }: {
   params: { companyId: string };
-  searchParams: { year?: string; round?: string };
+  searchParams: { year?: string; round?: string; kind?: string };
 }) {
   const supabase = createClient();
   const year = searchParams.year ? Number(searchParams.year) : undefined;
   const round = searchParams.round ? Number(searchParams.round) : undefined;
+  const kind = noticeKindOf(searchParams.kind);
   const [{ profile }, { data: company }, data, companyAddress] = await Promise.all([
     requireProfile(),
     supabase.from("companies").select("id, name").eq("id", params.companyId).single(),
@@ -37,7 +39,7 @@ export default async function OfficeCheckupNoticesPage({
     p_action: "checkup_notices",
     p_target_table: "hm_checkups",
     p_target_id: null,
-    p_detail: { company_id: company.id, fiscal_year: data.year, round: data.round, candidates: rows.length },
+    p_detail: { company_id: company.id, fiscal_year: data.year, round: data.round, kind, candidates: rows.length },
   });
 
   return (
@@ -48,9 +50,11 @@ export default async function OfficeCheckupNoticesPage({
           <Link href={`/office/${company.id}/checkups?year=${data.year}${data.roundQuery}`}>← 健康診断管理に戻る</Link>
         </p>
         <h1 className="page-title no-print">
-          {company.name} — 受診勧奨通知書の作成（{data.year}年度）
+          {company.name} — {NOTICE_TEMPLATES[kind].label}書の作成（{data.year}年度）
         </h1>
         <CheckupNoticesView
+          kind={kind}
+          tabBasePath={`/office/${company.id}/checkups/notices?year=${data.year}${data.roundQuery}`}
           companyName={company.name}
           companyAddress={companyAddress}
           officeInfo={data.officeInfo}

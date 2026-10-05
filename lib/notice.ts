@@ -1,24 +1,75 @@
-// 受診勧奨通知文書の既定文面(画面上で編集可能)
+// 従業員へ渡す通知文書(受診勧奨通知・産業医面談通知)の種類と既定文面(画面上で編集可能)
 import type { CheckupRow } from "@/components/CheckupsTable";
 
-export const NOTICE_DEFAULT_TITLE = "健康診断結果に基づく医療機関受診のご案内";
+export type NoticeKind = "consult" | "interview";
 
-export const NOTICE_DEFAULT_BODY = `このたびの健康診断の結果について、産業医による確認を行いました。
-下記のとおり、医療機関での受診（精密検査・治療）をお勧めする所見がありましたので、お早めに受診してください。
+export type NoticeTemplate = {
+  label: string; // タブ名
+  title: string; // 表題
+  body: string; // 本文(判定内容の前)
+  closing: string; // 結び(判定内容の後)
+  targetHint: string; // 「1. 通知する方を選ぶ」の説明
+  isTarget: (c: CheckupRow) => boolean; // 最初からチェックを入れる方
+  extraLabel?: string; // 共通の追加欄(面談の日時・場所など)
+  extraPlaceholder?: string;
+  canMarkRecommended: boolean; // 出力後に受診勧奨の状態を「勧奨済」にできるか
+};
 
-受診後は、受診結果のわかる書類（結果報告書・診断書など）を担当部署までご提出ください。
-ご不明な点がある場合は、担当部署または産業医までご相談ください。`;
-
-export const NOTICE_DEFAULT_CLOSING = `ご自身の健康を守るため、早めの受診をお願いいたします。`;
-
-// 受診勧奨通知の対象とみなす方:
+// 受診勧奨通知の対象:
 //   受診勧奨の状態が「受診勧奨」(未対応)または「勧奨済」(再通知)
 //   または 就業判定の判定条件が「受診が条件」
 //   または 医師の意見に「受診」を含む(例: 肝機能異常あり内科（消化器内科）受診)
 // 受診済・措置不要の方は対象にしない(手動で追加はできる)
-export function isRecommendTarget(c: CheckupRow): boolean {
+function isConsultTarget(c: CheckupRow): boolean {
   if (c.followup_status === "done") return false;
   if (c.followup_status === "pending" || c.followup_status === "recommended") return true;
   if (c.work_judgment_condition === "consult") return true;
   return (c.work_judgment_note ?? "").includes("受診");
+}
+
+// 産業医面談通知の対象(一覧の「要産業医面談」の絞り込みと同じ):
+//   就業判定が要就業制限・要休業、または医師の意見に「産業医面談」を含む
+function isInterviewTarget(c: CheckupRow): boolean {
+  if (c.work_judgment === "restricted" || c.work_judgment === "leave") return true;
+  return (c.work_judgment_note ?? "").includes("産業医面談");
+}
+
+export const NOTICE_TEMPLATES: Record<NoticeKind, NoticeTemplate> = {
+  consult: {
+    label: "受診勧奨通知",
+    title: "健康診断結果に基づく医療機関受診のご案内",
+    body: `このたびの健康診断の結果について、産業医による確認を行いました。
+下記のとおり、医療機関での受診（精密検査・治療）をお勧めする所見がありましたので、お早めに受診してください。
+
+受診後は、受診結果のわかる書類（結果報告書・診断書など）を担当部署までご提出ください。
+ご不明な点がある場合は、担当部署または産業医までご相談ください。`,
+    closing: `ご自身の健康を守るため、早めの受診をお願いいたします。`,
+    targetHint:
+      "受診勧奨が「未対応」「勧奨済」の方、判定条件が「受診が条件」の方、医師の意見に「受診」を含む方に、はじめからチェックが入っています。",
+    isTarget: isConsultTarget,
+    canMarkRecommended: true,
+  },
+  interview: {
+    label: "産業医面談通知",
+    title: "健康診断結果に基づく産業医面談のご案内",
+    body: `このたびの健康診断の結果について、産業医による確認を行いました。
+下記のとおり、産業医との面談が必要と判断されましたので、面談にご出席ください。
+
+面談では、健康診断の結果と現在の体調・勤務の状況をうかがい、必要な就業上の配慮についてご相談します。
+面談の日時・場所は担当部署からご案内します。お薬手帳や医療機関の受診結果があればお持ちください。`,
+    closing: `面談でお話しいただいた内容は産業医が守秘し、就業上必要な範囲に限って会社へ伝えます。
+ご不明な点がある場合は、担当部署までお問い合わせください。`,
+    targetHint:
+      "就業判定が「要就業制限」「要休業」の方と、医師の意見に「産業医面談」を含む方に、はじめからチェックが入っています。",
+    isTarget: isInterviewTarget,
+    extraLabel: "面談の日時・場所（任意・全員に共通）",
+    extraPlaceholder: "例: 2026年10月20日（月）13:00〜 本社3階 相談室",
+    canMarkRecommended: false,
+  },
+};
+
+export const NOTICE_KINDS: NoticeKind[] = ["consult", "interview"];
+
+export function noticeKindOf(value: string | undefined): NoticeKind {
+  return value === "interview" ? "interview" : "consult";
 }
