@@ -22,7 +22,8 @@ type Lookup = {
 };
 
 // 受診勧奨通知のQRコードから開く受診報告(ログイン不要。受付番号+本人確認で保護)
-export default function ConsultReportForm({ token }: { token: string }) {
+// demoInfo を渡すと紹介用デモになり、データベースに触れず、本人確認の入力内容を問わず表示し、送信しても保存しない
+export default function ConsultReportForm({ token, demoInfo }: { token: string; demoInfo?: Lookup }) {
   const [kind, setKind] = useState<VerifyKind | null>(null);
   const [answer, setAnswer] = useState("");
   const [info, setInfo] = useState<Lookup | null>(null);
@@ -37,6 +38,10 @@ export default function ConsultReportForm({ token }: { token: string }) {
   const [instruction, setInstruction] = useState("");
 
   useEffect(() => {
+    if (demoInfo) {
+      setKind("birth_date");
+      return;
+    }
     const supabase = createClient();
     supabase
       .rpc("hm_report_verify_kind", { p_token: token })
@@ -44,12 +49,17 @@ export default function ConsultReportForm({ token }: { token: string }) {
         if (error) setKind("invalid");
         else setKind((data as VerifyKind) ?? "invalid");
       });
-  }, [token]);
+  }, [token, demoInfo]);
 
   const verify = async (e: FormEvent) => {
     e.preventDefault();
     setBusy(true);
     setError(null);
+    if (demoInfo) {
+      setBusy(false);
+      setInfo(demoInfo);
+      return;
+    }
     const supabase = createClient();
     const { data, error } = await supabase.rpc("hm_report_lookup", { p_token: token, p_answer: answer });
     setBusy(false);
@@ -72,6 +82,11 @@ export default function ConsultReportForm({ token }: { token: string }) {
     }
     setBusy(true);
     setError(null);
+    if (demoInfo) {
+      setBusy(false);
+      setDone(true);
+      return;
+    }
     const supabase = createClient();
     const { error } = await supabase.rpc("hm_report_submit", {
       p_token: token,

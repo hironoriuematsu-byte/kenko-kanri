@@ -49,6 +49,7 @@ export default function DemoCheckupsPage({ searchParams }: { searchParams: { vie
             <span className="btn" aria-disabled style={{ opacity: 0.6, cursor: "default" }}>就業判定結果出力</span>
             <span className="btn secondary" aria-disabled style={{ opacity: 0.6, cursor: "default" }}>健康診断結果出力</span>
             <Link className="btn secondary" href="/demo/checkups/report">労基署報告（様式第6号）</Link>
+            <Link className="btn" href="/demo/checkups/notices">受診勧奨・産業医面談の通知書（1人1ページ）</Link>
           </p>
           <p className="muted" style={{ fontSize: 12.5 }}>
             {company
@@ -132,7 +133,7 @@ export default function DemoCheckupsPage({ searchParams }: { searchParams: { vie
 
           <p className="muted" style={{ fontSize: 12.5 }}>
             {company
-              ? "実際の画面では、企業担当者は「受診勧奨」の状態(勧奨済・受診済)を更新できます(デモでは閲覧のみ)。"
+              ? "実際の画面では、企業担当者は「受診勧奨」の状態(勧奨済・受診済)を更新できます(デモでは閲覧のみ)。本人がQRコードから受診報告を送ると自動で「受診済」になり、「📱 報告あり」と表示されます(小林 直人の例)。"
               : "実際の画面では、産業医事務所は一覧の「就業判定」「医師の意見」「判定条件」をその場で入力・一括判定できます(デモでは閲覧のみ)。"}
           </p>
           <CheckupsTable rows={rows} canDelete={false} canJudge={false} canFollowup={false} demo compact={company} />

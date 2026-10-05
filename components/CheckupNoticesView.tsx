@@ -38,6 +38,7 @@ export default function CheckupNoticesView({
   round,
   rows,
   canFollowup,
+  demo = false,
 }: {
   kind: NoticeKind;
   tabBasePath: string; // タブのリンク先(?year=...&round=... まで含む)
@@ -48,6 +49,7 @@ export default function CheckupNoticesView({
   round?: number;
   rows: CheckupRow[];
   canFollowup: boolean; // 通知後に受診勧奨の状態を「勧奨済」にできるか
+  demo?: boolean; // 紹介用デモ(データベースに触れない。QRコードはデモの受診報告ページを指す)
 }) {
   const router = useRouter();
   const tpl = NOTICE_TEMPLATES[kind];
@@ -83,6 +85,15 @@ export default function CheckupNoticesView({
     if (!tpl.hasQrReport || !withQr) return;
     const missing = rows.filter((c) => selected.has(c.id) && !tokens.has(c.id)).map((c) => c.id);
     if (missing.length === 0) return;
+    if (demo) {
+      // デモでは受付番号を発行せず、全員のQRコードをデモの受診報告ページに向ける
+      setTokens((prev) => {
+        const next = new Map(prev);
+        for (const id of missing) next.set(id, "demo");
+        return next;
+      });
+      return;
+    }
     let alive = true;
     const supabase = createClient();
     supabase.rpc("hm_ensure_report_tokens", { p_ids: missing }).then(({ data, error }) => {
@@ -108,7 +119,8 @@ export default function CheckupNoticesView({
   }, [selected, withQr, tpl.hasQrReport]);
   const reportUrl = (id: string) => {
     const t = tokens.get(id);
-    return t && origin ? `${origin}/report/${t}` : null;
+    if (!t || !origin) return null;
+    return demo ? `${origin}/demo/report` : `${origin}/report/${t}`;
   };
 
   const physicianName = officeInfo?.physician_name || "上松弘典";

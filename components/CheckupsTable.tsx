@@ -1045,10 +1045,16 @@ export default function CheckupsTable({
                     )}
                     {/* 本人がQRコードから送った受診報告(最新)。詳細は個人票で見る */}
                     {c.report && (
-                      <div style={{ fontSize: 11, marginTop: 2 }}>
-                        <Link href={`/checkup/${c.id}#reports`} style={{ color: "var(--teal-dark)" }}>
-                          📱 報告あり{c.report.result ? `: ${c.report.result}` : ""}
-                        </Link>
+                      <div style={{ fontSize: 11, marginTop: 2, color: "var(--teal-dark)" }}>
+                        {demo ? (
+                          <span title={`受診日 ${formatDateJa(c.report.visit_date)}`}>
+                            📱 報告あり{c.report.result ? `: ${c.report.result}` : ""}
+                          </span>
+                        ) : (
+                          <Link href={`/checkup/${c.id}#reports`} style={{ color: "var(--teal-dark)" }}>
+                            📱 報告あり{c.report.result ? `: ${c.report.result}` : ""}
+                          </Link>
+                        )}
                       </div>
                     )}
                   </td>

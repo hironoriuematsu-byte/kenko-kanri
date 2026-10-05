@@ -6,6 +6,7 @@ import type { ReportItem } from "@/lib/checkupReport";
 export const DEMO_COMPANY = "モデル株式会社";
 export const DEMO_FISCAL_YEAR = 2026;
 export const DEMO_PHYSICIAN = "上松弘典";
+export const DEMO_COMPANY_ADDRESS = "大阪府大阪市北区○○町1-2-3";
 export const DEMO_OFFICE = {
   office_name: "うえまつ産業医事務所",
   address: "京都府京都市中京区錦小路通室町西入天神山町280 石勘株式会社 第一ビル 4F-15",
@@ -28,6 +29,8 @@ type Person = {
   note?: string;
   condition?: "consult" | null;
   followup?: "none" | "pending" | "recommended" | "done";
+  // 本人がQRコードから送った受診報告(最新)
+  report?: { submitted_at: string; visit_date: string; result: string };
 };
 
 const JUDGED = "2026-09-10";
@@ -57,7 +60,8 @@ const PEOPLE: Person[] = [
     judgment: "normal", followup: "none" },
   { no: "2003", name: "小林 直人", kana: "コバヤシ ナオト", birth: "1965-08-22", sex: "male", dept: "営業部", date: "2026-07-21", grade: "D",
     items: [["BMI", "23.5", "A"], ["収縮期血圧", "138", "B"], ["拡張期血圧", "84", "B"], ["血色素量", "14.2", "A"], ["AST", "26", "A"], ["ALT", "22", "A"], ["中性脂肪", "120", "A"], ["LDLコレステロール", "125", "B"], ["HbA1c", "5.6", "A"], ["尿糖", "-", "A"], ["尿蛋白", "-", "A"], ["胸部エックス線", "右上肺野に結節影", "D"], ["心電図", "完全右脚ブロック", "C"], ["聴力 1000Hz", "30", "B"], ["聴力 4000Hz", "50", "C"]],
-    judgment: "normal", condition: "consult", note: "胸部エックス線異常あり呼吸器内科受診", followup: "done" },
+    judgment: "normal", condition: "consult", note: "胸部エックス線異常あり呼吸器内科受診", followup: "done",
+    report: { submitted_at: "2026-09-24T18:12:00+09:00", visit_date: "2026-09-22", result: "精密検査中" } },
   { no: "2004", name: "佐藤 美咲", kana: "サトウ ミサキ", birth: "1995-01-07", sex: "female", dept: "営業部", date: "2026-07-22", grade: "A",
     items: [["BMI", "20.3", "A"], ["収縮期血圧", "108", "A"], ["拡張期血圧", "66", "A"], ["血色素量", "12.9", "A"], ["AST", "18", "A"], ["ALT", "14", "A"], ["中性脂肪", "70", "A"], ["LDLコレステロール", "98", "A"], ["HbA1c", "5.0", "A"], ["尿糖", "-", "A"], ["尿蛋白", "-", "A"], ["胸部エックス線", "異常なし", "A"], ["心電図", "異常なし", "A"], ["聴力 1000Hz", "15", "A"], ["聴力 4000Hz", "15", "A"]],
     judgment: "normal", followup: "none" },
@@ -193,6 +197,7 @@ export function demoCheckups(): { rows: CheckupRow[]; items: ReportItem[] } {
       work_judgment_date: p.judgment ? JUDGED : null,
       work_judgment_condition: p.condition ?? null,
       followup_status: p.followup ?? "none",
+      report: p.report ?? null,
       findingItems: p.items.filter(([, , j]) => /^[CDER]/.test(j)).map(([name, v, j]) => ({ item_name: name, judgment: j, value: v })),
     });
   });
@@ -305,4 +310,13 @@ export const DEMO_KARTE = {
   files: [
     { category: "medical_certificate", file_name: "診断書_2026-09.pdf", note: "内科（耐糖能異常）", visibility: "shared", created_at: "2026-09-25" },
   ],
+};
+
+// QRコードから開く受診報告ページのサンプル(小林 直人。デモでは本人確認の入力内容を問わず表示し、送信しても保存しない)
+export const DEMO_REPORT = {
+  target_name: "小林 直人",
+  company_name: DEMO_COMPANY,
+  checkup_date: "2026-07-21",
+  work_judgment_note: "胸部エックス線異常あり呼吸器内科受診",
+  last_submitted_at: null as string | null,
 };
