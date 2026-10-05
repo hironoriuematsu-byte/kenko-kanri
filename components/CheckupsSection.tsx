@@ -70,6 +70,10 @@ export default async function CheckupsSection({
             <Link className="btn secondary" href={`${basePath}/report?year=${year}${roundQuery}`}>
               労基署報告（様式第6号）
             </Link>
+            {/* 受診勧奨となった従業員へ渡す通知文書(1人1ページ・まとめて印刷/PDF) */}
+            <Link className="btn" href={`${basePath}/notices?year=${year}${roundQuery}`}>
+              受診勧奨通知書（1人1ページ）
+            </Link>
           </>
         )}
       </p>
