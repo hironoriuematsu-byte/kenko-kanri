@@ -123,6 +123,7 @@ export default function RecomputeJudgments({
 
     // 1回の送信が大きくなりすぎないよう分けて送る
     let saved = 0;
+    let resetPending = 0; // 再計算で D に上がり、就業判定を「判定保留」に戻した方(0144)
     for (let i = 0; i < payload.length; i += 50) {
       const { data, error: sErr } = await supabase.rpc("hm_apply_judgments", {
         p_rows: payload.slice(i, i + 50),
@@ -132,10 +133,22 @@ export default function RecomputeJudgments({
         setBusy(false);
         return;
       }
-      saved += Number(data ?? 0);
+      // 0144 以降は {count, reset_pending}、それ以前は人数だけが返る
+      if (data && typeof data === "object") {
+        const r = data as { count?: number; reset_pending?: number };
+        saved += Number(r.count ?? 0);
+        resetPending += Number(r.reset_pending ?? 0);
+      } else {
+        saved += Number(data ?? 0);
+      }
     }
 
-    setMessage(`${saved}名分の判定を計算し直しました（項目 ${changed}件を更新）。`);
+    setMessage(
+      `${saved}名分の判定を計算し直しました（項目 ${changed}件を更新）。` +
+        (resetPending > 0
+          ? ` 総合判定がDに上がった ${resetPending}名の就業判定を「判定保留」に戻しました。一覧の「要対応」からご確認のうえ、再判定と医師の意見の入力をお願いします。`
+          : "")
+    );
     setBusy(false);
     router.refresh();
   };
