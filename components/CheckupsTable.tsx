@@ -409,6 +409,15 @@ export default function CheckupsTable({
     setBulkPresets(SEVERE_DEFAULT_PRESETS);
   };
 
+  // 「判定保留を選択」: 再判定する前提で、通常勤務可(受診が条件)の初期値を入れる
+  // (判定の再計算で総合判定がDに上がった方などが「判定保留」に戻されている)
+  const pendingRows = rows.filter((r) => r.work_judgment === "pending");
+  const onSelectPending = () => {
+    setSelected(new Set(pendingRows.map((r) => r.id)));
+    setJudgment("normal");
+    setBulkPresets(SEVERE_DEFAULT_PRESETS);
+  };
+
   // 「就業制限項目（R）を選択」: 要就業制限(但し受診が条件・要産業医面談)で判定する前提で初期値を入れる
   const onSelectRestriction = () => {
     setSelected(new Set(restrictionRows.map((r) => r.id)));
@@ -570,6 +579,11 @@ export default function CheckupsTable({
             {restrictionRows.length > 0 && (
               <button className="btn secondary" onClick={onSelectRestriction} disabled={busy}>
                 就業制限項目（R）を選択（{restrictionRows.length}名）
+              </button>
+            )}
+            {pendingRows.length > 0 && (
+              <button className="btn secondary" onClick={onSelectPending} disabled={busy}>
+                判定保留を選択（{pendingRows.length}名）
               </button>
             )}
           </div>
