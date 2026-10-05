@@ -1,6 +1,7 @@
 import { notFound, redirect } from "next/navigation";
 import Header from "@/components/Header";
 import PersonForm from "@/components/PersonForm";
+import { getEmployeeAccounts } from "@/lib/employeeAccounts";
 import { requireProfile } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 
@@ -22,12 +23,7 @@ export default async function OfficePersonNewPage({
     .single();
   if (!company) notFound();
 
-  const { data: employees } = await supabase
-    .from("profiles")
-    .select("id, full_name")
-    .eq("company_id", company.id)
-    .eq("role", "employee")
-    .order("full_name");
+  const employees = await getEmployeeAccounts(company.id);
 
   return (
     <>
@@ -36,7 +32,7 @@ export default async function OfficePersonNewPage({
         <h1 className="page-title">{company.name} — 従業員カルテの作成</h1>
         <div className="card">
           <PersonForm
-            employees={employees ?? []}
+            employees={employees}
             backHref={`/office/${company.id}/persons`}
             initial={{
               company_id: company.id,

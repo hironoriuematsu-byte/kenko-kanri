@@ -32,7 +32,7 @@ export default async function OfficePersonsPage({
         </p>
         <h1 className="page-title">{company.name} — 従業員カルテ</h1>
         <div className="card">
-          <PersonsSection companyId={company.id} basePath={`/office/${company.id}/persons`} />
+          <PersonsSection companyId={company.id} basePath={`/office/${company.id}/persons`} canLink />
         </div>
       </main>
     </>

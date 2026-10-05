@@ -1,6 +1,7 @@
 import { notFound, redirect } from "next/navigation";
 import Header from "@/components/Header";
 import PersonForm from "@/components/PersonForm";
+import { getEmployeeAccounts } from "@/lib/employeeAccounts";
 import { requireProfile, homePathFor } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 
@@ -21,12 +22,7 @@ export default async function KarteEditPage({ params }: { params: { personId: st
   const isCompany = profile.role === "company" && profile.company_id === person.company_id;
   if (!isOffice && !isCompany) redirect(homePathFor(profile.role));
 
-  const { data: employees } = await supabase
-    .from("profiles")
-    .select("id, full_name")
-    .eq("company_id", person.company_id)
-    .eq("role", "employee")
-    .order("full_name");
+  const employees = await getEmployeeAccounts(person.company_id);
 
   return (
     <>
@@ -35,7 +31,7 @@ export default async function KarteEditPage({ params }: { params: { personId: st
         <h1 className="page-title">カルテ基本情報の編集: {person.full_name}</h1>
         <div className="card">
           <PersonForm
-            employees={employees ?? []}
+            employees={employees}
             backHref={`/karte/${person.id}`}
             initial={{
               id: person.id,

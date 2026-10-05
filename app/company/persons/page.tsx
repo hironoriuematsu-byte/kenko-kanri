@@ -20,7 +20,7 @@ export default async function CompanyPersonsPage() {
         </p>
         <h1 className="page-title">従業員カルテ<ManualLink section="persons" /></h1>
         <div className="card">
-          <PersonsSection companyId={profile.company_id} basePath="/company/persons" />
+          <PersonsSection companyId={profile.company_id} basePath="/company/persons" canLink={!profile.view_only} />
         </div>
       </main>
     </>

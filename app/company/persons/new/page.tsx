@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import Header from "@/components/Header";
 import PersonForm from "@/components/PersonForm";
+import { getEmployeeAccounts } from "@/lib/employeeAccounts";
 import { requireProfile } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 
@@ -13,12 +14,7 @@ export default async function CompanyPersonNewPage() {
   if (profile.view_only) redirect("/company");
 
   const supabase = createClient();
-  const { data: employees } = await supabase
-    .from("profiles")
-    .select("id, full_name")
-    .eq("company_id", profile.company_id)
-    .eq("role", "employee")
-    .order("full_name");
+  const employees = await getEmployeeAccounts(profile.company_id);
 
   return (
     <>
@@ -27,7 +23,7 @@ export default async function CompanyPersonNewPage() {
         <h1 className="page-title">従業員カルテの作成</h1>
         <div className="card">
           <PersonForm
-            employees={employees ?? []}
+            employees={employees}
             backHref="/company/persons"
             initial={{
               company_id: profile.company_id,

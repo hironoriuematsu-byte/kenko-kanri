@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/browser";
 import DateTextInput from "@/components/DateTextInput";
 import { BIRTH_DATE_LABEL, BIRTH_DATE_REQUIRED } from "@/lib/personPolicy";
+import { accountLabel, matchAccount, MATCH_LABEL, type EmployeeAccount } from "@/lib/accountMatch";
 
 export type PersonInput = {
   id?: string;
@@ -19,7 +20,7 @@ export type PersonInput = {
   note: string;
 };
 
-type Employee = { id: string; full_name: string | null };
+type Employee = EmployeeAccount;
 
 export default function PersonForm({
   initial,
@@ -37,6 +38,21 @@ export default function PersonForm({
 
   const set = <K extends keyof PersonInput>(k: K, val: PersonInput[K]) =>
     setV((p) => ({ ...p, [k]: val }));
+
+  // 未紐付けのとき、入力中の氏名・社員番号・生年月日に一致するアカウントを提案する
+  const suggestion = !v.user_id
+    ? matchAccount(employees, { name: v.full_name, employeeNo: v.employee_no, birthDate: v.birth_date })
+    : null;
+  const linkSuggested = () => {
+    if (!suggestion) return;
+    setV((p) => ({
+      ...p,
+      user_id: suggestion.account.id,
+      // カルテに無い項目はアカウント側の登録内容で補う
+      employee_no: p.employee_no || suggestion.account.employee_no || "",
+      birth_date: p.birth_date || suggestion.account.birth_date || "",
+    }));
+  };
 
   const onSubmit = async (e: FormEvent) => {
     e.preventDefault();
@@ -151,10 +167,18 @@ export default function PersonForm({
             <option value="">（紐付けない）</option>
             {employees.map((emp) => (
               <option key={emp.id} value={emp.id}>
-                {emp.full_name ?? emp.id}
+                {accountLabel(emp)}
               </option>
             ))}
           </select>
+          {suggestion && (
+            <p className="notice" style={{ marginTop: 8 }}>
+              {MATCH_LABEL[suggestion.by]}するアカウントがあります: {accountLabel(suggestion.account)}{" "}
+              <button type="button" className="btn secondary" style={{ marginLeft: 8 }} onClick={linkSuggested}>
+                このアカウントを紐付ける
+              </button>
+            </p>
+          )}
         </div>
       )}
       <div className="form-row">
