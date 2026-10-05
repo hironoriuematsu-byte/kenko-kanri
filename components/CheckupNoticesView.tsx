@@ -17,6 +17,7 @@ import {
   roundLabel,
 } from "@/lib/checkups";
 import { INTERVIEW_METHODS } from "@/lib/interviews";
+import { referralNote } from "@/lib/referral";
 import {
   NOTICE_TEMPLATES,
   REPORT_FORM_RESULTS,
@@ -35,6 +36,7 @@ export default function CheckupNoticesView({
   round,
   rows,
   canFollowup,
+  canFillOpinion = false,
   demo = false,
 }: {
   kind: NoticeKind;
@@ -45,6 +47,7 @@ export default function CheckupNoticesView({
   round?: number;
   rows: CheckupRow[]; // 通知の対象者(呼び出し側で絞り込み済み)
   canFollowup: boolean; // 通知後に受診勧奨の状態を「勧奨済」にできるか
+  canFillOpinion?: boolean; // 医師の意見が空の方に受診勧奨の文章を自動で入れられるか(実施者のみ)
   demo?: boolean; // 紹介用デモ(データベースに触れない。QRコードはデモの受診報告ページを指す)
 }) {
   const router = useRouter();
@@ -64,7 +67,11 @@ export default function CheckupNoticesView({
   const [interviewMethod, setInterviewMethod] = useState("in_person");
   const [interviewLocation, setInterviewLocation] = useState("");
   // 対象者は呼び出し側で絞り込み済み。最初は全員にチェックが入り、外したい方だけチェックを外す
-  const [selected, setSelected] = useState<Set<string>>(() => new Set(rows.map((c) => c.id)));
+  // 受診勧奨通知で「医師の意見」が空の方は、空欄の通知書を渡さないよう最初はチェックを外しておく
+  const missingOpinion = kind === "consult" ? rows.filter((c) => !c.work_judgment_note) : [];
+  const [selected, setSelected] = useState<Set<string>>(
+    () => new Set(rows.filter((c) => c.work_judgment_note || kind !== "consult").map((c) => c.id))
+  );
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
 
@@ -130,6 +137,36 @@ export default function CheckupNoticesView({
     });
 
   const targets = rows.filter((c) => selected.has(c.id));
+
+  // 医師の意見が空の方に、要医療項目(D)・就業制限項目(R)から作った受診勧奨の文章
+  // (一括判定のときと同じ lib/referral.ts の文章)を入れる(実施者のみ)
+  const fillOpinions = async () => {
+    if (missingOpinion.length === 0) return;
+    const ok = window.confirm(
+      `医師の意見が空の ${missingOpinion.length}名に、要医療項目から作った受診勧奨の文章（例: 肝機能異常あり内科（消化器内科）受診）を入れます。よろしいですか？`
+    );
+    if (!ok) return;
+    setBusy(true);
+    setMessage(null);
+    const supabase = createClient();
+    let done = 0;
+    let failed = 0;
+    for (const c of missingOpinion) {
+      const note =
+        referralNote(c.findingItems ?? [], (c.sex as "male" | "female" | null) ?? null) ||
+        "要医療項目あり医療機関受診";
+      const { error } = await supabase.rpc("hm_save_work_judgment_note", { p_id: c.id, p_note: note });
+      if (error) failed++;
+      else done++;
+    }
+    setBusy(false);
+    setMessage(
+      failed > 0
+        ? `${done}名に医師の意見を入れました（${failed}名は更新できませんでした）。`
+        : `${done}名に医師の意見を入れました。画面を更新すると通知の対象に入ります。`
+    );
+    router.refresh();
+  };
   const notYetRecommended = targets.filter((c) => c.followup_status === "pending");
 
   // 通知を出した方の受診勧奨の状態を「勧奨済」にする(一覧の「受診勧奨」欄と同じRPC)
@@ -226,6 +263,27 @@ export default function CheckupNoticesView({
           {tpl.targetHint}
           全員にチェックが入っています。今回は通知しない方がいればチェックを外してください（就業判定が未入力・判定保留の方は含まれません）。
         </p>
+        {missingOpinion.length > 0 && (
+          <div className="notice" style={{ marginBottom: 10 }}>
+            <strong>医師の意見が未入力の方が {missingOpinion.length}名います</strong>
+            （{missingOpinion.map((c) => c.target_name).slice(0, 5).join("、")}
+            {missingOpinion.length > 5 ? " ほか" : ""}）。
+            通知書の「医師の意見」が空欄になるため、最初はチェックを外しています。
+            {canFillOpinion ? (
+              <>
+                「判定の再計算」などで総合判定があとからDになった方は、就業判定時の意見が入っていないことがあります。
+                下のボタンで要医療項目から作った受診勧奨の文章を入れるか、健診一覧の「医師の意見」欄で個別に入力してください。
+                <div style={{ marginTop: 8 }}>
+                  <button className="btn secondary" onClick={fillOpinions} disabled={busy}>
+                    {busy ? "処理中…" : `${missingOpinion.length}名に受診勧奨の文章を自動で入れる`}
+                  </button>
+                </div>
+              </>
+            ) : (
+              "産業医事務所に医師の意見の入力を依頼してください。入力後にこの画面を開き直すと通知の対象に入ります。"
+            )}
+          </div>
+        )}
         {selected.size < rows.length && (
           <div style={{ marginBottom: 8 }}>
             <button

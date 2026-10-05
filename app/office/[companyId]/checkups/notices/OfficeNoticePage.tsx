@@ -62,6 +62,7 @@ export default async function OfficeNoticePage({
           round={data.rounds.length > 1 ? data.round : undefined}
           rows={rows}
           canFollowup
+          canFillOpinion
         />
       </main>
     </>
