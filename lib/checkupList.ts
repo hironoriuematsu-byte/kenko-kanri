@@ -173,7 +173,26 @@ export async function loadCheckupList(
     arr.push({ item_name: it.item_name, judgment, computed, value: it.value });
     findingsByCheckup.set(it.checkup_id, arr);
   }
-  const list: CheckupRow[] = checkups.map((c) => ({ ...c, findingItems: findingsByCheckup.get(c.id) ?? [] }));
+  // 本人がQRコードから送った受診報告(最新1件)。0142 未適用の環境では表が無いので無視する
+  const reportById = new Map<string, NonNullable<CheckupRow["report"]>>();
+  if (ids.length > 0) {
+    const { data: reports } = await supabase
+      .from("hm_consult_reports")
+      .select("checkup_id, submitted_at, visit_date, result")
+      .in("checkup_id", ids)
+      .order("submitted_at", { ascending: false });
+    for (const r of (reports ?? []) as { checkup_id: string; submitted_at: string; visit_date: string | null; result: string | null }[]) {
+      if (!reportById.has(r.checkup_id)) {
+        reportById.set(r.checkup_id, { submitted_at: r.submitted_at, visit_date: r.visit_date, result: r.result });
+      }
+    }
+  }
+
+  const list: CheckupRow[] = checkups.map((c) => ({
+    ...c,
+    findingItems: findingsByCheckup.get(c.id) ?? [],
+    report: reportById.get(c.id) ?? null,
+  }));
   const { stats, form6 } = computeCheckupStats(list, items);
 
   return { officeInfo, rules, years, year, rounds, round, roundQuery, list, items, stats, form6 };

@@ -1,9 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import PrintButton from "@/components/PrintButton";
+import QrCode from "@/components/QrCode";
 import type { CheckupRow } from "@/components/CheckupsTable";
 import { createClient } from "@/lib/supabase/browser";
 import { formatDateJa } from "@/lib/fiscal";
@@ -69,6 +70,46 @@ export default function CheckupNoticesView({
   );
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+
+  // 受診勧奨通知: 本人専用のQRコード(受付番号)。選択した方の分を発行して文書に印字する
+  const [withQr, setWithQr] = useState(true);
+  const [tokens, setTokens] = useState<Map<string, string>>(new Map());
+  const [qrUnavailable, setQrUnavailable] = useState<string | null>(null);
+  const [origin, setOrigin] = useState("");
+  useEffect(() => {
+    setOrigin(window.location.origin);
+  }, []);
+  useEffect(() => {
+    if (!tpl.hasQrReport || !withQr) return;
+    const missing = rows.filter((c) => selected.has(c.id) && !tokens.has(c.id)).map((c) => c.id);
+    if (missing.length === 0) return;
+    let alive = true;
+    const supabase = createClient();
+    supabase.rpc("hm_ensure_report_tokens", { p_ids: missing }).then(({ data, error }) => {
+      if (!alive) return;
+      if (error) {
+        setQrUnavailable(
+          /function|schema cache|relation/i.test(error.message)
+            ? "QRコードの印字には SQL(0142_hm_consult_reports.sql)の適用が必要です。適用されるまでは紙の「受診報告」欄のみ印字されます。"
+            : `QRコードを発行できませんでした: ${error.message}`
+        );
+        return;
+      }
+      setTokens((prev) => {
+        const next = new Map(prev);
+        for (const r of (data ?? []) as { id: string; token: string }[]) next.set(r.id, r.token);
+        return next;
+      });
+    });
+    return () => {
+      alive = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selected, withQr, tpl.hasQrReport]);
+  const reportUrl = (id: string) => {
+    const t = tokens.get(id);
+    return t && origin ? `${origin}/report/${t}` : null;
+  };
 
   const physicianName = officeInfo?.physician_name || "上松弘典";
   const officeName = officeInfo?.office_name || "うえまつ産業医事務所";
@@ -359,6 +400,19 @@ export default function CheckupNoticesView({
             className="form-row"
             style={{ background: "var(--teal-light)", border: "1px solid var(--teal)", borderRadius: 8, padding: "10px 14px" }}
           >
+            <label htmlFor="with-qr" style={{ display: "inline-flex", alignItems: "center", gap: 6, fontWeight: 700 }}>
+              <input
+                id="with-qr"
+                type="checkbox"
+                checked={withQr}
+                onChange={(e) => setWithQr(e.target.checked)}
+                style={{ width: 16, height: 16 }}
+              />
+              本人専用のQRコードを印字する（スマートフォンで読み取って受診報告を送信。送信されると受診勧奨が「受診済」になります）
+            </label>
+            {withQr && qrUnavailable && (
+              <p className="error-message" style={{ margin: "4px 0 8px" }}>{qrUnavailable}</p>
+            )}
             <label htmlFor="with-report-form" style={{ display: "inline-flex", alignItems: "center", gap: 6, fontWeight: 700 }}>
               <input
                 id="with-report-form"
@@ -481,6 +535,34 @@ export default function CheckupNoticesView({
                 )}
               </tbody>
             </table>
+
+            {/* 本人専用のQRコード: 読み取ると受診報告のページが開く(本人確認あり) */}
+            {tpl.hasQrReport && withQr && reportUrl(c.id) && (
+              <div
+                style={{
+                  display: "flex",
+                  gap: 14,
+                  alignItems: "center",
+                  border: "1px solid var(--teal)",
+                  borderRadius: 8,
+                  padding: "10px 14px",
+                  marginBottom: 16,
+                }}
+              >
+                <QrCode value={reportUrl(c.id)!} size={96} />
+                <div style={{ fontSize: 12 }}>
+                  <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 4 }}>
+                    📱 スマートフォンで受診報告を送る
+                  </div>
+                  <div>
+                    受診後にこのQRコードを読み取り、受診日・医療機関・受診結果を入力して送信してください。
+                  </div>
+                  <div className="muted" style={{ marginTop: 4 }}>
+                    開くときに本人確認（生年月日など）があります。このQRコードはご本人専用です。他の方に渡さないでください。
+                  </div>
+                </div>
+              </div>
+            )}
 
             <div style={{ whiteSpace: "pre-wrap", marginBottom: 28 }}>{closing}</div>
 

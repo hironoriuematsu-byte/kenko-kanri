@@ -2,8 +2,9 @@ import { createServerClient, type CookieOptions } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
 // ログイン不要で読めるページ。/privacy は個人情報の取扱い(安全管理措置の概要)の公表ページ、
-// /demo は架空データによる紹介用デモ
-const PUBLIC_PATHS = ["/login", "/privacy", "/demo"];
+// /demo は架空データによる紹介用デモ、/report は受診勧奨通知のQRコードから本人が受診報告を送るページ
+// (本人確認は受付番号+生年月日などで行う)
+const PUBLIC_PATHS = ["/login", "/privacy", "/demo", "/report"];
 
 export async function middleware(request: NextRequest) {
   let response = NextResponse.next({ request });

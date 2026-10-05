@@ -42,6 +42,8 @@ export type CheckupRow = {
   followup_status?: string | null; // 受診勧奨の状態(none/pending/recommended/done)
   special_kind?: string | null; // 特殊健診の種類(有機溶剤・鉛 など)
   findingItems?: FindingItem[];
+  // 本人がQRコードから送った受診報告のうち最新のもの(0142)
+  report?: { submitted_at: string; visit_date: string | null; result: string | null } | null;
 };
 
 // 一覧の「就業判定」欄で未判定に戻すときの選択肢の値
@@ -1040,6 +1042,14 @@ export default function CheckupsTable({
                       <span style={c.followup_status === "pending" ? { color: "var(--orange)", fontWeight: 700 } : {}}>
                         {FOLLOWUP_STATUS[c.followup_status ?? "none"] ?? "—"}
                       </span>
+                    )}
+                    {/* 本人がQRコードから送った受診報告(最新)。詳細は個人票で見る */}
+                    {c.report && (
+                      <div style={{ fontSize: 11, marginTop: 2 }}>
+                        <Link href={`/checkup/${c.id}#reports`} style={{ color: "var(--teal-dark)" }}>
+                          📱 報告あり{c.report.result ? `: ${c.report.result}` : ""}
+                        </Link>
+                      </div>
                     )}
                   </td>
                 </tr>

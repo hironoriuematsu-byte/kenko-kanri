@@ -71,6 +71,13 @@ export default async function CheckupDetailPage({ params }: { params: { id: stri
     .eq("checkup_id", c.id)
     .order("sort_order");
 
+  // 本人がQRコードから送った受診報告(0142。未適用の環境では表が無いので空になる)
+  const { data: reports } = await supabase
+    .from("hm_consult_reports")
+    .select("id, visit_date, facility, department, result, instruction, submitted_at")
+    .eq("checkup_id", c.id)
+    .order("submitted_at", { ascending: false });
+
   // 就業制限の検討水準(R)を測定値から確かめるための判定基準
   const rules = await getJudgmentRules();
   const sex = ((c as { sex?: string }).sex as "male" | "female" | null) ?? null;
@@ -222,6 +229,38 @@ export default async function CheckupDetailPage({ params }: { params: { id: stri
               )}
             </tbody>
           </table>
+
+          {(reports ?? []).length > 0 && (
+            <div id="reports" style={{ marginBottom: 14 }}>
+              <h2 style={{ fontSize: 15 }}>本人からの受診報告（受診勧奨通知のQRコードから送信）</h2>
+              <table className="list">
+                <thead>
+                  <tr>
+                    <th>送信日時</th>
+                    <th>受診日</th>
+                    <th>医療機関・診療科</th>
+                    <th>受診結果</th>
+                    <th>診断名・医師からの指示</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {(reports ?? []).map((r) => (
+                    <tr key={r.id}>
+                      <td style={{ whiteSpace: "nowrap" }}>{new Date(r.submitted_at).toLocaleString("ja-JP")}</td>
+                      <td style={{ whiteSpace: "nowrap" }}>{formatDateJa(r.visit_date)}</td>
+                      <td>
+                        {[r.facility, r.department].filter(Boolean).join("　") || "—"}
+                      </td>
+                      <td>
+                        <strong>{r.result || "—"}</strong>
+                      </td>
+                      <td style={{ whiteSpace: "pre-wrap" }}>{r.instruction || "—"}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
 
           {(items ?? []).length > 0 && (
             <table className="list" style={{ marginBottom: 14 }}>
