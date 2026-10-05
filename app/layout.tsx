@@ -30,6 +30,12 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             </span>
           </span>
           <span className="site-footer-item">&copy; {new Date().getFullYear()} うえまつ産業医事務所 (Mestate LLC)</span>
+          {/* 表示している版(Vercelのデプロイのコミット)。古い画面を見ていないか確かめるための表示 */}
+          {process.env.NEXT_PUBLIC_VERCEL_GIT_COMMIT_SHA && (
+            <span className="site-footer-item muted" style={{ fontSize: 11, marginLeft: 10 }} title="表示中の版">
+              版 {process.env.NEXT_PUBLIC_VERCEL_GIT_COMMIT_SHA.slice(0, 7)}
+            </span>
+          )}
         </footer>
       </body>
     </html>
