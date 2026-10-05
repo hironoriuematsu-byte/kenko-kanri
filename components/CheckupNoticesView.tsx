@@ -16,6 +16,7 @@ import {
   isFindingJudgment,
   roundLabel,
 } from "@/lib/checkups";
+import { INTERVIEW_METHODS } from "@/lib/interviews";
 import { NOTICE_KINDS, NOTICE_TEMPLATES, type NoticeKind } from "@/lib/notice";
 
 // 従業員へ渡す通知文書(受診勧奨通知・産業医面談通知):
@@ -49,7 +50,11 @@ export default function CheckupNoticesView({
   const [closing, setClosing] = useState(tpl.closing);
   const [issuedDate, setIssuedDate] = useState(today);
   const [contact, setContact] = useState("");
-  const [extra, setExtra] = useState("");
+  // 産業医面談通知: 面談の日時・場所(文書に印字し、そのまま面談予定の登録にも使う)
+  const [interviewDate, setInterviewDate] = useState("");
+  const [interviewTime, setInterviewTime] = useState("");
+  const [interviewMethod, setInterviewMethod] = useState("in_person");
+  const [interviewLocation, setInterviewLocation] = useState("");
   const [selected, setSelected] = useState<Set<string>>(
     () => new Set(rows.filter(tpl.isTarget).map((c) => c.id))
   );
@@ -96,6 +101,54 @@ export default function CheckupNoticesView({
       failed > 0
         ? `${done}名を「勧奨済」にしました（${failed}名は更新できませんでした）。`
         : `${done}名を「勧奨済」にしました。`
+    );
+    router.refresh();
+  };
+
+  // 文書に印字する「面談の日時・場所」(例: 2026年10月20日 13:00〜 対面 本社3階 相談室)
+  const interviewWhenWhere = [
+    interviewDate ? formatDateJa(interviewDate) : "",
+    interviewTime.trim(),
+    interviewMethod ? INTERVIEW_METHODS[interviewMethod] : "",
+    interviewLocation.trim(),
+  ]
+    .filter(Boolean)
+    .join("　");
+
+  // 選択した方の面談予定を産業医面談管理にまとめて登録する(同じ健診結果からの登録は二重にしない)
+  const registerInterviews = async () => {
+    if (targets.length === 0) return;
+    if (!interviewDate) {
+      setMessage("面談日を入力してください。");
+      return;
+    }
+    const ok = window.confirm(
+      `選択中の ${targets.length}名について、${formatDateJa(interviewDate)} の「健診事後措置面談」を産業医面談管理に登録します。\n` +
+        `すでに同じ健診結果から登録された面談がある方は登録されません。よろしいですか？`
+    );
+    if (!ok) return;
+    setBusy(true);
+    setMessage(null);
+    const supabase = createClient();
+    const { data, error } = await supabase.rpc("hm_bulk_create_interviews", {
+      p_checkup_ids: targets.map((c) => c.id),
+      p_scheduled_date: interviewDate,
+      p_method: interviewMethod || null,
+      p_location: [interviewTime.trim(), interviewLocation.trim()].filter(Boolean).join(" ") || null,
+    });
+    setBusy(false);
+    if (error) {
+      setMessage(
+        /function|schema cache/i.test(error.message)
+          ? "面談の一括登録には SQL(0141_hm_bulk_create_interviews.sql)の適用が必要です。"
+          : `面談の登録に失敗しました: ${error.message}`
+      );
+      return;
+    }
+    const r = (data ?? {}) as { created?: number; skipped?: number };
+    setMessage(
+      `${r.created ?? 0}名の面談予定を産業医面談管理に登録しました` +
+        (r.skipped ? `（${r.skipped}名は登録済みのため省略）。` : "。")
     );
     router.refresh();
   };
@@ -221,15 +274,61 @@ export default function CheckupNoticesView({
           <label>本文（判定内容の前に入ります）</label>
           <textarea value={body} onChange={(e) => setBody(e.target.value)} style={{ minHeight: 130 }} />
         </div>
-        {tpl.extraLabel && (
-          <div className="form-row">
-            <label>{tpl.extraLabel}</label>
-            <input
-              type="text"
-              value={extra}
-              onChange={(e) => setExtra(e.target.value)}
-              placeholder={tpl.extraPlaceholder}
-            />
+        {tpl.canRegisterInterview && (
+          <div
+            className="form-row"
+            style={{ background: "var(--teal-light)", border: "1px solid var(--teal)", borderRadius: 8, padding: "10px 14px" }}
+          >
+            <label style={{ fontWeight: 700 }}>面談の日時・場所（全員に共通・文書に印字されます）</label>
+            <div style={{ display: "flex", gap: 12, flexWrap: "wrap", alignItems: "flex-end" }}>
+              <div>
+                <label className="muted" style={{ display: "block", fontSize: 12 }}>面談日</label>
+                <input type="date" value={interviewDate} onChange={(e) => setInterviewDate(e.target.value)} />
+              </div>
+              <div>
+                <label className="muted" style={{ display: "block", fontSize: 12 }}>時間（任意）</label>
+                <input
+                  type="text"
+                  value={interviewTime}
+                  onChange={(e) => setInterviewTime(e.target.value)}
+                  placeholder="例: 13:00〜"
+                  style={{ width: 120 }}
+                />
+              </div>
+              <div>
+                <label className="muted" style={{ display: "block", fontSize: 12 }}>方法</label>
+                <select value={interviewMethod} onChange={(e) => setInterviewMethod(e.target.value)}>
+                  {Object.entries(INTERVIEW_METHODS).map(([k, v]) => (
+                    <option key={k} value={k}>
+                      {v}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div style={{ flex: 1, minWidth: 200 }}>
+                <label className="muted" style={{ display: "block", fontSize: 12 }}>場所・URL（任意）</label>
+                <input
+                  type="text"
+                  value={interviewLocation}
+                  onChange={(e) => setInterviewLocation(e.target.value)}
+                  placeholder="例: 本社3階 相談室"
+                />
+              </div>
+            </div>
+            {canFollowup && (
+              <div style={{ marginTop: 10, display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
+                <button
+                  className="btn orange"
+                  onClick={registerInterviews}
+                  disabled={busy || targets.length === 0 || !interviewDate}
+                >
+                  {busy ? "処理中…" : `選択した ${targets.length}名の面談予定を産業医面談管理に登録`}
+                </button>
+                <span className="muted" style={{ fontSize: 12 }}>
+                  面談種別「健診事後措置面談」・状態「予定」で登録します。同じ健診結果から登録済みの方は二重に登録しません。
+                </span>
+              </div>
+            )}
           </div>
         )}
         <div className="form-row">
@@ -337,11 +436,11 @@ export default function CheckupNoticesView({
                     <strong>{c.work_judgment_note || "—"}</strong>
                   </td>
                 </tr>
-                {tpl.extraLabel && extra && (
+                {tpl.canRegisterInterview && interviewWhenWhere && (
                   <tr>
                     <th>面談の日時・場所</th>
                     <td>
-                      <strong>{extra}</strong>
+                      <strong>{interviewWhenWhere}</strong>
                     </td>
                   </tr>
                 )}
