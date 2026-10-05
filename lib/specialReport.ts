@@ -83,7 +83,18 @@ const ORGANIC_CATEGORIES: { key: string; label: string; test: (n: string) => boo
   { key: "neuro", label: "神経内科学的検査", test: (n) => /神経/.test(n) },
 ];
 
-const WORK_CONDITION = (n: string) => /作業時間|作業日数|保護具|換気|工程変更|取扱量|ばく露|暴露/.test(n);
+// 作業条件の調査人数: 「作業時間」に記載があり 0 時間を超えている方を数える
+// (「~1」「1~4」「4~8」「8~」のような区分表記は 0 を超える扱い。「0」「0時間」「なし」「-」は数えない)
+const WORK_TIME = (n: string) => /作業時間|作業時間\(時間\/日\)|時間\/日/.test(n);
+export function isPositiveWorkTime(value: string | null | undefined): boolean {
+  const t = (value ?? "").normalize("NFKC").trim().replace(/\s/g, "");
+  if (!t) return false;
+  if (/^(0+(\.0+)?(時間|h|hr)?|なし|無し|無|ない|-|−|—|―|ー|※)$/i.test(t)) return false;
+  const nums = t.match(/\d+(\.\d+)?/g);
+  if (nums && nums.some((x) => Number(x) > 0)) return true;
+  // 数字が無くても「~」「〜」「未満」「以上」などの区分表記があれば 0 を超える扱い
+  return /[~〜～]|未満|以上|以下|超/.test(t);
+}
 const WORK_CODE = (n: string) => /業務名番号|業務コード|業務名\(番号\)|業務番号/.test(n) || n === "業務名";
 
 // 別表2: 代謝物の検査(名称の表記ゆれを吸収する)
@@ -149,7 +160,7 @@ export function computeOrganicReport(rows: SpecialRow[], items: ReportItem[]): O
       if (mine.some(({ it }) => isFindingJudgment(it.judgment) || /^\+|\(\+\)|（\+）/.test((it.value ?? "").trim()))) categories[idx].findings += 1;
     });
 
-    if (named.some(({ it, n }) => WORK_CONDITION(n) && hasValue(it))) workConditionCount += 1;
+    if (named.some(({ it, n }) => WORK_TIME(n) && isPositiveWorkTime(it.value))) workConditionCount += 1;
 
     // 所見のあった者: 他覚所見以外の項目に C 以上の判定がある(代謝物の分布3 を含む)。
     // 分布の読み取りは代謝物の項目に限る(「業務名番号 3」のような値を分布と誤認しないため)
