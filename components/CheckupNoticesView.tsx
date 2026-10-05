@@ -70,6 +70,16 @@ export default function CheckupNoticesView({
   const [selected, setSelected] = useState<Set<string>>(
     () => new Set(rows.filter(tpl.isTarget).map((c) => c.id))
   );
+  // タブ(通知の種類)が切り替わったら、文面と対象者をその種類の既定に戻す
+  // (呼び出し側の key で作り直す前提だが、万一同じ部品が使い回されても文面が混ざらないようにする)
+  useEffect(() => {
+    setTitle(tpl.title);
+    setBody(tpl.body);
+    setClosing(tpl.closing);
+    setSelected(new Set(rows.filter(tpl.isTarget).map((c) => c.id)));
+    setMessage(null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [kind]);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
 
