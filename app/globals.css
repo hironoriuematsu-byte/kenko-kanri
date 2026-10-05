@@ -308,6 +308,16 @@ table.list td {
   .notice-sheet table.list td {
     padding: 4px 8px;
   }
+  /* 産業医面談通知は文章量が少ないので、余白と行間を広めにとる */
+  .notice-sheet.notice-roomy {
+    padding: 24mm 20mm 20mm;
+    font-size: 11.5pt;
+    line-height: 1.9;
+  }
+  .notice-sheet.notice-roomy table.list th,
+  .notice-sheet.notice-roomy table.list td {
+    padding: 8px 10px;
+  }
   .no-print {
     display: none !important;
   }

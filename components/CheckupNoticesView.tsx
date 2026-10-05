@@ -479,10 +479,15 @@ export default function CheckupNoticesView({
       {targets.map((c) => {
         const findings = findingsText(c);
         const type = `${CHECKUP_TYPES[c.checkup_type] ?? c.checkup_type}${roundLabel(round)}`;
+        // 産業医面談通知は文章量が少ないので、余白と行間を広めにとる
+        const roomy = kind === "interview";
         return (
-          <div className="card sheet-break print-sheet notice-sheet" key={c.id}>
+          <div
+            className={`card sheet-break print-sheet notice-sheet${kind === "interview" ? " notice-roomy" : ""}`}
+            key={c.id}
+          >
             <div style={{ textAlign: "right", fontSize: 13 }}>{formatDateJa(issuedDate)}</div>
-            <div style={{ margin: "6px 0 12px", fontSize: 16 }}>
+            <div style={{ margin: roomy ? "12px 0 22px" : "6px 0 12px", fontSize: 16 }}>
               {c.department && <span className="muted">{c.department}　</span>}
               {c.employee_no && <span className="muted">社員番号 {c.employee_no}　</span>}
               <strong>{c.target_name} 様</strong>
@@ -492,7 +497,7 @@ export default function CheckupNoticesView({
               style={{
                 textAlign: "center",
                 fontSize: 18,
-                margin: "0 0 12px",
+                margin: roomy ? "0 0 22px" : "0 0 12px",
                 border: "none",
                 padding: 0,
                 color: "var(--ink)",
@@ -501,9 +506,9 @@ export default function CheckupNoticesView({
               {title}
             </h2>
 
-            <div style={{ whiteSpace: "pre-wrap", marginBottom: 16 }}>{body}</div>
+            <div style={{ whiteSpace: "pre-wrap", marginBottom: roomy ? 24 : 16 }}>{body}</div>
 
-            <table className="list" style={{ marginBottom: 16 }}>
+            <table className="list" style={{ marginBottom: roomy ? 24 : 16 }}>
               <tbody>
                 <tr>
                   <th style={{ width: 150 }}>健康診断</th>
@@ -519,7 +524,7 @@ export default function CheckupNoticesView({
                 </tr>
                 {findings && (
                   <tr>
-                    <th>受診をお勧めする項目</th>
+                    <th>{kind === "interview" ? "要医療・就業制限の項目" : "受診をお勧めする項目"}</th>
                     <td>{findings}</td>
                   </tr>
                 )}
@@ -578,7 +583,7 @@ export default function CheckupNoticesView({
               </div>
             )}
 
-            <div style={{ whiteSpace: "pre-wrap", marginBottom: 18 }}>{closing}</div>
+            <div style={{ whiteSpace: "pre-wrap", marginBottom: roomy ? 36 : 18 }}>{closing}</div>
 
             <div style={{ textAlign: "right" }}>
               <div>{companyName}</div>
