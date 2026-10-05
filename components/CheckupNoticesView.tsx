@@ -187,13 +187,8 @@ export default function CheckupNoticesView({
           >
             {tpl.label}の対象のみ選択
           </button>
-          <button
-            className="btn secondary"
-            style={{ padding: "3px 10px", fontSize: 12 }}
-            onClick={() => setSelected(new Set(rows.map((c) => c.id)))}
-          >
-            全選択
-          </button>
+          {/* 「全選択」は置かない: 対象外の方にも文書が出てしまう操作ミスを防ぐため。
+              対象外の方を加えたいときは1人ずつチェックする */}
           <button
             className="btn secondary"
             style={{ padding: "3px 10px", fontSize: 12 }}
