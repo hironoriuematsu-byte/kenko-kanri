@@ -42,6 +42,7 @@ export default async function CompanyDashboard() {
     { count: restrictedCount },
     { count: attentionCount },
     { data: companyInfo },
+      { data: meetRoom },
   ] = await Promise.all([
     supabase
       .from("companies")
@@ -63,7 +64,20 @@ export default async function CompanyDashboard() {
       .select("address, tel")
       .eq("company_id", profile.company_id)
       .maybeSingle(),
+    // 面談ルームは産業医事務所が有効にした企業だけ(RLSで有効なルームのみ読める)
+    supabase
+      .from("hm_meet_rooms")
+      .select("meeting_uri")
+      .eq("company_id", profile.company_id)
+      .maybeSingle(),
   ]);
+
+  const menu = meetRoom?.meeting_uri
+    ? [
+        { href: "/company/meet", title: "産業医面談ルーム", icon: "🎥", desc: "産業医とオンラインで面談（Google Meet）" },
+        ...MENU,
+      ]
+    : MENU;
 
   // 健康管理Webをご契約いただいていない企業(ストレスチェックのみのご利用)は、
   // ストレスチェックWebの「企業管理」で hm_enabled が false のままになっている。
@@ -157,7 +171,7 @@ export default async function CompanyDashboard() {
           </div>
         )}
 
-        <MenuGrid items={MENU} />
+        <MenuGrid items={menu} />
 
         <div className="card" style={{ marginTop: 18 }}>
           <h2>企業情報</h2>

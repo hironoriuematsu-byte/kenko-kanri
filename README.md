@@ -99,6 +99,32 @@ npm run dev
 - ストレスチェック側の `profiles` の `user_id / name / emp_id / dept` は列名を変更しない
   （0016の別名列の定義が壊れるため）
 
+## 産業医面談ルーム（Google Meet 連携）
+
+企業ごとに Google Meet の常設ルーム（Meet の「スペース」）を1つ用意し、健康管理Webにログインしている産業医事務所と、その企業の事業者担当者だけが「面談ルームに入る」から入室できる。リンクは作り直さない限り変わらない。
+
+| 項目 | 内容 |
+|---|---|
+| ルーム | 企業ごとに Meet のスペースを1つ（Meet REST API `spaces.create`） |
+| 認証 | サービスアカウント＋ドメイン全体の委任で、産業医の Workspace アカウント（`GOOGLE_MEET_OWNER_EMAIL`）として操作。主催者は産業医。npm 追加なし（Node の crypto で JWT 署名） |
+| スコープ | `meetings.space.created`, `meetings.space.readonly` |
+| アクセス種別 | `TRUSTED`（既定）: 企業側（Workspace 外）は「参加をリクエスト」→ 産業医が承認。`GOOGLE_MEET_ACCESS_TYPE=OPEN` で承認不要 |
+| 対象企業の限定 | `hm_meet_rooms.enabled`。office がオン/オフ。company は RLS で自社の有効なルームのみ読める |
+| 入室 | RPC `hm_meet_enter(company_id)` が権限確認 → `hm_meet_entries` に記録 → `hm_log_access` → リンクを返す |
+| 在室表示 | API Route が `spaces.get` の activeConference → participants を取得。30秒ごとにポーリング（タブ表示中のみ） |
+| 開催履歴 | `conferenceRecords` から開始・終了時刻（参加者名は含めない） |
+| APIなしでも | Meet リンクを手入力で登録可（在室表示・開催履歴なし） |
+
+### 本番適用手順
+
+1. Supabase SQL Editor で `supabase/migrations/0146_hm_meet_rooms.sql` を実行
+2. Google Cloud コンソールでプロジェクト作成 → Google Meet REST API を有効化
+3. サービスアカウント作成 → JSON 鍵を作成
+4. Workspace 管理コンソール → セキュリティ → API の制御 → ドメイン全体の委任 に、クライアントIDと
+   `https://www.googleapis.com/auth/meetings.space.created,https://www.googleapis.com/auth/meetings.space.readonly` を登録
+5. Vercel 環境変数: `GOOGLE_SERVICE_ACCOUNT_EMAIL` / `GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY` / `GOOGLE_MEET_OWNER_EMAIL`（任意で `GOOGLE_MEET_ACCESS_TYPE`）→ Redeploy
+6. 企業メニュー「産業医面談ルーム」→「Google Meet で面談ルームを作成」
+
 ## 今後の改善候補（TODO）
 
 - 面談予定のメール通知（Resendキー設定後に有効化。本文に健康情報を書かない原則を踏襲）

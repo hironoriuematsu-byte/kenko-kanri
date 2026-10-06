@@ -7,6 +7,7 @@ import OfficeInfoForm from "@/components/OfficeInfoForm";
 import InterviewSchedule from "@/components/InterviewSchedule";
 import ImportNotices from "@/components/ImportNotices";
 import CsvUploadsPending from "@/components/CsvUploadsPending";
+import MeetRoomsOverview from "@/components/MeetRoomsOverview";
 import { getOfficeInfo } from "@/lib/officeInfo";
 
 export const dynamic = "force-dynamic";
@@ -61,6 +62,8 @@ export default async function OfficeDashboard() {
       <Header profile={profile} />
       <main className="container">
         <h1 className="page-title">産業医事務所ダッシュボード</h1>
+        {/* 各企業の面談ルームの在室状況(ルームが1つもなければ何も表示しない) */}
+        <MeetRoomsOverview />
 
         {/* 事業者担当者から送られた取込待ちのCSV */}
         <CsvUploadsPending />

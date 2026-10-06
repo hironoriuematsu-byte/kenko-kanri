@@ -14,6 +14,7 @@ const MENU = [
   { href: "patrols", title: "産業医巡視記録", icon: "🔍", desc: "産業医による職場巡視・写真の記録" },
   { href: "env-measurements", title: "作業環境測定", icon: "📊", desc: "測定結果報告書のファイル保管・共有" },
   { href: "interviews", title: "産業医面談管理", icon: "💬", desc: "面談予定・実施記録・意見書" },
+  { href: "meet", title: "産業医面談ルーム", icon: "🎥", desc: "Google Meet の常設ルーム（この企業専用）" },
   { href: "checkups", title: "健康診断管理", icon: "🩺", desc: "取込・有所見・就業判定・事後措置" },
   { href: "stress", title: "ストレスチェック", icon: "📈", desc: "高ストレス者・集団サマリー" },
   { href: "persons", title: "個人カルテ", icon: "🗂️", desc: "書類共有・文書作成・履歴" },
