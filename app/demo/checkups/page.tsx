@@ -41,17 +41,27 @@ export default function DemoCheckupsPage({ searchParams }: { searchParams: { vie
           </span>
         </p>
         <div className="card">
-          <p style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-            <span className="btn orange" aria-disabled style={{ opacity: 0.6, cursor: "default" }}>
-              {company ? "健康診断結果を送る（CSV・PDF）" : "健康診断結果取込"}
-            </span>
-            <span className="btn secondary" aria-disabled style={{ opacity: 0.6, cursor: "default" }}>＋ 個別入力</span>
-            <span className="btn" aria-disabled style={{ opacity: 0.6, cursor: "default" }}>就業判定結果出力</span>
-            <span className="btn secondary" aria-disabled style={{ opacity: 0.6, cursor: "default" }}>健康診断結果出力</span>
-            <Link className="btn secondary" href="/demo/checkups/report">労基署報告（様式第6号）</Link>
-            <Link className="btn" href="/demo/checkups/notices">受診勧奨通知書</Link>
-            <Link className="btn" href="/demo/checkups/interview-notices">産業医面談通知書</Link>
-          </p>
+          {/* 実際の画面と同じく「取込」「出力」「通知」の3段 */}
+          <div style={{ display: "grid", gridTemplateColumns: "auto 1fr", rowGap: 10, columnGap: 14, alignItems: "center", marginBottom: 14 }}>
+            <span className="muted" style={{ fontWeight: 700, whiteSpace: "nowrap" }}>取込</span>
+            <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+              <span className="btn orange" aria-disabled style={{ opacity: 0.6, cursor: "default" }}>
+                {company ? "健康診断結果を送る（CSV・PDF）" : "健康診断結果取込"}
+              </span>
+              <span className="btn secondary" aria-disabled style={{ opacity: 0.6, cursor: "default" }}>＋ 個別入力</span>
+            </div>
+            <span className="muted" style={{ fontWeight: 700, whiteSpace: "nowrap" }}>出力</span>
+            <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+              <span className="btn" aria-disabled style={{ opacity: 0.6, cursor: "default" }}>就業判定結果出力</span>
+              <span className="btn secondary" aria-disabled style={{ opacity: 0.6, cursor: "default" }}>健康診断結果出力</span>
+              <Link className="btn secondary" href="/demo/checkups/report">労基署報告（様式第6号）</Link>
+            </div>
+            <span className="muted" style={{ fontWeight: 700, whiteSpace: "nowrap" }}>通知</span>
+            <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+              <Link className="btn" href="/demo/checkups/notices">受診勧奨通知書</Link>
+              <Link className="btn" href="/demo/checkups/interview-notices">産業医面談通知書</Link>
+            </div>
+          </div>
           <p className="muted" style={{ fontSize: 12.5 }}>
             {company
               ? "実際の画面では、健診機関のCSV・PDFをそのまま産業医事務所に送れます。就業判定結果・健康診断結果のCSV出力もできます(デモでは無効)。"

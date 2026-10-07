@@ -47,52 +47,64 @@ export default async function CheckupsSection({
     <div>
       {/* 事業者担当者が送ったCSVで、産業医事務所の取込待ちのもの */}
       <CsvUploadsStatus companyId={companyId} />
-      <p style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-        {canEdit && (
-          <>
-            <Link className="btn orange" href={`${basePath}/import`}>
-              {canDelete ? "健康診断結果取込" : "健康診断結果を送る（CSV・PDF）"}
-            </Link>
-            <Link className="btn secondary" href={`${basePath}/new`}>
-              ＋ 個別入力
-            </Link>
-          </>
-        )}
-        {year && (
-          <>
-            {/* 事業者が就業上の措置を検討するための一覧 */}
-            <WorkJudgmentReportButton
-              companyName={companyName}
-              fiscalYear={year}
-              round={rounds.length > 1 ? round : undefined}
-              groupLabel={groupLabel}
-              rows={list}
-              officeInfo={officeInfo}
-            />
-            {/* 検査値付きの一覧 */}
-            <CheckupListCsvButton
-              companyName={companyName}
-              fiscalYear={year}
-              round={rounds.length > 1 ? round : undefined}
-              groupLabel={groupLabel}
-              rows={list}
-              items={items}
-              officeInfo={officeInfo}
-            />
-            {/* 労働基準監督署への報告(様式第6号)に転記する数値を印刷・PDF保存できる画面 */}
-            <Link className="btn secondary" href={`${basePath}/report?year=${year}${roundQuery}${reportForm}`}>
-              労基署報告（様式第6号・特殊健診）
-            </Link>
-            {/* 受診勧奨・産業医面談となった従業員へ渡す通知文書(1人1ページ・まとめて印刷/PDF)。種類ごとに別の画面 */}
-            <Link className="btn" href={`${basePath}/notices?year=${year}${roundQuery}${groupQuery}`}>
-              受診勧奨通知書
-            </Link>
-            <Link className="btn" href={`${basePath}/interview-notices?year=${year}${roundQuery}${groupQuery}`}>
-              産業医面談通知書
-            </Link>
-          </>
-        )}
-      </p>
+      {/* ボタンは「取込」「出力」「通知」の3段に分け、各段の左端に見出しを付ける */}
+      {(canEdit || year) && (
+        <div style={{ display: "grid", gridTemplateColumns: "auto 1fr", rowGap: 10, columnGap: 14, alignItems: "center", marginBottom: 14 }}>
+          {canEdit && (
+            <>
+              <span className="muted" style={{ fontWeight: 700, whiteSpace: "nowrap" }}>取込</span>
+              <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+                <Link className="btn orange" href={`${basePath}/import`}>
+                  {canDelete ? "健康診断結果取込" : "健康診断結果を送る（CSV・PDF）"}
+                </Link>
+                <Link className="btn secondary" href={`${basePath}/new`}>
+                  ＋ 個別入力
+                </Link>
+              </div>
+            </>
+          )}
+          {year && (
+            <>
+              <span className="muted" style={{ fontWeight: 700, whiteSpace: "nowrap" }}>出力</span>
+              <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+                {/* 事業者が就業上の措置を検討するための一覧 */}
+                <WorkJudgmentReportButton
+                  companyName={companyName}
+                  fiscalYear={year}
+                  round={rounds.length > 1 ? round : undefined}
+                  groupLabel={groupLabel}
+                  rows={list}
+                  officeInfo={officeInfo}
+                />
+                {/* 検査値付きの一覧 */}
+                <CheckupListCsvButton
+                  companyName={companyName}
+                  fiscalYear={year}
+                  round={rounds.length > 1 ? round : undefined}
+                  groupLabel={groupLabel}
+                  rows={list}
+                  items={items}
+                  officeInfo={officeInfo}
+                />
+                {/* 労働基準監督署への報告(様式第6号)に転記する数値を印刷・PDF保存できる画面 */}
+                <Link className="btn secondary" href={`${basePath}/report?year=${year}${roundQuery}${reportForm}`}>
+                  労基署報告（様式第6号・特殊健診）
+                </Link>
+              </div>
+              <span className="muted" style={{ fontWeight: 700, whiteSpace: "nowrap" }}>通知</span>
+              <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+                {/* 受診勧奨・産業医面談となった従業員へ渡す通知文書(1人1ページ・まとめて印刷/PDF)。種類ごとに別の画面 */}
+                <Link className="btn" href={`${basePath}/notices?year=${year}${roundQuery}${groupQuery}`}>
+                  受診勧奨通知書
+                </Link>
+                <Link className="btn" href={`${basePath}/interview-notices?year=${year}${roundQuery}${groupQuery}`}>
+                  産業医面談通知書
+                </Link>
+              </div>
+            </>
+          )}
+        </div>
+      )}
 
       {/* 送られたファイルの原本(取込済み)は実施者だけが見られる */}
       {canDelete && <CsvUploadsArchive companyId={companyId} />}
