@@ -53,18 +53,20 @@ export default function DemoCheckupsPage({ searchParams }: { searchParams: { vie
             <span className="muted" style={{ fontWeight: 700, whiteSpace: "nowrap" }}>出力</span>
             <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
               <span className="btn" aria-disabled style={{ opacity: 0.6, cursor: "default" }}>就業判定結果出力</span>
-              <span className="btn secondary" aria-disabled style={{ opacity: 0.6, cursor: "default" }}>健康診断結果出力</span>
+              {!company && (
+                <span className="btn secondary" aria-disabled style={{ opacity: 0.6, cursor: "default" }}>健康診断結果出力</span>
+              )}
               <Link className="btn secondary" href="/demo/checkups/report">労基署報告（様式第6号）</Link>
             </div>
             <span className="muted" style={{ fontWeight: 700, whiteSpace: "nowrap" }}>通知</span>
             <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
               <Link className="btn" href="/demo/checkups/notices">受診勧奨通知書</Link>
-              <Link className="btn" href="/demo/checkups/interview-notices">産業医面談通知書</Link>
+              <Link className="btn secondary" href="/demo/checkups/interview-notices">産業医面談通知書</Link>
             </div>
           </div>
           <p className="muted" style={{ fontSize: 12.5 }}>
             {company
-              ? "実際の画面では、健診機関のCSV・PDFをそのまま産業医事務所に送れます。就業判定結果・健康診断結果のCSV出力もできます(デモでは無効)。"
+              ? "実際の画面では、健診機関のCSV・PDFをそのまま産業医事務所に送れます。就業判定結果のCSV出力もできます(デモでは無効)。"
               : "実際の画面では、健診機関のCSVの取込、1名ずつの個別入力、就業判定結果・健康診断結果のCSV出力ができます(デモでは無効)。"}
           </p>
 

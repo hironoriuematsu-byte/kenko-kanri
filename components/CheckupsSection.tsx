@@ -76,16 +76,18 @@ export default async function CheckupsSection({
                   rows={list}
                   officeInfo={officeInfo}
                 />
-                {/* 検査値付きの一覧 */}
-                <CheckupListCsvButton
-                  companyName={companyName}
-                  fiscalYear={year}
-                  round={rounds.length > 1 ? round : undefined}
-                  groupLabel={groupLabel}
-                  rows={list}
-                  items={items}
-                  officeInfo={officeInfo}
-                />
+                {/* 検査値付きの一覧(実施者のみ。事業者担当者には出さない) */}
+                {canDelete && (
+                  <CheckupListCsvButton
+                    companyName={companyName}
+                    fiscalYear={year}
+                    round={rounds.length > 1 ? round : undefined}
+                    groupLabel={groupLabel}
+                    rows={list}
+                    items={items}
+                    officeInfo={officeInfo}
+                  />
+                )}
                 {/* 労働基準監督署への報告(様式第6号)に転記する数値を印刷・PDF保存できる画面 */}
                 <Link className="btn secondary" href={`${basePath}/report?year=${year}${roundQuery}${reportForm}`}>
                   労基署報告（様式第6号・特殊健診）
@@ -97,7 +99,7 @@ export default async function CheckupsSection({
                 <Link className="btn" href={`${basePath}/notices?year=${year}${roundQuery}${groupQuery}`}>
                   受診勧奨通知書
                 </Link>
-                <Link className="btn" href={`${basePath}/interview-notices?year=${year}${roundQuery}${groupQuery}`}>
+                <Link className="btn secondary" href={`${basePath}/interview-notices?year=${year}${roundQuery}${groupQuery}`}>
                   産業医面談通知書
                 </Link>
               </div>
