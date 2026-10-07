@@ -85,10 +85,10 @@ export default async function CheckupsSection({
             </Link>
             {/* 受診勧奨・産業医面談となった従業員へ渡す通知文書(1人1ページ・まとめて印刷/PDF)。種類ごとに別の画面 */}
             <Link className="btn" href={`${basePath}/notices?year=${year}${roundQuery}${groupQuery}`}>
-              受診勧奨通知書（1人1ページ）
+              受診勧奨通知書
             </Link>
             <Link className="btn" href={`${basePath}/interview-notices?year=${year}${roundQuery}${groupQuery}`}>
-              産業医面談通知書（1人1ページ）
+              産業医面談通知書
             </Link>
           </>
         )}

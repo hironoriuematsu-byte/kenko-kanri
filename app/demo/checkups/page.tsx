@@ -49,8 +49,8 @@ export default function DemoCheckupsPage({ searchParams }: { searchParams: { vie
             <span className="btn" aria-disabled style={{ opacity: 0.6, cursor: "default" }}>就業判定結果出力</span>
             <span className="btn secondary" aria-disabled style={{ opacity: 0.6, cursor: "default" }}>健康診断結果出力</span>
             <Link className="btn secondary" href="/demo/checkups/report">労基署報告（様式第6号）</Link>
-            <Link className="btn" href="/demo/checkups/notices">受診勧奨通知書（1人1ページ）</Link>
-            <Link className="btn" href="/demo/checkups/interview-notices">産業医面談通知書（1人1ページ）</Link>
+            <Link className="btn" href="/demo/checkups/notices">受診勧奨通知書</Link>
+            <Link className="btn" href="/demo/checkups/interview-notices">産業医面談通知書</Link>
           </p>
           <p className="muted" style={{ fontSize: 12.5 }}>
             {company
