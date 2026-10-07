@@ -5,6 +5,7 @@ import { startNavigationProgress } from "@/lib/navigate";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/browser";
 import { makeStorageFileName } from "@/lib/storage";
+import VoiceInputButton, { appendText } from "@/components/VoiceInputButton";
 
 export type MinutesInput = {
   id?: string;
@@ -180,6 +181,7 @@ export default function MinutesForm({
               定例議題テンプレートを挿入
             </button>
           )}
+          <VoiceInputButton onAppend={(t) => setV((p) => ({ ...p, agenda: appendText(p.agenda, t) }))} />
         </label>
         <textarea value={v.agenda} onChange={(e) => set("agenda", e.target.value)} />
         <p className="muted" style={{ margin: "4px 0 0" }}>

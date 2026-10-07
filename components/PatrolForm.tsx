@@ -4,6 +4,7 @@ import { ChangeEvent, FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/browser";
 import { makeStorageFileName } from "@/lib/storage";
+import VoiceInputButton, { appendText } from "@/components/VoiceInputButton";
 
 export type PatrolInput = {
   id?: string;
@@ -139,7 +140,10 @@ export default function PatrolForm({
         />
       </div>
       <div className="form-row">
-        <label>指摘事項等</label>
+        <label>
+          指摘事項等
+          <VoiceInputButton onAppend={(t) => setV((p) => ({ ...p, findings: appendText(p.findings, t) }))} />
+        </label>
         <textarea
           value={v.findings}
           onChange={(e) => set("findings", e.target.value)}

@@ -4,6 +4,7 @@ import { FormEvent, useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/browser";
 import { clearDraft, ensureSession, isAuthError, saveDraft, takeDraft } from "@/lib/session";
+import VoiceInputButton, { appendText } from "@/components/VoiceInputButton";
 
 // 実施記録(産業医事務所のみ。企業には共有されない)。
 // 列単位GRANTで保護されており、読み書きは必ずRPC経由(閲覧もログに記録される)。
@@ -148,6 +149,12 @@ export default function InterviewRecordPanel({
       <div className="form-row">
         <label style={{ color: "var(--orange)" }}>
           所見と指導内容（産業医事務所のみ・企業側には一切表示されません）
+          <VoiceInputButton
+            onAppend={(t) => {
+              setNotes((prev) => appendText(prev, t));
+              setStatus(null);
+            }}
+          />
         </label>
         <textarea
           value={notes}

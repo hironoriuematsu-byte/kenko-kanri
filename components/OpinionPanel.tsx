@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/browser";
 import { WORK_JUDGMENTS } from "@/lib/interviews";
 import { currentUserId, logAccessInBackground } from "@/lib/session";
+import VoiceInputButton, { appendText } from "@/components/VoiceInputButton";
 
 export type OpinionInitial = {
   id?: string;
@@ -179,7 +180,10 @@ export default function OpinionPanel({
         </select>
       </div>
       <div className="form-row">
-        <label>就業上の措置に関する意見（企業に公開されます）</label>
+        <label>
+          就業上の措置に関する意見（企業に公開されます）
+          <VoiceInputButton onAppend={(t) => setV((p) => ({ ...p, opinion: appendText(p.opinion, t) }))} />
+        </label>
         <textarea
           value={v.opinion}
           onChange={(e) => setV((p) => ({ ...p, opinion: e.target.value }))}

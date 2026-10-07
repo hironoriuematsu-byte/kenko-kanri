@@ -3,6 +3,7 @@
 import { FormEvent, useCallback, useEffect, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/browser";
 import { clearDraft, ensureSession, isAuthError, saveDraft, takeDraft } from "@/lib/session";
+import VoiceInputButton, { appendText } from "@/components/VoiceInputButton";
 
 // 面談の事前情報(office/company共有・従業員本人には非表示)。RPC経由で読み書き。
 // 入力が止まって数秒たつと自動で保存する(アクセスログは同じ人・同じ面談で1時間に1行: 0138)
@@ -117,6 +118,14 @@ export default function PreInfoPanel({ interviewId }: { interviewId: string }) {
   return (
     <form onSubmit={onSubmit}>
       <div className="form-row">
+        <div style={{ marginBottom: 4 }}>
+          <VoiceInputButton
+            onAppend={(t) => {
+              setText((prev) => appendText(prev, t));
+              setStatus(null);
+            }}
+          />
+        </div>
         <textarea
           value={text}
           onChange={(e) => {
