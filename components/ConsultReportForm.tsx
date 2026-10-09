@@ -4,11 +4,14 @@ import { FormEvent, useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/browser";
 import { formatDateJa } from "@/lib/fiscal";
 import { REPORT_FORM_RESULTS } from "@/lib/notice";
+import { normalizeDate } from "@/lib/checkups";
 
 type VerifyKind = "birth_date" | "employee_no" | "name" | "invalid" | "expired";
 
+// 生年月日はカレンダーではなく数字で直接入力する(カレンダーから何十年も遡るのは大変なため)。
+// 「19850304」「1985/3/4」「S60.3.4」「昭和60年3月4日」などを受け付け、送信前に YYYY-MM-DD にそろえる
 const QUESTION: Record<string, { label: string; placeholder: string; type: "date" | "text" }> = {
-  birth_date: { label: "ご本人の生年月日", placeholder: "", type: "date" },
+  birth_date: { label: "ご本人の生年月日（数字8けた。例: 1985年3月4日なら 19850304）", placeholder: "例: 19850304", type: "text" },
   employee_no: { label: "社員番号", placeholder: "例: 1234", type: "text" },
   name: { label: "お名前（通知書の宛名のとおり）", placeholder: "例: 山田 太郎", type: "text" },
 };
@@ -37,6 +40,10 @@ export default function ConsultReportForm({ token, demoInfo }: { token: string; 
   const [result, setResult] = useState("");
   const [instruction, setInstruction] = useState("");
 
+  // 本人確認に送る値(生年月日は YYYY-MM-DD にそろえる。読み取れなければ入力のまま)
+  const birthNormalized = kind === "birth_date" ? normalizeDate(answer) : null;
+  const answerToSend = kind === "birth_date" ? birthNormalized ?? answer : answer;
+
   useEffect(() => {
     if (demoInfo) {
       setKind("birth_date");
@@ -61,7 +68,7 @@ export default function ConsultReportForm({ token, demoInfo }: { token: string; 
       return;
     }
     const supabase = createClient();
-    const { data, error } = await supabase.rpc("hm_report_lookup", { p_token: token, p_answer: answer });
+    const { data, error } = await supabase.rpc("hm_report_lookup", { p_token: token, p_answer: answerToSend });
     setBusy(false);
     if (error || !data) {
       setError("入力内容が通知書の情報と一致しません。もう一度ご確認ください。");
@@ -90,7 +97,7 @@ export default function ConsultReportForm({ token, demoInfo }: { token: string; 
     const supabase = createClient();
     const { error } = await supabase.rpc("hm_report_submit", {
       p_token: token,
-      p_answer: answer,
+      p_answer: answerToSend,
       p_visit_date: visitDate,
       p_facility: facility,
       p_department: department,
@@ -144,12 +151,21 @@ export default function ConsultReportForm({ token, demoInfo }: { token: string; 
           <label>{q.label}</label>
           <input
             type={q.type}
+            inputMode={kind === "birth_date" ? "numeric" : undefined}
+            autoComplete={kind === "birth_date" ? "bday" : undefined}
             value={answer}
             onChange={(e) => setAnswer(e.target.value)}
             placeholder={q.placeholder}
             required
             autoFocus
           />
+          {kind === "birth_date" && answer.trim() !== "" && (
+            <p className="muted" style={{ margin: "4px 0 0", fontSize: 13 }}>
+              {birthNormalized
+                ? `${formatDateJa(birthNormalized)} として確認します`
+                : "日付として読み取れません。例: 19850304 / 1985/3/4 / S60.3.4"}
+            </p>
+          )}
         </div>
         {error && <p className="error-message">{error}</p>}
         <button className="btn" type="submit" disabled={busy}>
