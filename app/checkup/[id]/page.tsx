@@ -157,7 +157,7 @@ export default async function CheckupDetailPage({ params }: { params: { id: stri
             <div className="muted">{companyName}</div>
           </div>
 
-          <table className="list" style={{ marginBottom: 14 }}>
+          <table className="list kv" style={{ marginBottom: 14 }}>
             <tbody>
               <tr>
                 <th style={{ width: 140 }}>氏名</th>

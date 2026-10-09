@@ -75,7 +75,7 @@ export default function DemoCheckupsPage({ searchParams }: { searchParams: { vie
             <span className="badge">{DEMO_FISCAL_YEAR}年度</span>
           </p>
 
-          <table className="list" style={{ marginBottom: 14, maxWidth: 560 }}>
+          <table className="list kv" style={{ marginBottom: 14, maxWidth: 560 }}>
             <tbody>
               <tr>
                 <th>受診者数</th>

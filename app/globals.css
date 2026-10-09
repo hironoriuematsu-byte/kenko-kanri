@@ -496,3 +496,47 @@ table.list td {
   z-index: 2;
   box-shadow: inset 0 -1px 0 var(--line);
 }
+
+/* ---- スマートフォン幅の表 ----
+   ・バッジ(企業と共有・有所見 など)は折り返さない
+   ・一覧の表は横にスクロールさせ、各列に最低限の幅を持たせて1文字ずつの縦書きにならないようにする
+     (すでに横スクロールの枠の中にある表・見出し固定の表は対象外)
+   ・「見出し・値・見出し・値」の4列の表(.kv)は、見出しと値の2列に組み替える */
+.badge { white-space: nowrap; }
+@media (max-width: 640px) {
+  table.list:not(.kv) {
+    display: block;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  table.list:not(.kv) th,
+  table.list:not(.kv) td {
+    min-width: 5em;
+    padding: 7px 8px;
+  }
+  table.list:not(.kv) th { white-space: nowrap; }
+  [style*="overflow"] > table.list:not(.kv),
+  .sticky-head table.list:not(.kv) {
+    display: table;
+    overflow: visible;
+  }
+  [style*="overflow"] > table.list:not(.kv) th,
+  [style*="overflow"] > table.list:not(.kv) td,
+  .sticky-head table.list:not(.kv) th,
+  .sticky-head table.list:not(.kv) td {
+    min-width: 0;
+    white-space: normal;
+  }
+  table.kv,
+  table.kv > tbody { display: block; }
+  table.kv tr {
+    display: grid;
+    grid-template-columns: 6.5em minmax(0, 1fr);
+  }
+  table.kv th,
+  table.kv td {
+    width: auto !important;
+    min-width: 0;
+    padding: 7px 8px;
+  }
+}

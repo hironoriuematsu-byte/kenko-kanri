@@ -174,7 +174,7 @@ export default async function CheckupsSection({
               </span>
             </p>
           )}
-          <table className="list" style={{ marginBottom: 14, maxWidth: 560 }}>
+          <table className="list kv" style={{ marginBottom: 14, maxWidth: 560 }}>
             <tbody>
               <tr>
                 <th>受診者数</th>

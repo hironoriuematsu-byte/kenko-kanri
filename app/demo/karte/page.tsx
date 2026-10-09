@@ -26,7 +26,7 @@ export default function DemoKartePage() {
 
         <div className="card">
           <h2>基本情報</h2>
-          <table className="list">
+          <table className="list kv">
             <tbody>
               <tr>
                 <th style={{ width: 130 }}>氏名</th>
