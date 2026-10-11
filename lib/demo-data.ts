@@ -39,7 +39,7 @@ const JUDGED = "2026-09-10";
 const PEOPLE: Person[] = [
   { no: "1001", name: "青木 誠", kana: "アオキ マコト", birth: "1975-04-12", sex: "male", dept: "製造部", date: "2026-07-14", grade: "D",
     items: [["BMI", "27.8", "C"], ["収縮期血圧", "158", "D"], ["拡張期血圧", "98", "D"], ["血色素量", "15.1", "A"], ["AST", "28", "A"], ["ALT", "41", "B"], ["中性脂肪", "212", "C"], ["LDLコレステロール", "148", "C"], ["HbA1c", "5.7", "B"], ["尿糖", "-", "A"], ["尿蛋白", "-", "A"], ["胸部エックス線", "異常なし", "A"], ["心電図", "異常なし", "A"], ["聴力 1000Hz", "20", "A"], ["聴力 4000Hz", "30", "A"]],
-    judgment: "normal", condition: "consult", note: "血圧高値あり内科受診。時間外労働月45時間以内", followup: "recommended" },
+    judgment: "normal", condition: "consult", note: "血圧高値あり内科受診", followup: "recommended" },
   { no: "1002", name: "石井 由美", kana: "イシイ ユミ", birth: "1988-11-03", sex: "female", dept: "製造部", date: "2026-07-14", grade: "A",
     items: [["BMI", "21.0", "A"], ["収縮期血圧", "112", "A"], ["拡張期血圧", "70", "A"], ["血色素量", "13.2", "A"], ["AST", "19", "A"], ["ALT", "15", "A"], ["中性脂肪", "78", "A"], ["LDLコレステロール", "102", "A"], ["HbA1c", "5.2", "A"], ["尿糖", "-", "A"], ["尿蛋白", "-", "A"], ["胸部エックス線", "異常なし", "A"], ["心電図", "異常なし", "A"], ["聴力 1000Hz", "15", "A"], ["聴力 4000Hz", "20", "A"]],
     judgment: "normal", followup: "none" },
@@ -266,7 +266,7 @@ export const DEMO_INTERVIEWS: DemoInterview[] = [
     opinion: {
       interview_date: "2026-09-29",
       work_judgment: "normal",
-      opinion: "通常勤務は可能です。時間外労働は当面月45時間以内とし、業務量の調整について上司と本人で面談の機会を設けてください。1か月後に状況を確認します。",
+      opinion: "通常勤務は可能です。業務量の調整について上司と本人で面談の機会を設けてください。1か月後に状況を確認します。",
       issued_date: "2026-09-29",
       published: true,
     },
