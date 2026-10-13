@@ -90,6 +90,8 @@ export default function VoiceInputButton({
         else interimText += r[0].transcript;
       }
       if (finalText) appendRef.current(applyVoiceCommands(finalText));
+      // 話している間は操作中として扱う(キーボードを使わないため、自動ログアウトの時間を延ばす)
+      if (finalText || interimText) window.dispatchEvent(new Event("hm-activity"));
       setInterim(interimText);
     };
     rec.onerror = (e) => {

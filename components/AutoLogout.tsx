@@ -23,7 +23,8 @@ export default function AutoLogout() {
       timerRef.current = setTimeout(logout, IDLE_LIMIT_MS);
     };
 
-    const events = ["mousedown", "keydown", "scroll", "touchstart"] as const;
+    // hm-activity: 音声入力で文字が入ったときなど、キーボード・マウスを使わない操作(VoiceInputButton が送る)
+    const events = ["mousedown", "keydown", "scroll", "touchstart", "hm-activity"] as const;
     events.forEach((ev) => window.addEventListener(ev, reset, { passive: true }));
     reset();
 
