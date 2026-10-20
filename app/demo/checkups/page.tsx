@@ -78,34 +78,34 @@ export default function DemoCheckupsPage({ searchParams }: { searchParams: { vie
           <table className="list kv" style={{ marginBottom: 14, maxWidth: 560 }}>
             <tbody>
               <tr>
-                <th>受診者数</th>
+                <th style={{ whiteSpace: "nowrap" }}>受診者数</th>
                 <td>{total}名</td>
-                <th>有所見者数</th>
+                <th style={{ whiteSpace: "nowrap" }}>有所見者数</th>
                 <td>
                   {findings}名
                   <span className="muted" style={{ marginLeft: 6, fontSize: 12 }}>（C以上の判定がある方）</span>
                 </td>
               </tr>
               <tr>
-                <th>有所見率</th>
+                <th style={{ whiteSpace: "nowrap" }}>有所見率</th>
                 <td>{rate ?? 0}%</td>
-                <th>医師の指示人数</th>
+                <th style={{ whiteSpace: "nowrap" }}>医師の指示人数</th>
                 <td>
                   {instructed}名
                   <span className="muted" style={{ marginLeft: 6, fontSize: 12 }}>（総合判定D）</span>
                 </td>
               </tr>
               <tr>
-                <th>医師の指示人数率</th>
+                <th style={{ whiteSpace: "nowrap" }}>医師の指示人数率</th>
                 <td>{instructedRate ?? 0}%</td>
-                <th>就業判定 要対応</th>
+                <th style={{ whiteSpace: "nowrap" }}>就業判定 要対応</th>
                 <td>
                   {attention > 0 ? <span className="badge orange">{attention}名</span> : "0名"}
                   {held > 0 && <span className="muted" style={{ marginLeft: 6 }}>（うち判定保留 {held}名）</span>}
                 </td>
               </tr>
               <tr>
-                <th>受診勧奨</th>
+                <th style={{ whiteSpace: "nowrap" }}>受診勧奨</th>
                 <td colSpan={3}>
                   {followupPending > 0 ? <span className="badge orange">未対応 {followupPending}名</span> : "未対応 0名"}
                   <span className="muted" style={{ marginLeft: 8 }}>
@@ -116,12 +116,12 @@ export default function DemoCheckupsPage({ searchParams }: { searchParams: { vie
               </tr>
               {!company && (
                 <tr>
-                  <th>就業制限項目（R）</th>
+                  <th style={{ whiteSpace: "nowrap" }}>就業制限項目（R）</th>
                   <td colSpan={3}>{restrictionCount > 0 ? <strong style={{ color: "var(--danger)" }}>{restrictionCount}名</strong> : "0名"}</td>
                 </tr>
               )}
               <tr>
-                <th>就業制限・要休業</th>
+                <th style={{ whiteSpace: "nowrap" }}>就業制限・要休業</th>
                 <td colSpan={3}>
                   {restricted > 0 ? (
                     <>
