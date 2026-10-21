@@ -28,16 +28,21 @@ export default function PatrolForm({
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
+  // 選んだファイルは追加していく(選び直しても前に選んだ分は消えない)。同じファイルは1つにまとめる
   const onPhotosChange = (e: ChangeEvent<HTMLInputElement>) => {
     const list = Array.from(e.target.files ?? []);
+    e.target.value = "";
     const tooBig = list.find((f) => f.size > 20 * 1024 * 1024);
     if (tooBig) {
       setError(`「${tooBig.name}」が20MBを超えています。20MB以下のファイルを選択してください。`);
-      e.target.value = "";
       return;
     }
     setError(null);
-    setPhotos(list);
+    setPhotos((prev) => {
+      const key = (f: File) => `${f.name}:${f.size}:${f.lastModified}`;
+      const seen = new Set(prev.map(key));
+      return [...prev, ...list.filter((f) => !seen.has(key(f)))];
+    });
   };
 
   const set = <K extends keyof PatrolInput>(k: K, val: PatrolInput[K]) =>
@@ -154,17 +159,35 @@ export default function PatrolForm({
         />
       </div>
       <div className="form-row">
-        <label>現場写真・添付ファイル（複数選択できます）</label>
-        <input
-          type="file"
-          multiple
-          accept="image/*,.pdf,.docx,.xlsx"
-          onChange={onPhotosChange}
-        />
+        <label>現場写真・添付ファイル（まとめて選べます）</label>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          <label className="btn secondary" style={{ display: "inline-block", margin: 0 }}>
+            写真を選ぶ（複数可）
+            <input type="file" multiple accept="image/*" onChange={onPhotosChange} style={{ display: "none" }} />
+          </label>
+          <label className="btn secondary" style={{ display: "inline-block", margin: 0 }}>
+            資料を選ぶ（PDF・Word・Excel）
+            <input type="file" multiple accept=".pdf,.docx,.xlsx" onChange={onPhotosChange} style={{ display: "none" }} />
+          </label>
+        </div>
         {photos.length > 0 && (
-          <p className="muted" style={{ margin: "4px 0 0" }}>
-            {photos.map((f) => f.name).join("、")} を保存時にアップロードします。
-          </p>
+          <div style={{ marginTop: 6 }}>
+            <p className="muted" style={{ margin: "0 0 4px" }}>保存時に、次の {photos.length} 件をまとめてアップロードします。</p>
+            <ul style={{ margin: 0, paddingLeft: 18 }}>
+              {photos.map((f, i) => (
+                <li key={`${f.name}-${i}`} style={{ fontSize: 13 }}>
+                  {f.name}{" "}
+                  <button
+                    type="button"
+                    onClick={() => setPhotos((prev) => prev.filter((_, j) => j !== i))}
+                    style={{ background: "none", border: 0, padding: 0, color: "#B02A2A", cursor: "pointer", fontSize: 12 }}
+                  >
+                    外す
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </div>
         )}
         <p className="muted" style={{ margin: "4px 0 0" }}>
           写真は保存後の巡視記録画面でサムネイル表示され、追加・削除もできます。

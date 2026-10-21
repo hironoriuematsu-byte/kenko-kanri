@@ -24,6 +24,7 @@ export default function PatrolFilesPanel({
   const [urls, setUrls] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [progress, setProgress] = useState<string | null>(null);
 
   // 画像ファイルの表示用URLをまとめて発行する(1時間有効)
   useEffect(() => {
@@ -62,11 +63,14 @@ export default function PatrolFilesPanel({
     const supabase = createClient();
     const { data: authUser } = await supabase.auth.getUser();
 
+    let done = 0;
     for (const file of list) {
+      if (list.length > 1) setProgress(`${done + 1}/${list.length}件目をアップロード中…`);
       const path = `${companyId}/patrols/${patrolId}/${makeStorageFileName(file.name)}`;
       const { error: upErr } = await supabase.storage.from("hm-files").upload(path, file);
       if (upErr) {
         setError(`「${file.name}」のアップロードに失敗しました: ${upErr.message}`);
+        setProgress(null);
         setBusy(false);
         return;
       }
@@ -82,6 +86,7 @@ export default function PatrolFilesPanel({
         .single();
       if (insErr || !data) {
         setError(`「${file.name}」の登録に失敗しました: ${insErr?.message ?? "unknown"}`);
+        setProgress(null);
         setBusy(false);
         return;
       }
@@ -92,7 +97,9 @@ export default function PatrolFilesPanel({
         p_detail: { file_name: file.name },
       });
       setFiles((prev) => [...prev, data]);
+      done++;
     }
+    setProgress(null);
     setBusy(false);
   };
 
@@ -244,18 +251,18 @@ export default function PatrolFilesPanel({
       {files.length === 0 && <p className="muted">現場写真・添付ファイルはありません。</p>}
 
       {canUpload && (
-        <label className="btn secondary no-print" style={{ display: "inline-block" }}>
-          {busy ? "アップロード中…" : "現場写真・ファイルを追加（複数可）"}
-          <input
-            type="file"
-            multiple
-            style={{ display: "none" }}
-            onChange={onUpload}
-            disabled={busy}
-            accept="image/*,.pdf,.docx,.xlsx"
-          />
-        </label>
+        <div className="no-print" style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          <label className="btn secondary" style={{ display: "inline-block" }}>
+            {busy ? "アップロード中…" : "写真を追加（まとめて選べます）"}
+            <input type="file" multiple style={{ display: "none" }} onChange={onUpload} disabled={busy} accept="image/*" />
+          </label>
+          <label className="btn secondary" style={{ display: "inline-block" }}>
+            {busy ? "アップロード中…" : "資料を追加（PDF・Word・Excel）"}
+            <input type="file" multiple style={{ display: "none" }} onChange={onUpload} disabled={busy} accept=".pdf,.docx,.xlsx" />
+          </label>
+        </div>
       )}
+      {progress && <p className="muted">{progress}</p>}
       {error && <p className="error-message">{error}</p>}
     </div>
   );
