@@ -144,7 +144,7 @@ export default async function InterviewDetailPage({ params }: { params: { id: st
           <>
             <div className="card">
               <h2>実施記録（産業医事務所のみ・企業には共有されません）</h2>
-              <InterviewRecordPanel interviewId={iv.id} defaultDate={scheduledDate} />
+              <InterviewRecordPanel interviewId={iv.id} defaultDate={scheduledDate} interviewRequestId={iv.interview_request_id} />
             </div>
             <div className="card">
               <h2>事業者向け 意見書</h2>

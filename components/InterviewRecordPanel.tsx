@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/browser";
 import { clearDraft, ensureSession, isAuthError, saveDraft, takeDraft } from "@/lib/session";
 import VoiceInputButton, { appendText } from "@/components/VoiceInputButton";
+import { formatIntakeForRecord, INTAKE_RECORD_HEADER, type IntakeForRecord } from "@/lib/intakeText";
 
 // 実施記録(産業医事務所のみ。企業には共有されない)。
 // 列単位GRANTで保護されており、読み書きは必ずRPC経由(閲覧もログに記録される)。
@@ -15,9 +16,11 @@ const AUTOSAVE_DELAY_MS = 4000;
 export default function InterviewRecordPanel({
   interviewId,
   defaultDate,
+  interviewRequestId,
 }: {
   interviewId: string;
   defaultDate?: string; // 面談予定日(YYYY-MM-DD)。実施日の初期値に使う
+  interviewRequestId?: string | null; // ストレスチェックWebの面接指導の申出から登録された面談(事前問診の内容を転記する)
 }) {
   const router = useRouter();
   const [loaded, setLoaded] = useState(false);
@@ -27,6 +30,7 @@ export default function InterviewRecordPanel({
   const [status, setStatus] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [needLogin, setNeedLogin] = useState(false);
+  const [intakeText, setIntakeText] = useState<string | null>(null); // 事前問診(AI)の内容を転記用の文章にしたもの
   const draftKey = `interview-record:${interviewId}`;
   // 最後にサーバーへ保存した内容(変わっていなければ自動保存しない)
   const lastSaved = useRef<{ date: string; notes: string } | null>(null);
@@ -34,9 +38,24 @@ export default function InterviewRecordPanel({
 
   useEffect(() => {
     const supabase = createClient();
-    supabase
-      .rpc("hm_get_interview_record", { p_id: interviewId })
-      .then(({ data, error }) => {
+    // ストレスチェックWebの事前問診(実施者のみ読める。表がない環境・問診がない申出では何もしない)
+    const intakeReq = interviewRequestId
+      ? supabase
+          .from("interview_intakes")
+          .select("id, status, risk_level, completed_at, updated_at, messages, summary")
+          .eq("request_id", interviewRequestId)
+          .maybeSingle()
+      : Promise.resolve({ data: null, error: null });
+    Promise.all([supabase.rpc("hm_get_interview_record", { p_id: interviewId }), intakeReq])
+      .then(([{ data, error }, intakeRes]) => {
+        const intake = !intakeRes.error && intakeRes.data && ((intakeRes.data as IntakeForRecord).messages ?? []).some((m) => m.role === "user")
+          ? (intakeRes.data as IntakeForRecord & { id: string })
+          : null;
+        const formatted = intake ? formatIntakeForRecord(intake) : null;
+        setIntakeText(formatted);
+        if (intake) {
+          supabase.rpc("hm_log_access", { p_action: "view", p_target_table: "interview_intakes", p_target_id: intake.id });
+        }
         if (error) {
           setError(`実施記録の取得に失敗しました: ${error.message}`);
         } else {
@@ -57,11 +76,19 @@ export default function InterviewRecordPanel({
         if (draft !== null) {
           setNotes(draft);
           setStatus("未保存の入力内容を復元しました。");
+        } else if (formatted && !error) {
+          // 記録がまだ空なら、事前問診の内容を転記する(自動保存で記録に残る)。書いてある記録は上書きしない
+          const r = Array.isArray(data) ? data[0] : data;
+          const existing = [r?.findings, r?.guidance, r?.private_memo].filter((x: string | null) => (x ?? "").trim() !== "").join("");
+          if (!existing) {
+            setNotes(formatted);
+            setStatus("事前問診(AI)の内容を転記しました(自動で保存されます)。");
+          }
         }
         setLoaded(true);
       });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [interviewId, defaultDate]);
+  }, [interviewId, defaultDate, interviewRequestId]);
 
   const save = useCallback(
     async (auto: boolean) => {
@@ -167,6 +194,24 @@ export default function InterviewRecordPanel({
           placeholder="面談での所見、本人への指導内容、メモなど。入力が止まると自動で保存されます。"
         />
       </div>
+      {intakeText && (
+        <div style={{ marginBottom: 8 }}>
+          <button
+            type="button"
+            className="btn secondary"
+            onClick={() => {
+              if (notes.includes(INTAKE_RECORD_HEADER) && !window.confirm("事前問診の内容はすでに転記されています。最新の内容をもう一度、記録の末尾に転記しますか？")) return;
+              setNotes((prev) => (prev.trim() ? `${prev.trimEnd()}\n\n${intakeText}` : intakeText));
+              setStatus("事前問診(AI)の内容を転記しました(自動で保存されます)。");
+            }}
+          >
+            事前問診の内容を転記
+          </button>
+          <span className="muted" style={{ fontSize: 12, marginLeft: 8 }}>
+            ストレスチェックWebの事前問診(要約・意見書の下書き・会話の記録)を記録の末尾に加えます。
+          </span>
+        </div>
+      )}
       <p className="muted" style={{ fontSize: 12 }}>
         面談を「実施済」にするには、下の意見書で「企業側に公開し、面談を実施済にする」を付けて保存してください。
       </p>
