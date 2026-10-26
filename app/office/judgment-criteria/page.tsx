@@ -19,7 +19,7 @@ export default async function JudgmentCriteriaPage() {
       <Header profile={profile} />
       <main className="container">
         <p className="muted">
-          <Link href="/office">← ダッシュボード</Link>
+          <Link href="/office?tab=settings">← 事務所の設定</Link>
         </p>
         <h1 className="page-title">健診結果の判定基準（事務所基準）</h1>
 

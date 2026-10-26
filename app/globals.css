@@ -406,6 +406,34 @@ table.list td {
   gap: 20px;
   align-items: flex-start;
 }
+/* ---- page tabs (産業医事務所ダッシュボード) ---- */
+.page-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  border-bottom: 2px solid var(--line);
+  margin-bottom: 16px;
+}
+.page-tab {
+  padding: 8px 16px;
+  border: 1px solid var(--line);
+  border-bottom: none;
+  border-radius: 8px 8px 0 0;
+  background: #fff;
+  color: var(--ink);
+  font-size: 14px;
+  text-decoration: none;
+  margin-bottom: -2px;
+}
+.page-tab:hover {
+  background: var(--teal-light);
+}
+.page-tab.active {
+  background: var(--teal);
+  border-color: var(--teal);
+  color: #fff;
+  font-weight: 700;
+}
 .manual-nav {
   flex: 0 0 200px;
   display: flex;
