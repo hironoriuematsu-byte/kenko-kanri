@@ -3,6 +3,7 @@ import { notFound, redirect } from "next/navigation";
 import Header from "@/components/Header";
 import PersonFilesPanel from "@/components/PersonFilesPanel";
 import DeletePersonButton from "@/components/DeletePersonButton";
+import StressResultsCard, { type RequestedStressResult } from "@/components/StressResultsCard";
 import { requireProfile, homePathFor } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { formatDateJa } from "@/lib/fiscal";
@@ -126,6 +127,13 @@ export default async function KartePage({ params }: { params: { personId: string
   );
 
   const companyName = (person as any).companies?.name ?? "";
+
+  // 面接指導を申し出た人のストレスチェック結果(アカウントと紐づいている人のみ。0148 未適用なら出さない)
+  let stressRows: RequestedStressResult[] = [];
+  if (person.user_id) {
+    const { data, error } = await supabase.rpc("hm_requested_stress_results", { p_user_id: person.user_id });
+    if (!error) stressRows = (data as RequestedStressResult[]) ?? [];
+  }
 
   return (
     <>
@@ -261,6 +269,8 @@ export default async function KartePage({ params }: { params: { personId: string
             </p>
           )}
         </div>
+
+        <StressResultsCard rows={stressRows} showReportLink={isOffice} title="ストレスチェック結果(面接指導を申し出た年度)" />
 
         <div className="card">
           <h2>健診・面談の履歴</h2>

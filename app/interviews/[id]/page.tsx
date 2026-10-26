@@ -5,6 +5,7 @@ import InterviewRecordPanel from "@/components/InterviewRecordPanel";
 import OpinionPanel from "@/components/OpinionPanel";
 import PreInfoPanel from "@/components/PreInfoPanel";
 import CancelInterviewButton from "@/components/CancelInterviewButton";
+import StressResultsCard, { type RequestedStressResult } from "@/components/StressResultsCard";
 import { requireProfile, homePathFor } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import {
@@ -27,7 +28,7 @@ export default async function InterviewDetailPage({ params }: { params: { id: st
     supabase
       .from("hm_interviews")
       .select(
-        "id, company_id, person_id, target_user_id, target_name, interview_type, scheduled_at, method, location, status, companies(name)"
+        "id, company_id, person_id, target_user_id, target_name, interview_type, scheduled_at, method, location, status, interview_request_id, companies(name)"
       )
       .eq("id", params.id)
       .single(),
@@ -43,6 +44,13 @@ export default async function InterviewDetailPage({ params }: { params: { id: st
     }),
   ]);
   if (!iv) notFound();
+
+  // ストレスチェックWebの面接指導の申出から登録された面談: 申出のもとになったストレスチェック結果(0148。未適用なら出さない)
+  let stressRows: RequestedStressResult[] = [];
+  if (iv.interview_request_id && iv.target_user_id) {
+    const { data, error } = await supabase.rpc("hm_requested_stress_results", { p_user_id: iv.target_user_id });
+    if (!error) stressRows = ((data as RequestedStressResult[]) ?? []).filter((r) => r.interview_request_id === iv.interview_request_id);
+  }
 
   const isOffice = profile.role === "office";
   const isCompany = profile.role === "company" && profile.company_id === iv.company_id;
@@ -119,6 +127,8 @@ export default async function InterviewDetailPage({ params }: { params: { id: st
             )}
           </div>
         </div>
+
+        {(isOffice || isCompany) && <StressResultsCard rows={stressRows} showReportLink={isOffice} />}
 
         {(isOffice || isCompany) && (
           <div className="card">
