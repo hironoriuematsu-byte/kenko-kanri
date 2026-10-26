@@ -62,6 +62,20 @@ export default function OpinionPanel({
   // 意見書がまだ無い(id なし)ときは、何か入力されるまで保存しない
   const lastSaved = useRef<OpinionInitial | null>(initial.id ? initial : null);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // 事業者担当者へのメール報告(0151 が未実行なら記録は読めないので出さない)
+  const [reported, setReported] = useState<{ at: string; count: number | null } | null>(null);
+  const [mailBusy, setMailBusy] = useState(false);
+  const [mailMsg, setMailMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  useEffect(() => {
+    createClient()
+      .from("hm_interview_opinions")
+      .select("reported_at, reported_to")
+      .eq("interview_id", interviewId)
+      .maybeSingle()
+      .then(({ data, error }) => {
+        if (!error && data?.reported_at) setReported({ at: data.reported_at as string, count: (data.reported_to as number | null) ?? null });
+      });
+  }, [interviewId]);
 
   const save = useCallback(
     async (auto: boolean) => {
@@ -149,6 +163,46 @@ export default function OpinionPanel({
     };
   }, [v, save]);
 
+  // 意見書の発行を事業者担当者にメールで知らせる(公開済みのときだけ。送り先を確かめてから送る)
+  const reportByMail = async () => {
+    setMailMsg(null);
+    if (!v.published || !lastSaved.current?.published) {
+      setMailMsg({ ok: false, text: "先に「企業側に公開し、面談を実施済にする」を付けて保存してください。" });
+      return;
+    }
+    setMailBusy(true);
+    const post = (preview: boolean) =>
+      fetch("/api/opinion-report", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ interviewId, preview }),
+      }).then(async (r) => ({ ok: r.ok, json: await r.json().catch(() => ({})) }));
+    const pv = await post(true);
+    if (!pv.ok) {
+      setMailBusy(false);
+      setMailMsg({ ok: false, text: pv.json.error ?? "送り先を確認できませんでした" });
+      return;
+    }
+    const names: string[] = pv.json.names ?? [];
+    const again = reported ? `\n(${new Date(reported.at).toLocaleString("ja-JP")} に報告済みです。もう一度送ります)` : "";
+    if (!window.confirm(`次の事業者担当者${names.length}名に、意見書が発行されたことをメールで知らせます。\n${names.join("、")}\n(メールには対象の方の氏名・健康情報は書きません)${again}`)) {
+      setMailBusy(false);
+      return;
+    }
+    const res = await post(false);
+    setMailBusy(false);
+    if (!res.ok) {
+      setMailMsg({ ok: false, text: res.json.error ?? "送信できませんでした" });
+      return;
+    }
+    const failed: string[] = res.json.failed ?? [];
+    setReported({ at: new Date().toISOString(), count: res.json.sent ?? 0 });
+    setMailMsg({
+      ok: failed.length === 0,
+      text: `${res.json.sent}名にメールで報告しました。` + (failed.length > 0 ? `送れなかった方: ${failed.join("、")}` : ""),
+    });
+  };
+
   const onSubmit = async (e: FormEvent) => {
     e.preventDefault();
     if (timer.current) clearTimeout(timer.current);
@@ -204,7 +258,7 @@ export default function OpinionPanel({
           発行日は保存した日が自動で記録されます。
         </p>
       </div>
-      <div className="form-row checkbox-row">
+      <div className="form-row checkbox-row" style={{ flexWrap: "wrap" }}>
         <input
           id="publish-opinion"
           type="checkbox"
@@ -214,7 +268,24 @@ export default function OpinionPanel({
         <label htmlFor="publish-opinion" style={{ margin: 0 }}>
           企業側に公開し、面談を実施済にする
         </label>
+        <button
+          type="button"
+          className="btn secondary"
+          onClick={reportByMail}
+          disabled={mailBusy || busy || !v.published}
+          title={v.published ? "" : "意見書を企業側に公開すると送れます"}
+          style={{ marginLeft: 12 }}
+        >
+          {mailBusy ? "送信中…" : reported ? "事業者担当者にメールで再報告" : "事業者担当者にメールで報告"}
+        </button>
+        {reported && (
+          <span className="muted" style={{ fontSize: 12, marginLeft: 8 }}>
+            {new Date(reported.at).toLocaleString("ja-JP", { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" })} 報告済み
+            {reported.count !== null ? `(${reported.count}名)` : ""}
+          </span>
+        )}
       </div>
+      {mailMsg && <p style={{ color: mailMsg.ok ? "var(--teal-dark)" : "var(--red, #B02A2A)", fontSize: 13 }}>{mailMsg.text}</p>}
       {error && <p className="error-message">{error}</p>}
       {status && <p style={{ color: "var(--teal-dark)", fontSize: 13 }}>{status}</p>}
       <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
