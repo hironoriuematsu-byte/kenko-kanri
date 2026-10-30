@@ -4,8 +4,9 @@ import DemoNotice from "./DemoNotice";
 import { DEMO_COMPANY, DEMO_FISCAL_YEAR, demoCheckups } from "@/lib/demo-data";
 
 export const metadata = {
-  title: "サンプル(デモ) | 健康管理Web",
-  description: "架空企業のデータで、健康診断管理・産業医面談管理・個人カルテの画面をご覧いただけます。",
+  title: "体験デモ｜健康管理Web（健診の就業判定・受診勧奨・産業医面談の管理）| うえまつ産業医事務所",
+  description:
+    "産業医が開発した健康管理Webの体験デモです。架空企業のデータで、健康診断結果の就業判定と受診勧奨、産業医面談の記録、個人カルテ、労基署への報告などの画面を、ログイン不要でご覧いただけます。",
 };
 
 // 広告・紹介用のデモ。ログイン不要で、架空データのみを表示する(ストレスチェックWebのデモと同じ構成)
