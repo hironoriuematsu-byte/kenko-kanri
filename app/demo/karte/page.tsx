@@ -1,5 +1,6 @@
 import Link from "next/link";
 import DemoHeader from "@/components/DemoHeader";
+import DateTwoLines from "@/components/DateTwoLines";
 import DemoNotice from "../DemoNotice";
 import { DEMO_COMPANY, DEMO_KARTE } from "@/lib/demo-data";
 import { CHECKUP_TYPES, CHECKUP_WORK_JUDGMENTS } from "@/lib/checkups";
@@ -136,21 +137,23 @@ export default function DemoKartePage() {
           <table className="list">
             <thead>
               <tr>
-                <th>区分</th>
+                <th style={{ whiteSpace: "nowrap" }}>登録日</th>
+                <th style={{ whiteSpace: "nowrap" }}>区分</th>
                 <th>ファイル</th>
                 <th>メモ</th>
                 <th>共有範囲</th>
-                <th>登録日</th>
               </tr>
             </thead>
             <tbody>
               {p.files.map((f) => (
                 <tr key={f.file_name}>
-                  <td>{FILE_CATEGORIES[f.category] ?? f.category}</td>
+                  <td>
+                    <DateTwoLines date={f.created_at} />
+                  </td>
+                  <td style={{ whiteSpace: "nowrap" }}>{FILE_CATEGORIES[f.category] ?? f.category}</td>
                   <td>{f.file_name}</td>
                   <td>{f.note}</td>
                   <td>{VISIBILITY_LABELS[f.visibility] ?? f.visibility}</td>
-                  <td>{formatDateJa(f.created_at)}</td>
                 </tr>
               ))}
             </tbody>

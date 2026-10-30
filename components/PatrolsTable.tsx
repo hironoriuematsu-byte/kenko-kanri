@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { formatDateJa } from "@/lib/fiscal";
+import DateTwoLines from "@/components/DateTwoLines";
 import { combinePatrolText } from "@/lib/patrols";
 
 type Row = {
@@ -11,20 +11,6 @@ type Row = {
   note: string | null;
   physician_name: string | null;
 };
-
-// 巡視日を「2026年」と「10月21日」の2行で表示する(スマートフォンで途中で折り返さないように)
-function DateTwoLines({ date }: { date: string }) {
-  const s = formatDateJa(date);
-  const i = s.indexOf("年");
-  if (i < 0) return <>{s}</>;
-  return (
-    <>
-      <span style={{ whiteSpace: "nowrap" }}>{s.slice(0, i + 1)}</span>
-      <br />
-      <span style={{ whiteSpace: "nowrap" }}>{s.slice(i + 1)}</span>
-    </>
-  );
-}
 
 function excerpt(s: string, len = 40): string {
   const t = s.replace(/\s+/g, " ").trim();

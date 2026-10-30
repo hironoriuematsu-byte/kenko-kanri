@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import Header from "@/components/Header";
-import PersonFilesPanel from "@/components/PersonFilesPanel";
+import PersonFilesPanel, { type OpinionRow } from "@/components/PersonFilesPanel";
 import DeletePersonButton from "@/components/DeletePersonButton";
 import StressResultsCard, { type RequestedStressResult } from "@/components/StressResultsCard";
 import { requireProfile, homePathFor } from "@/lib/auth";
@@ -126,6 +126,19 @@ export default async function KartePage({ params }: { params: { personId: string
     (a: any, b: any) => ((a.scheduled_at ?? "") < (b.scheduled_at ?? "") ? 1 : -1)
   );
 
+  // 面談の意見書(診断書と同じ書類の一覧に並べる。企業側には公開済みのものだけが返る)
+  let opinions: OpinionRow[] = [];
+  if (interviews.length > 0) {
+    const { data } = await supabase
+      .from("hm_interview_opinions")
+      .select("interview_id, interview_date, issued_date, work_judgment, published")
+      .in(
+        "interview_id",
+        interviews.map((i: any) => i.id)
+      );
+    opinions = (data as OpinionRow[]) ?? [];
+  }
+
   const companyName = (person as any).companies?.name ?? "";
 
   // 面接指導を申し出た人のストレスチェック結果(アカウントと紐づいている人のみ。0148 未適用なら出さない)
@@ -203,16 +216,17 @@ export default async function KartePage({ params }: { params: { personId: string
         </div>
 
         <div className="card">
-          <h2>書類（診断書・診療情報提供書など）</h2>
+          <h2>書類（診断書・診療情報提供書・産業医意見書など）</h2>
           {isOffice && (
             <p className="muted">
-              公開範囲を「産業医事務所のみ」にした書類は、企業側には一切表示されません。
+              公開範囲を「産業医事務所のみ」にした書類は、企業側には一切表示されません。産業医意見書は、面談の画面で「企業側に公開」したものだけが企業側に表示されます。
             </p>
           )}
           <PersonFilesPanel
             personId={person.id}
             companyId={person.company_id}
             initialFiles={(files.data as any[]) ?? []}
+            opinions={opinions}
             role={isOffice ? "office" : "company"}
             currentUserId={profile.id}
           />

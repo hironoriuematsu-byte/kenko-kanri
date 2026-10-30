@@ -1,10 +1,12 @@
 "use client";
 
+import Link from "next/link";
 import { ChangeEvent, useState } from "react";
 import { createClient } from "@/lib/supabase/browser";
 import { makeStorageFileName } from "@/lib/storage";
 import { FILE_CATEGORIES, VISIBILITY_LABELS } from "@/lib/karte";
-import { formatDateJa } from "@/lib/fiscal";
+import { WORK_JUDGMENTS } from "@/lib/interviews";
+import DateTwoLines from "@/components/DateTwoLines";
 
 type FileRow = {
   id: string;
@@ -17,17 +19,35 @@ type FileRow = {
   created_at: string;
 };
 
-// カルテ添付書類(診断書等)。officeは公開範囲を選択可、companyは常に共有扱い
+// 産業医の意見書(面談管理で作成)。診断書と同じ一覧に並べる。企業側には公開済みのものだけが届く(RLS)
+export type OpinionRow = {
+  interview_id: string;
+  interview_date: string | null;
+  issued_date: string | null;
+  work_judgment: string | null;
+  published: boolean;
+};
+
+// 登録日時(UTC)を日本時間の日付(YYYY-MM-DD)にする
+function jstDate(ts: string): string {
+  const d = new Date(ts);
+  if (isNaN(d.getTime())) return ts.slice(0, 10);
+  return new Date(d.getTime() + 9 * 3600_000).toISOString().slice(0, 10);
+}
+
+// カルテ添付書類(診断書等)と産業医の意見書。officeは公開範囲を選択可、companyは常に共有扱い
 export default function PersonFilesPanel({
   personId,
   companyId,
   initialFiles,
+  opinions = [],
   role,
   currentUserId,
 }: {
   personId: string;
   companyId: string;
   initialFiles: FileRow[];
+  opinions?: OpinionRow[];
   role: "office" | "company";
   currentUserId: string;
 }) {
@@ -131,59 +151,99 @@ export default function PersonFilesPanel({
     setFiles((prev) => prev.filter((x) => x.id !== f.id));
   };
 
+  // 書類と意見書を、新しい日付から順に1つの表に並べる
+  const rows = [
+    ...files.map((f) => ({ kind: "file" as const, date: jstDate(f.created_at), f })),
+    ...opinions.map((o) => ({ kind: "opinion" as const, date: o.issued_date ?? o.interview_date ?? "", o })),
+  ].sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0));
+
   return (
     <div>
-      {files.length > 0 ? (
+      {rows.length > 0 ? (
         <table className="list" style={{ marginBottom: 14 }}>
           <thead>
             <tr>
-              <th>区分</th>
+              <th style={{ whiteSpace: "nowrap" }}>登録日</th>
+              <th style={{ whiteSpace: "nowrap" }}>区分</th>
               <th>ファイル</th>
               <th>備考</th>
-              <th>登録日</th>
               {role === "office" && <th>公開範囲</th>}
               <th></th>
             </tr>
           </thead>
           <tbody>
-            {files.map((f) => (
-              <tr key={f.id}>
-                <td>{FILE_CATEGORIES[f.category] ?? f.category}</td>
-                <td>
-                  <a
-                    href="#"
-                    onClick={(e) => {
-                      e.preventDefault();
-                      onDownload(f);
-                    }}
-                  >
-                    {f.file_name}
-                  </a>
-                </td>
-                <td className="muted">{f.note ?? ""}</td>
-                <td>{formatDateJa(f.created_at.slice(0, 10))}</td>
-                {role === "office" && (
+            {rows.map((r) =>
+              r.kind === "opinion" ? (
+                <tr key={`op-${r.o.interview_id}`}>
                   <td>
-                    {f.visibility === "office_only" ? (
-                      <span className="badge orange">{VISIBILITY_LABELS[f.visibility]}</span>
-                    ) : (
-                      <span className="badge">{VISIBILITY_LABELS[f.visibility]}</span>
+                    <DateTwoLines date={r.date} />
+                  </td>
+                  <td style={{ whiteSpace: "nowrap" }}>産業医意見書</td>
+                  <td>
+                    <Link href={`/interview-sheet/${r.o.interview_id}`}>産業医意見書を表示（印刷/PDF）</Link>
+                  </td>
+                  <td className="muted">
+                    {r.o.work_judgment ? `就業区分: ${WORK_JUDGMENTS[r.o.work_judgment] ?? r.o.work_judgment}` : ""}
+                    {r.o.interview_date ? `${r.o.work_judgment ? " / " : ""}面談日 ${r.o.interview_date.replaceAll("-", ".")}` : ""}
+                  </td>
+                  {role === "office" && (
+                    <td>
+                      {r.o.published ? (
+                        <span className="badge">企業と共有</span>
+                      ) : (
+                        <span className="badge orange">未公開</span>
+                      )}
+                    </td>
+                  )}
+                  <td>
+                    {role === "office" && (
+                      <Link href={`/interviews/${r.o.interview_id}`} className="muted" style={{ fontSize: 12, whiteSpace: "nowrap" }}>
+                        面談へ
+                      </Link>
                     )}
                   </td>
-                )}
-                <td>
-                  {(role === "office" || f.uploaded_by === currentUserId) && (
-                    <button
-                      className="btn danger"
-                      style={{ padding: "3px 10px", fontSize: 12 }}
-                      onClick={() => onDelete(f)}
+                </tr>
+              ) : (
+                <tr key={r.f.id}>
+                  <td>
+                    <DateTwoLines date={r.date} />
+                  </td>
+                  <td style={{ whiteSpace: "nowrap" }}>{FILE_CATEGORIES[r.f.category] ?? r.f.category}</td>
+                  <td>
+                    <a
+                      href="#"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        onDownload(r.f);
+                      }}
                     >
-                      削除
-                    </button>
+                      {r.f.file_name}
+                    </a>
+                  </td>
+                  <td className="muted">{r.f.note ?? ""}</td>
+                  {role === "office" && (
+                    <td>
+                      {r.f.visibility === "office_only" ? (
+                        <span className="badge orange">{VISIBILITY_LABELS[r.f.visibility]}</span>
+                      ) : (
+                        <span className="badge">{VISIBILITY_LABELS[r.f.visibility]}</span>
+                      )}
+                    </td>
                   )}
-                </td>
-              </tr>
-            ))}
+                  <td>
+                    {(role === "office" || r.f.uploaded_by === currentUserId) && (
+                      <button
+                        className="btn danger"
+                        style={{ padding: "3px 10px", fontSize: 12, whiteSpace: "nowrap" }}
+                        onClick={() => onDelete(r.f)}
+                      >
+                        削除
+                      </button>
+                    )}
+                  </td>
+                </tr>
+              )
+            )}
           </tbody>
         </table>
       ) : (
