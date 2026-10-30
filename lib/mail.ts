@@ -29,3 +29,19 @@ export async function sendMail(to: string, subject: string, text: string): Promi
 }
 
 export const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+// まとめて送る(設定が無い・失敗しても処理は止めない)。1秒に2通までの制限に合わせて間をあける
+export async function sendMails(to: string[], subject: string, text: string): Promise<number> {
+  if (!mailConfigured()) {
+    console.warn("mail skipped: RESEND_API_KEY / SENDER_EMAIL が未設定");
+    return 0;
+  }
+  let sent = 0;
+  for (let i = 0; i < to.length; i++) {
+    if (i > 0) await sleep(600);
+    const r = await sendMail(to[i], subject, text);
+    if (r.ok) sent++;
+    else console.error("mail failed", to[i], r.detail);
+  }
+  return sent;
+}

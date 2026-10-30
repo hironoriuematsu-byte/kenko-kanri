@@ -125,6 +125,30 @@ npm run dev
 5. Vercel 環境変数: `GOOGLE_SERVICE_ACCOUNT_EMAIL` / `GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY` / `GOOGLE_MEET_OWNER_EMAIL`（任意で `GOOGLE_MEET_ACCESS_TYPE`）→ Redeploy
 6. 企業メニュー「産業医面談ルーム」→「Google Meet で面談ルームを作成」
 
+## 健診結果の医師意見聴取Web（50人未満の事業場向け・Web申込）
+
+産業医の選任義務がない事業場に、健康診断結果についての医師の意見聴取（安衛法第66条の4）をWebで提供する。
+宣伝ページは https://kenko.mestate.jp/iken （ログイン不要）。
+
+| 項目 | 内容 |
+|---|---|
+| 料金 | 健診結果1件（1名1回の健康診断）550円・最低料金5,500円（10件まで）・税込。年度ごと。追加は1件から（`lib/iken.ts`） |
+| 対象 | 定期・雇入時・特定業務従事者・特殊健診（同じ料金） |
+| 返却期限 | 受付から3営業日以内（土日祝・12/29〜1/3休み、17時以降・休業日は翌営業日受付。`lib/businessDays.ts`。祝日は年ごとに追記） |
+| 流れ | `/iken/signup` で会社登録（companies に `hm_enabled=true` で作成・担当者は company ロール）→ 確認メール → `/company/iken` で件数を入れて Stripe 決済 → Webhook で件数枠 → 担当者が健診結果を送信（`hm_iken_jobs` に受付を自動記録）→ 産業医が取込・判定 → 事務所ダッシュボードの「返却してメール」 |
+| 担当者の画面 | ダッシュボードのメニューは健康診断管理・個人カルテ・マニュアル＋お申込みのみ。件数枠がない年度は送信画面を閉じる |
+| 決済 | ストレスチェックWebと同じ Stripe アカウント。`metadata.app = "kenko-iken"` で互いの Webhook が相手の決済を無視する（stres 側の対応が必要） |
+
+### 本番適用手順
+
+1. Supabase SQL Editor で `supabase/migrations/0152_hm_iken_web.sql` を実行
+2. stres リポジトリの Webhook 修正（`metadata.app === "kenko-iken"` を無視）を先にデプロイ
+3. Stripe ダッシュボード → Webhook → エンドポイント追加: `https://kenko.mestate.jp/api/iken/webhook`、イベントは
+   `checkout.session.completed` / `checkout.session.async_payment_succeeded` / `checkout.session.async_payment_failed` / `checkout.session.expired`
+4. Vercel（kenko-kanri）の環境変数: `SUPABASE_SERVICE_ROLE_KEY` / `STRIPE_SECRET_KEY` / `STRIPE_WEBHOOK_SECRET`（手順3の whsec_） /
+   `NEXT_PUBLIC_SITE_URL=https://kenko.mestate.jp` / `RESEND_API_KEY` / `SENDER_EMAIL` → Redeploy
+5. テストモードのキーで 会社登録 → 決済 → 送信 → 返却 を一通り確認してから本番キーに切り替える
+
 ## 今後の改善候補（TODO）
 
 - 面談予定のメール通知（Resendキー設定後に有効化。本文に健康情報を書かない原則を踏襲）

@@ -6,6 +6,8 @@ import MenuGrid from "@/components/MenuGrid";
 import { requireProfile } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { formatDateJa } from "@/lib/fiscal";
+import { loadIkenState } from "@/lib/ikenData";
+import { formatMdW } from "@/lib/businessDays";
 
 export const dynamic = "force-dynamic";
 
@@ -72,7 +74,16 @@ export default async function CompanyDashboard() {
       .maybeSingle(),
   ]);
 
-  const menu = meetRoom?.meeting_uri
+  // 健診結果の医師意見聴取Web(50人未満向けのWeb申込)の事業場は、健康診断に関するメニューだけを出す
+  const iken = await loadIkenState(supabase, profile.company_id);
+  const IKEN_MENU_HREFS = ["/company/checkups", "/company/persons", "/company/manual"];
+
+  const menu = iken
+    ? [
+        { href: "/company/iken", title: "医師意見聴取のお申込み", icon: "🧾", desc: "件数の申込・追加・領収書・受付状況" },
+        ...MENU.filter((m) => IKEN_MENU_HREFS.includes(m.href)),
+      ]
+    : meetRoom?.meeting_uri
     ? [
         { href: "/company/meet", title: "産業医面談ルーム", icon: "🎥", desc: "産業医とオンラインで面談（Google Meet）" },
         ...MENU,
@@ -168,6 +179,44 @@ export default async function CompanyDashboard() {
                 </li>
               )}
             </ul>
+          </div>
+        )}
+
+        {iken && (
+          <div className="card">
+            <h2>健診結果の医師意見聴取({iken.fiscalYear}年度)</h2>
+            {iken.seats > 0 ? (
+              <>
+                <p style={{ margin: "0 0 8px" }}>
+                  ご利用 <strong>{iken.used}</strong>件 / お申込み <strong>{iken.seats}</strong>件
+                  {iken.used > iken.seats && (
+                    <span style={{ color: "var(--danger)", marginLeft: 8 }}>
+                      {iken.used - iken.seats}件超えています。<Link href="/company/iken">件数を追加</Link>してください
+                    </span>
+                  )}
+                </p>
+                {iken.jobs.filter((j) => !j.returned_at).length > 0 && (
+                  <p style={{ margin: "0 0 8px" }}>
+                    判定中の健診結果が {iken.jobs.filter((j) => !j.returned_at).length}件あります(返却期限{" "}
+                    {formatMdW(iken.jobs.filter((j) => !j.returned_at).map((j) => j.due).sort()[0])}まで)。
+                  </p>
+                )}
+                {!profile.view_only && (
+                  <Link href="/company/checkups/import" className="btn">
+                    健診結果を送る(CSV・PDF)
+                  </Link>
+                )}
+              </>
+            ) : (
+              <>
+                <p style={{ margin: "0 0 8px" }}>
+                  {iken.fiscalYear}年度のお申込みがまだです。件数を入力してお支払いいただくと、健診結果を送れるようになります。
+                </p>
+                <Link href="/company/iken" className="btn orange">
+                  件数を入力して申し込む
+                </Link>
+              </>
+            )}
           </div>
         )}
 
