@@ -7,6 +7,7 @@ import OfficeInfoForm from "@/components/OfficeInfoForm";
 import InterviewSchedule from "@/components/InterviewSchedule";
 import ImportNotices from "@/components/ImportNotices";
 import CsvUploadsPending from "@/components/CsvUploadsPending";
+import IkenJobsPanel from "@/components/IkenJobsPanel";
 import { getOfficeInfo } from "@/lib/officeInfo";
 
 export const dynamic = "force-dynamic";
@@ -42,6 +43,9 @@ export default async function OfficeDashboard({
 
 async function CompaniesTab() {
   const supabase = createClient();
+  // 健診結果の医師意見聴取Web(Web申込)の事業場(SQL 0152 未実行なら空)
+  const { data: ikenRows } = await supabase.from("hm_iken_companies").select("company_id");
+  const ikenIds = new Set(((ikenRows as { company_id: string }[] | null) ?? []).map((r) => r.company_id));
   const [
     { data: companies },
     { data: interviews },
@@ -95,7 +99,13 @@ async function CompaniesTab() {
                 style={{ marginBottom: 0 }}
               >
                 <strong>{c.name}</strong>
-                <div className="muted">議事録・健診・面談・面談ルームの管理へ</div>
+                {ikenIds.has(c.id) ? (
+                  <div className="muted">
+                    <span className="badge orange">医師意見聴取Web</span> 健診の就業判定へ
+                  </div>
+                ) : (
+                  <div className="muted">議事録・健診・面談・面談ルームの管理へ</div>
+                )}
               </Link>
             ))}
           </div>
@@ -120,6 +130,8 @@ async function CompaniesTab() {
         )}
       </div>
 
+      {/* 健診結果の医師意見聴取Web(50人未満・Web申込)の返却期限 */}
+      <IkenJobsPanel />
       {/* 事業者担当者から送られた取込待ちのCSV */}
       <CsvUploadsPending />
       {/* 取り込まれた健診結果の通知(未確認のものだけ) */}
