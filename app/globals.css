@@ -557,14 +557,19 @@ table.list td {
   }
   table.kv,
   table.kv > tbody { display: block; }
+  /* 見出しの列は8文字(「医師の指示人数率」など)まで1行に収まる幅にし、それより長い見出しは列の中で折り返す(値の欄にはみ出さない) */
   table.kv tr {
     display: grid;
-    grid-template-columns: 6.5em minmax(0, 1fr);
+    grid-template-columns: 8.5em minmax(0, 1fr);
   }
   table.kv th,
   table.kv td {
     width: auto !important;
     min-width: 0;
     padding: 7px 8px;
+  }
+  table.kv th {
+    white-space: normal !important;
+    overflow-wrap: anywhere;
   }
 }
