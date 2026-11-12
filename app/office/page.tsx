@@ -7,6 +7,7 @@ import OfficeInfoForm from "@/components/OfficeInfoForm";
 import InterviewSchedule from "@/components/InterviewSchedule";
 import ImportNotices from "@/components/ImportNotices";
 import CsvUploadsPending from "@/components/CsvUploadsPending";
+import CompanyList from "@/components/CompanyList";
 import { getOfficeInfo } from "@/lib/officeInfo";
 
 export const dynamic = "force-dynamic";
@@ -86,19 +87,7 @@ async function CompaniesTab() {
       <div className="card">
         <h2>企業一覧</h2>
         {companies && companies.length > 0 ? (
-          <div className="card-grid">
-            {companies.map((c) => (
-              <Link
-                key={c.id}
-                href={`/office/${c.id}`}
-                className="card"
-                style={{ marginBottom: 0 }}
-              >
-                <strong>{c.name}</strong>
-                <div className="muted">議事録・健診・面談・面談ルームの管理へ</div>
-              </Link>
-            ))}
-          </div>
+          <CompanyList companies={companies} />
         ) : (
           <p className="muted">
             健康管理Webをご利用いただく企業がありません。ストレスチェックWebの

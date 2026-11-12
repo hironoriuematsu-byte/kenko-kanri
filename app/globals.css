@@ -189,6 +189,7 @@ input[type="text"],
 input[type="email"],
 input[type="password"],
 input[type="date"],
+input[type="search"],
 textarea,
 select {
   width: 100%;
@@ -572,4 +573,26 @@ table.list td {
     white-space: normal !important;
     overflow-wrap: anywhere;
   }
+}
+
+/* 事務所ダッシュボードの企業一覧(企業名だけのコンパクトなタイル) */
+.company-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 8px;
+}
+.company-tile {
+  display: block;
+  padding: 10px 14px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+  font-weight: 700;
+  color: var(--teal-dark);
+  text-decoration: none;
+  line-height: 1.4;
+}
+.company-tile:hover {
+  border-color: var(--teal-dark);
+  background: #f3faf9;
 }
