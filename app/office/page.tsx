@@ -172,8 +172,23 @@ async function CompaniesTab() {
 
 async function OfficeSettings() {
   const officeInfo = await getOfficeInfo();
+  const stressUrl = process.env.NEXT_PUBLIC_STRESS_URL;
   return (
     <>
+      {/* 操作ログはストレスチェックWebのログ画面で、両方のサイトの分をまとめて見る(ログインは共有) */}
+      {stressUrl && (
+        <div className="card">
+          <h2>操作ログ</h2>
+          <p className="muted">
+            健康管理Webでの閲覧・操作の記録は、ストレスチェックWebの「ログ」で、ストレスチェックWebの記録と一緒に確認できます(サイト・企業・閲覧/操作で絞り込めます)。
+          </p>
+          <p>
+            <a className="btn secondary" href={`${stressUrl}/office?tab=log`} target="_blank" rel="noopener noreferrer">
+              ログを見る(ストレスチェックWeb) ↗
+            </a>
+          </p>
+        </div>
+      )}
       <div className="card">
         <h2>健診結果の判定基準</h2>
         <p>
