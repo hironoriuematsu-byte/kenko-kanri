@@ -6,6 +6,7 @@ import { LEGAL_NOTE, conditionText, consultLabel, interviewNeeded, judgmentLabel
 
 const num: React.CSSProperties = { textAlign: "right", whiteSpace: "nowrap", fontVariantNumeric: "tabular-nums" };
 const cell: React.CSSProperties = { fontSize: 12.5, verticalAlign: "top" };
+const hd: React.CSSProperties = { whiteSpace: "nowrap", verticalAlign: "bottom" };
 
 // 就業判定・事後措置報告書(産業医事務所が作成し、事業者に渡す)。印刷/PDF保存用(A4横)
 export default function WorkJudgmentSheet({
@@ -81,15 +82,16 @@ export default function WorkJudgmentSheet({
       <table className="list">
         <thead>
           <tr>
-            <th>社員番号</th>
-            <th>氏名</th>
-            <th>所属</th>
-            <th>健診日</th>
-            <th>総合判定</th>
-            <th>就業判定</th>
-            <th>医師の意見</th>
-            <th>受診勧奨</th>
-            <th>産業医面談</th>
+            {/* 見出しは決めた位置で改行し、1文字ずつの縦書きにならないようにする */}
+            <th style={hd}>社員<br />番号</th>
+            <th style={hd}>氏名</th>
+            <th style={hd}>所属</th>
+            <th style={hd}>健診日</th>
+            <th style={hd}>総合<br />判定</th>
+            <th style={hd}>就業判定</th>
+            <th style={{ ...hd, width: "30%" }}>医師の意見</th>
+            <th style={hd}>受診勧奨</th>
+            <th style={hd}>産業医<br />面談</th>
           </tr>
         </thead>
         <tbody>
