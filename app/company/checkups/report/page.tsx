@@ -5,6 +5,9 @@ import Form6Sheet from "@/components/Form6Sheet";
 import ReportTabs, { type ReportForm } from "@/components/ReportTabs";
 import { ChemicalReportSheet, OrganicReportSheet } from "@/components/SpecialReportSheet";
 import { loadSpecialReport } from "@/lib/specialReport";
+import PneumoReportSheet from "@/components/PneumoReportSheet";
+import { computePneumoReport, defaultPneumoYear } from "@/lib/pneumo";
+import { loadPneumo } from "@/lib/pneumoServer";
 import { requireProfile } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { loadCheckupList } from "@/lib/checkupList";
@@ -12,7 +15,7 @@ import { loadCheckupList } from "@/lib/checkupList";
 export const dynamic = "force-dynamic";
 
 // 労基署報告(定期健康診断結果報告書 様式第6号)の転記用集計(企業担当者向け・印刷/PDF保存)
-export default async function CompanyCheckupReportPage({ searchParams }: { searchParams: { year?: string; round?: string; form?: string } }) {
+export default async function CompanyCheckupReportPage({ searchParams }: { searchParams: { year?: string; round?: string; form?: string; py?: string } }) {
   const { profile } = await requireProfile();
   if (profile.role !== "company" || !profile.company_id) redirect("/");
 
@@ -24,14 +27,18 @@ export default async function CompanyCheckupReportPage({ searchParams }: { searc
     loadCheckupList(profile.company_id, year, round, "regular"),
   ]);
   if (!data.year) notFound();
-  const form: ReportForm = searchParams.form === "organic" || searchParams.form === "chemical" ? searchParams.form : "6";
-  const special = await loadSpecialReport(profile.company_id, data.year, round);
+  const form: ReportForm =
+    searchParams.form === "organic" || searchParams.form === "chemical" || searchParams.form === "pneumo" ? searchParams.form : "6";
+  const [special, pneumo] = await Promise.all([loadSpecialReport(profile.company_id, data.year, round), loadPneumo(profile.company_id)]);
+  // じん肺(様式第8号)は暦年。対象年は py(既定: 1〜3月は前年、それ以降はその年)
+  const pneumoYear = searchParams.py && /^\d{4}$/.test(searchParams.py) ? Number(searchParams.py) : defaultPneumoYear();
+  const pneumoReport = computePneumoReport(pneumo.workers, pneumo.exams, pneumoYear);
 
   await supabase.rpc("hm_log_access", {
     p_action: "report_summary",
     p_target_table: "hm_checkups",
     p_target_id: null,
-    p_detail: { company_id: profile.company_id, fiscal_year: data.year, round: data.round, form },
+    p_detail: { pneumo_year: form === "pneumo" ? pneumoYear : undefined, company_id: profile.company_id, fiscal_year: data.year, round: data.round, form },
   });
 
   return (
@@ -45,11 +52,25 @@ export default async function CompanyCheckupReportPage({ searchParams }: { searc
           <ReportTabs
             basePath={`/company/checkups/report?year=${data.year}`}
             current={form}
-            counts={{ regular: data.form6.regularCount, organic: special.organicTotal, chemical: special.chemicalTotal }}
-            rounds={form === "organic" ? special.organicRounds : form === "chemical" ? special.chemicalRounds : data.rounds}
+            counts={{
+              regular: data.form6.regularCount,
+              organic: special.organicTotal,
+              chemical: special.chemicalTotal,
+              pneumo: pneumo.workers.filter((w) => !w.left_on).length,
+            }}
+            rounds={form === "organic" ? special.organicRounds : form === "chemical" ? special.chemicalRounds : form === "pneumo" ? undefined : data.rounds}
             round={form === "organic" ? special.organicRound : form === "chemical" ? special.chemicalRound : data.round}
           />
-          {form === "organic" ? (
+          {form === "pneumo" ? (
+            <PneumoReportSheet
+              companyName={company?.name ?? ""}
+              report={pneumoReport}
+              officeInfo={data.officeInfo}
+              registerHref={"/company/checkups/pneumo"}
+              yearHref={(y) => `${`/company/checkups/report?year=${data.year}`}&form=pneumo&py=${y}`}
+              ready={pneumo.ready}
+            />
+          ) : form === "organic" ? (
             <OrganicReportSheet companyName={company?.name ?? ""} fiscalYear={data.year} round={special.organicRounds.length > 1 ? special.organicRound : undefined} report={special.organic} officeInfo={data.officeInfo} />
           ) : form === "chemical" ? (
             <ChemicalReportSheet companyName={company?.name ?? ""} fiscalYear={data.year} round={special.chemicalRounds.length > 1 ? special.chemicalRound : undefined} report={special.chemical} officeInfo={data.officeInfo} />
@@ -64,7 +85,7 @@ export default async function CompanyCheckupReportPage({ searchParams }: { searc
               officeInfo={data.officeInfo}
             />
           )}
-          {special.otherKinds.length > 0 && (
+          {form !== "pneumo" && special.otherKinds.length > 0 && (
             <p className="muted no-print" style={{ fontSize: 12 }}>
               この年度には「{special.otherKinds.join("・")}」の特殊健診も取り込まれています（これらの様式には対応していません）。
             </p>

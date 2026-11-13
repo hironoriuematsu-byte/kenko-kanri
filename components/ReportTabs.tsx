@@ -1,8 +1,8 @@
 import Link from "next/link";
 
-export type ReportForm = "6" | "organic" | "chemical";
+export type ReportForm = "6" | "organic" | "chemical" | "pneumo";
 
-// 労基署報告の様式切り替え(定期健診 様式第6号 / 有機溶剤 様式第3号の2 / 特定化学物質 様式第3号)
+// 労基署報告の様式切り替え(定期健診 様式第6号 / 有機溶剤 様式第3号の2 / 特定化学物質 様式第3号 / じん肺 様式第8号)
 export default function ReportTabs({
   basePath,
   current,
@@ -12,7 +12,7 @@ export default function ReportTabs({
 }: {
   basePath: string; // 例: /office/<id>/checkups/report?year=2026 (実施回は含めない)
   current: ReportForm;
-  counts: { regular: number; organic: number; chemical: number };
+  counts: { regular: number; organic: number; chemical: number; pneumo: number }; // じん肺は台帳の在籍者数
   rounds?: number[]; // 表示中の様式に存在する実施回(2回以上あるときだけ選択肢を出す)
   round?: number;
 }) {
@@ -22,6 +22,7 @@ export default function ReportTabs({
     { key: "6", label: "定期健診（様式第6号）", n: counts.regular },
     { key: "organic", label: "有機溶剤（様式第3号の2）", n: counts.organic },
     { key: "chemical", label: "特定化学物質（様式第3号）", n: counts.chemical },
+    { key: "pneumo", label: "じん肺（様式第8号）", n: counts.pneumo },
   ];
   return (
     <div className="no-print" style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 12 }}>
