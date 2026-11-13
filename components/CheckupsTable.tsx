@@ -1,10 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/browser";
 import HScroll from "@/components/HScroll";
+import { clearListReturn, readListReturn, rememberListPosition } from "@/lib/listReturn";
 import { formatDateJa } from "@/lib/fiscal";
 import { referralNote } from "@/lib/referral";
 import {
@@ -233,6 +234,19 @@ export default function CheckupsTable({
 
   // 一覧の絞り込み(有所見D・就業制限Rの方を特に注意して確認できるようにする)
   const [view, setView] = useState<ViewFilter>("all");
+  // 個別の画面から戻ってきたとき: 開いた人の行までスクロールし、しばらく色を付けて示す
+  const [returnedId, setReturnedId] = useState<string | null>(null);
+  useEffect(() => {
+    const r = readListReturn();
+    if (!r || r.url !== location.pathname + location.search) return;
+    clearListReturn();
+    const el = document.getElementById(`checkup-row-${r.id}`);
+    if (!el) return;
+    requestAnimationFrame(() => el.scrollIntoView({ block: "center" }));
+    setReturnedId(r.id);
+    const t = setTimeout(() => setReturnedId(null), 2500);
+    return () => clearTimeout(t);
+  }, []);
   const visibleRows = useMemo(() => {
     if (view === "d") return rows.filter((r) => dIds.has(r.id));
     if (view === "r") return rows.filter((r) => restrictionIds.has(r.id));
@@ -823,7 +837,17 @@ export default function CheckupsTable({
               // 項目別の判定が取り込まれていない(総合判定のみの)記録
               const noItemFindings = findings.c.length === 0 && findings.d.length === 0 && c.has_findings;
               return (
-                <tr key={c.id} style={attention ? { background: "#fffaf5" } : {}}>
+                <tr
+                  key={c.id}
+                  id={`checkup-row-${c.id}`}
+                  style={
+                    returnedId === c.id
+                      ? { background: "#fff3c4", transition: "background 1.5s" }
+                      : attention
+                        ? { background: "#fffaf5", transition: "background 1.5s" }
+                        : { transition: "background 1.5s" }
+                  }
+                >
                   {showCheckbox && (
                     <td>
                       <input
@@ -845,7 +869,9 @@ export default function CheckupsTable({
                     {demo ? (
                       <span style={{ color: "var(--teal-dark)" }}>{c.target_name}</span>
                     ) : (
-                      <Link href={`/checkup/${c.id}`}>{c.target_name}</Link>
+                      <Link href={`/checkup/${c.id}`} onClick={() => rememberListPosition(c.id)}>
+                        {c.target_name}
+                      </Link>
                     )}
                     {c.birth_date && (
                       <div className="muted" style={{ fontSize: 11 }}>

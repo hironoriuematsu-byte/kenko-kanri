@@ -1,4 +1,5 @@
 import Link from "next/link";
+import BackToListLink from "@/components/BackToListLink";
 import { notFound } from "next/navigation";
 import Header from "@/components/Header";
 import PrintButton from "@/components/PrintButton";
@@ -148,7 +149,7 @@ export default async function CheckupDetailPage({ params }: { params: { id: stri
       <Header profile={profile} />
       <main className="container">
         <p className="muted no-print">
-          <Link href={backHref}>← 一覧に戻る</Link>
+          <BackToListLink defaultHref={backHref}>← 一覧に戻る</BackToListLink>
         </p>
 
         <div className="card print-sheet">
