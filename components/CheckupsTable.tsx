@@ -97,9 +97,9 @@ function shortDate(dateStr: string | null | undefined): string {
 type ViewFilter = "all" | "d" | "r" | "pending" | "followup" | "restricted" | "interview";
 const VIEW_LABEL: Record<ViewFilter, string> = {
   all: "すべて",
-  d: "要医療項目（D）あり",
-  r: "就業制限項目（R）あり",
-  pending: "判定保留あり",
+  d: "要医療項目（D）",
+  r: "就業制限項目（R）",
+  pending: "判定保留",
   followup: "要受診勧奨",
   restricted: "要就業制限",
   interview: "要産業医面談",
@@ -738,11 +738,11 @@ export default function CheckupsTable({
               <button
                 key={k}
                 className={className}
-                style={{ padding: "4px 12px", fontSize: 13, fontWeight: important ? 700 : undefined }}
+                style={{ padding: "4px 11px", fontSize: 13, fontWeight: important ? 700 : undefined, whiteSpace: "nowrap" }}
                 onClick={() => setView(k)}
                 aria-pressed={active}
               >
-                {VIEW_LABEL[k]}（{viewCounts[k]}名）
+                {VIEW_LABEL[k]} {viewCounts[k]}名
               </button>
             );
           })}
