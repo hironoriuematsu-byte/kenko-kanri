@@ -50,10 +50,13 @@ export default function DemoCheckupsPage({ searchParams }: { searchParams: { vie
               </span>
               <span className="btn secondary" aria-disabled style={{ opacity: 0.6, cursor: "default" }}>＋ 個別入力</span>
             </div>
-            <span className="muted" style={{ fontWeight: 700, whiteSpace: "nowrap" }}>出力</span>
+            <span className="muted" style={{ fontWeight: 700, whiteSpace: "nowrap" }}>結果</span>
             <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-              <span className="btn" aria-disabled style={{ opacity: 0.6, cursor: "default" }}>就業判定・事後措置（PDF）</span>
-              <span className="btn secondary" aria-disabled style={{ opacity: 0.6, cursor: "default" }}>就業判定・事後措置（CSV）</span>
+              <span className="format-group" style={{ opacity: 0.6 }}>
+                <span className="label">就業判定</span>
+                <span className="pill" aria-disabled style={{ cursor: "default" }}>PDF</span>
+                <span className="pill outline" aria-disabled style={{ cursor: "default" }}>CSV</span>
+              </span>
               <Link className="btn secondary" href="/demo/checkups/report">労基署報告</Link>
             </div>
             <span className="muted" style={{ fontWeight: 700, whiteSpace: "nowrap" }}>通知</span>

@@ -64,20 +64,23 @@ export default async function CheckupsSection({
           )}
           {year && (
             <>
-              <span className="muted" style={{ fontWeight: 700, whiteSpace: "nowrap" }}>出力</span>
-              <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-                {/* 就業判定・事後措置報告書(産業医事務所として作成)。PDF(印刷画面)とCSV */}
-                <Link className="btn" href={`${basePath}/work-judgment?year=${year}${roundQuery}${groupQuery}`}>
-                  就業判定・事後措置（PDF）
-                </Link>
-                <WorkJudgmentReportButton
-                  companyName={companyName}
-                  fiscalYear={year}
-                  round={rounds.length > 1 ? round : undefined}
-                  groupLabel={groupLabel}
-                  rows={list}
-                  officeInfo={officeInfo}
-                />
+              <span className="muted" style={{ fontWeight: 700, whiteSpace: "nowrap" }}>結果</span>
+              <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
+                {/* 就業判定・事後措置報告書(産業医事務所として作成)。1つの枠に PDF(印刷画面)と CSV のボタンを並べる */}
+                <span className="format-group">
+                  <span className="label">就業判定</span>
+                  <Link className="pill" href={`${basePath}/work-judgment?year=${year}${roundQuery}${groupQuery}`} title="就業判定・事後措置報告書を印刷・PDF保存">
+                    PDF
+                  </Link>
+                  <WorkJudgmentReportButton
+                    companyName={companyName}
+                    fiscalYear={year}
+                    round={rounds.length > 1 ? round : undefined}
+                    groupLabel={groupLabel}
+                    rows={list}
+                    officeInfo={officeInfo}
+                  />
+                </span>
                 {/* 労働基準監督署への報告(様式第6号)に転記する数値を印刷・PDF保存できる画面 */}
                 <Link className="btn secondary" href={`${basePath}/report?year=${year}${roundQuery}${reportForm}`}>
                   労基署報告

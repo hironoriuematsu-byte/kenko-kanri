@@ -119,8 +119,8 @@ export default function WorkJudgmentReportButton({
   };
 
   return (
-    <button className="btn secondary" onClick={onDownload}>
-      就業判定・事後措置（CSV）
+    <button className="pill outline" onClick={onDownload} title="就業判定・事後措置報告書をCSVで保存">
+      CSV
     </button>
   );
 }
