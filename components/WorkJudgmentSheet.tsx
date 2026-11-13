@@ -1,10 +1,10 @@
 import PrintButton from "@/components/PrintButton";
+import WorkJudgmentSummary from "@/components/WorkJudgmentSummary";
 import type { CheckupRow } from "@/components/CheckupsTable";
 import type { OfficeInfo } from "@/lib/officeInfo";
 import { formatDateJa } from "@/lib/fiscal";
-import { LEGAL_NOTE, conditionText, consultLabel, interviewNeeded, judgmentLabel, summarize } from "@/lib/workJudgmentReport";
+import { LEGAL_NOTE, conditionText, consultLabel, interviewNeeded, judgmentLabel } from "@/lib/workJudgmentReport";
 
-const num: React.CSSProperties = { textAlign: "right", whiteSpace: "nowrap", fontVariantNumeric: "tabular-nums" };
 const cell: React.CSSProperties = { fontSize: 12.5, verticalAlign: "top" };
 const hd: React.CSSProperties = { whiteSpace: "nowrap", verticalAlign: "bottom" };
 
@@ -24,7 +24,6 @@ export default function WorkJudgmentSheet({
   rows: CheckupRow[];
   officeInfo: OfficeInfo | null;
 }) {
-  const s = summarize(rows);
   const office = officeInfo?.office_name ?? "うえまつ産業医事務所";
   const physician = officeInfo?.physician_name ?? "上松弘典";
   return (
@@ -49,34 +48,8 @@ export default function WorkJudgmentSheet({
         </div>
       </div>
 
-      <div style={{ display: "flex", gap: 16, flexWrap: "wrap", alignItems: "flex-start", marginBottom: 12 }}>
-        <table className="list" style={{ width: "auto" }}>
-          <thead>
-            <tr>
-              <th colSpan={2}>就業判定</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr><td>受診者数</td><td style={num}><strong>{s.total}</strong> 人</td></tr>
-            <tr><td>通常勤務可{s.normalWithCondition > 0 ? `（うち受診が条件 ${s.normalWithCondition}人）` : ""}</td><td style={num}>{s.normal} 人</td></tr>
-            <tr><td>要就業制限</td><td style={num}>{s.restricted} 人</td></tr>
-            <tr><td>要休業</td><td style={num}>{s.leave} 人</td></tr>
-            {s.pending > 0 && <tr><td>判定保留</td><td style={num}>{s.pending} 人</td></tr>}
-            {s.unjudged > 0 && <tr><td>未判定</td><td style={num}>{s.unjudged} 人</td></tr>}
-          </tbody>
-        </table>
-        <table className="list" style={{ width: "auto" }}>
-          <thead>
-            <tr>
-              <th colSpan={2}>事後措置</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr><td>受診勧奨</td><td style={num}>{s.consult} 人</td></tr>
-            <tr><td>　うち受診済</td><td style={num}>{s.consultDone} 人</td></tr>
-            <tr><td>産業医面談</td><td style={num}>{s.interview} 人</td></tr>
-          </tbody>
-        </table>
+      <div style={{ marginBottom: 12 }}>
+        <WorkJudgmentSummary rows={rows} />
       </div>
 
       <table className="list">

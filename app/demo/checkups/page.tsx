@@ -2,6 +2,7 @@ import Link from "next/link";
 import DemoHeader from "@/components/DemoHeader";
 import DemoNotice from "../DemoNotice";
 import CheckupsTable from "@/components/CheckupsTable";
+import WorkJudgmentSummary from "@/components/WorkJudgmentSummary";
 import { DEMO_COMPANY, DEMO_FISCAL_YEAR, DEMO_OFFICE, demoCheckups } from "@/lib/demo-data";
 import Form6Sheet from "@/components/Form6Sheet";
 import { computeCheckupStats } from "@/lib/checkupList";
@@ -76,7 +77,8 @@ export default function DemoCheckupsPage({ searchParams }: { searchParams: { vie
             <span className="badge">{DEMO_FISCAL_YEAR}年度</span>
           </p>
 
-          <table className="list kv" style={{ marginBottom: 14, maxWidth: 560 }}>
+          <div style={{ display: "flex", gap: 20, flexWrap: "wrap", alignItems: "flex-start", marginBottom: 14 }}>
+          <table className="list kv" style={{ maxWidth: 560, flex: "1 1 480px" }}>
             <tbody>
               <tr>
                 <th style={{ whiteSpace: "nowrap" }}>受診者数</th>
@@ -136,6 +138,8 @@ export default function DemoCheckupsPage({ searchParams }: { searchParams: { vie
               </tr>
             </tbody>
           </table>
+          <WorkJudgmentSummary rows={rows} />
+          </div>
 
           <details open style={{ marginBottom: 14 }}>
             <summary style={{ cursor: "pointer", fontWeight: 700 }}>

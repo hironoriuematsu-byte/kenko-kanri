@@ -5,6 +5,7 @@ import CsvUploadsStatus from "@/components/CsvUploadsStatus";
 import CsvUploadsArchive from "@/components/CsvUploadsArchive";
 import RecomputeJudgments from "@/components/RecomputeJudgments";
 import WorkJudgmentReportButton from "@/components/WorkJudgmentReportButton";
+import WorkJudgmentSummary from "@/components/WorkJudgmentSummary";
 import Form6Sheet from "@/components/Form6Sheet";
 import { loadCheckupList } from "@/lib/checkupList";
 
@@ -167,7 +168,9 @@ export default async function CheckupsSection({
               </span>
             </p>
           )}
-          <table className="list kv" style={{ marginBottom: 14, maxWidth: 560 }}>
+          {/* 集計の右の余白に、就業判定・事後措置の人数(報告書PDFと同じもの)を並べる */}
+          <div style={{ display: "flex", gap: 20, flexWrap: "wrap", alignItems: "flex-start", marginBottom: 14 }}>
+          <table className="list kv" style={{ maxWidth: 560, flex: "1 1 480px" }}>
             <tbody>
               <tr>
                 <th>受診者数</th>
@@ -239,6 +242,8 @@ export default async function CheckupsSection({
               </tr>
             </tbody>
           </table>
+          <WorkJudgmentSummary rows={list} />
+          </div>
 
           {/* 労働基準監督署へ提出する定期健康診断結果報告書(様式第6号)に転記するための集計。
               最初から開いて表示し、見出しを押すと折りたたむ */}
