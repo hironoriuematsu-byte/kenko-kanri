@@ -84,12 +84,12 @@ function findingLabel(items: FindingItem[]) {
     .join("、");
 }
 
-// 健診日を「2025年」「10月17日」の2行で表示する(1列に収める)
-function dateLines(dateStr: string | null | undefined): [string, string] | null {
-  if (!dateStr) return null;
+// 一覧の健診日は「2026/8/28」の1行で出す(列の幅を取らないように)
+function shortDate(dateStr: string | null | undefined): string {
+  if (!dateStr) return "—";
   const d = new Date(dateStr + (dateStr.length === 10 ? "T00:00:00" : ""));
-  if (isNaN(d.getTime())) return [dateStr, ""];
-  return [`${d.getFullYear()}年`, `${d.getMonth() + 1}月${d.getDate()}日`];
+  if (isNaN(d.getTime())) return dateStr;
+  return `${d.getFullYear()}/${d.getMonth() + 1}/${d.getDate()}`;
 }
 
 // 一覧の絞り込み(有所見D・就業制限Rの方だけを確認できるようにする)
@@ -749,7 +749,7 @@ export default function CheckupsTable({
       {/* 横に長いので、表の上にもスクロールバーを出す(下と連動)。
           行が多いときは表の中だけを縦にスクロールし、見出しは上に固定する */}
       <HScroll maxHeight="75vh">
-        <table className="list">
+        <table className="list dense">
           <thead>
             <tr>
               {showCheckbox && (
@@ -772,8 +772,12 @@ export default function CheckupsTable({
                 <br />
                 <span style={{ fontSize: 10, fontWeight: 400 }}>生年月日</span>
               </th>
-              <th style={nowrap}>種別</th>
-              <th style={nowrap}>健診日</th>
+              {/* 健診日の下に種別(定期健診・特殊健診の種類など)を小さく出し、列を1つ減らす */}
+              <th style={nowrap}>
+                健診日
+                <br />
+                <span style={{ fontSize: 10, fontWeight: 400 }}>種別</span>
+              </th>
               <th style={nowrap}>
                 総合
                 <br />
@@ -799,15 +803,15 @@ export default function CheckupsTable({
                   </th>
                 </>
               )}
-              <th style={{ minWidth: 130, ...nowrap }}>就業判定</th>
-              <th style={{ minWidth: 200, ...nowrap }}>医師の意見</th>
-              <th style={{ minWidth: 110, ...nowrap }}>受診勧奨</th>
+              <th style={{ minWidth: 112, ...nowrap }}>就業判定</th>
+              <th style={{ minWidth: 150, ...nowrap }}>医師の意見</th>
+              <th style={{ minWidth: 92, ...nowrap }}>受診勧奨</th>
             </tr>
           </thead>
           <tbody>
             {visibleRows.length === 0 && (
               <tr>
-                <td colSpan={(showCheckbox ? 11 : 10) - (compact ? 3 : 0)} className="muted" style={{ textAlign: "center" }}>
+                <td colSpan={(showCheckbox ? 10 : 9) - (compact ? 3 : 0)} className="muted" style={{ textAlign: "center" }}>
                   {view === "all" ? "健診記録がありません。" : `${VIEW_LABEL[view]}の方はいません。`}
                 </td>
               </tr>
@@ -849,26 +853,13 @@ export default function CheckupsTable({
                       </div>
                     )}
                   </td>
+                  {/* 健診日(2026/8/28)の下に種別を小さく出す */}
                   <td style={nowrap}>
-                    {CHECKUP_TYPES[c.checkup_type] ?? c.checkup_type}
-                    {c.special_kind && (
-                      <div className="muted" style={{ fontSize: 11 }}>
-                        {c.special_kind}
-                      </div>
-                    )}
-                  </td>
-                  {/* 健診日は「2025年」「10月17日」の2行で1列に収める */}
-                  <td style={nowrap}>
-                    {(() => {
-                      const lines = dateLines(c.checkup_date);
-                      if (!lines) return "—";
-                      return (
-                        <>
-                          <div>{lines[0]}</div>
-                          {lines[1] && <div>{lines[1]}</div>}
-                        </>
-                      );
-                    })()}
+                    <div>{shortDate(c.checkup_date)}</div>
+                    <div className="muted" style={{ fontSize: 11 }}>
+                      {CHECKUP_TYPES[c.checkup_type] ?? c.checkup_type}
+                      {c.special_kind && `・${c.special_kind}`}
+                    </div>
                   </td>
                   <td>
                     {c.overall_judgment ? (
@@ -885,7 +876,7 @@ export default function CheckupsTable({
                     <>
                       {/* 有所見項目は C と D で列を分ける。項目別判定が無い記録は、
                           総合判定に合わせてどちらかの列に「有所見」と表示する */}
-                      <td style={{ fontSize: 13, minWidth: 150 }}>
+                      <td style={{ fontSize: 12.5, minWidth: 96 }}>
                         {findings.c.length > 0 ? (
                           findingLabel(findings.c)
                         ) : noItemFindings && !isSevereJudgment(c.overall_judgment) ? (
@@ -894,7 +885,7 @@ export default function CheckupsTable({
                           <span className="muted">—</span>
                         )}
                       </td>
-                      <td style={{ fontSize: 13, minWidth: 130, color: findings.d.length > 0 ? "var(--danger)" : undefined }}>
+                      <td style={{ fontSize: 12.5, minWidth: 96, color: findings.d.length > 0 ? "var(--danger)" : undefined }}>
                         {findings.d.length > 0 ? (
                           <strong>{findingLabel(findings.d)}</strong>
                         ) : noItemFindings && isSevereJudgment(c.overall_judgment) ? (
@@ -904,7 +895,7 @@ export default function CheckupsTable({
                         )}
                       </td>
                       {/* 就業制限の検討が必要な水準(R)。コンセンサス値を超えた項目 */}
-                      <td style={{ fontSize: 13 }}>
+                      <td style={{ fontSize: 12.5, minWidth: 80 }}>
                         {findings.r.length > 0 ? (
                           <strong style={{ color: "var(--danger)" }}>{findingLabel(findings.r)}</strong>
                         ) : (

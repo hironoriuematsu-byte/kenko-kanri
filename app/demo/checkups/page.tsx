@@ -20,7 +20,7 @@ export default function DemoCheckupsPage({ searchParams }: { searchParams: { vie
   return (
     <>
       <DemoHeader />
-      <main className="container">
+      <main className="container wide">
         <p className="muted">
           <Link href="/demo">← デモの目次</Link>
         </p>

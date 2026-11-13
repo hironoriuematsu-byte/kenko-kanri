@@ -39,6 +39,19 @@ a:hover {
   margin: 0 auto;
   padding: 24px 16px 64px;
 }
+/* 列の多い一覧(健康診断管理)の画面は横幅を広げ、横にスクロールしなくても見渡せるようにする */
+.container.wide {
+  max-width: 1280px;
+}
+/* 列の多い一覧の表: 文字と余白を少し詰める */
+table.list.dense th {
+  font-size: 12px;
+  padding: 7px 7px;
+}
+table.list.dense td {
+  font-size: 13px;
+  padding: 7px 7px;
+}
 
 /* ---- header ---- */
 .site-header {

@@ -26,7 +26,7 @@ export default async function CompanyCheckupsPage({
   return (
     <>
       <Header profile={profile} />
-      <main className="container">
+      <main className="container wide">
         <p className="muted">
           <Link href="/company">← ダッシュボード</Link>
         </p>

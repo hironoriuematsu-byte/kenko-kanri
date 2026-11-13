@@ -26,7 +26,7 @@ export default async function OfficeCheckupsPage({
   return (
     <>
       <Header profile={profile} />
-      <main className="container">
+      <main className="container wide">
         <p className="muted">
           <Link href={`/office/${company.id}`}>← {company.name}</Link>
         </p>
