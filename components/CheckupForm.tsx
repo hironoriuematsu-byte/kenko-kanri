@@ -43,6 +43,12 @@ export default function CheckupForm({
   const [checkupType, setCheckupType] = useState("regular");
   const [specialKind, setSpecialKind] = useState(""); // 特殊健診の種類(有機溶剤・鉛 など)
   const [round, setRound] = useState(1); // 実施回(年に複数回の定期健診を行う事業場向け)
+  // じん肺健診(特殊健診の種類が「じん肺」)の結果。項目として保存し、じん肺健康管理台帳・様式第8号に自動で写る(SQL 0154)
+  const [pneumoKind, setPneumoKind] = useState("定期");
+  const [pneumoXray, setPneumoXray] = useState("");
+  const [pneumoF, setPneumoF] = useState("");
+  const [pneumoLungCancer, setPneumoLungCancer] = useState(false);
+  const isPneumo = checkupType === "special" && /じん肺|塵肺/.test(specialKind);
   const [checkupDate, setCheckupDate] = useState("");
   const [autoJudge, setAutoJudge] = useState(true);
   const [overall, setOverall] = useState("");
@@ -102,7 +108,16 @@ export default function CheckupForm({
           sex,
           checkup_date: checkupDate || null,
           overall_judgment: autoOverall ?? overall.trim().toUpperCase(),
-          items: items
+          items: [
+            ...(isPneumo
+              ? [
+                  { name: "じん肺健診の区分", value: pneumoKind },
+                  ...(pneumoXray ? [{ name: "エックス線写真の像", value: pneumoXray }] : []),
+                  ...(pneumoF ? [{ name: "肺機能検査の判定", value: pneumoF }] : []),
+                  ...(pneumoKind === "定期外" && pneumoLungCancer ? [{ name: "肺がんに関する検査", value: "実施" }] : []),
+                ]
+              : []),
+            ...items
             .filter((r) => r.name.trim() || r.itemKey)
             .map((r) => {
               const auto = judgeRow(r);
@@ -116,6 +131,7 @@ export default function CheckupForm({
                 judgment: (auto ?? r.judgment.trim().toUpperCase()) || undefined,
               };
             }),
+          ],
         },
       ],
     });
@@ -215,9 +231,17 @@ export default function CheckupForm({
               type="text"
               value={specialKind}
               onChange={(e) => setSpecialKind(e.target.value)}
-              placeholder="例: 有機溶剤 / 鉛 / 電離放射線"
+              placeholder="例: 有機溶剤 / 鉛 / 電離放射線 / じん肺"
               style={{ width: 200 }}
+              list="special-kinds"
             />
+            <datalist id="special-kinds">
+              <option value="有機溶剤" />
+              <option value="特定化学物質" />
+              <option value="じん肺" />
+              <option value="鉛" />
+              <option value="電離放射線" />
+            </datalist>
           </div>
         )}
         <div>
@@ -246,6 +270,55 @@ export default function CheckupForm({
           )}
         </div>
       </div>
+
+      {isPneumo && (
+        <div className="notice" style={{ display: "grid", gap: 10 }}>
+          <strong>じん肺健診の結果(じん肺健康管理台帳・様式第8号に自動で入ります)</strong>
+          <div style={{ display: "flex", gap: 16, flexWrap: "wrap", alignItems: "end" }}>
+            <div>
+              <label>健診の区分</label>
+              <select value={pneumoKind} onChange={(e) => setPneumoKind(e.target.value)}>
+                {["就業時", "定期", "定期外", "離職時"].map((k) => (
+                  <option key={k} value={k}>
+                    {k}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label>エックス線写真の像</label>
+              <select value={pneumoXray} onChange={(e) => setPneumoXray(e.target.value)}>
+                <option value="">未入力</option>
+                {["0/-", "0/0", "0/1", "1/0", "1/1", "1/2", "2/1", "2/2", "2/3", "3/2", "3/3", "3/+"].map((x) => (
+                  <option key={x} value={x}>
+                    {x}
+                  </option>
+                ))}
+                <option value="大陰影 A">大陰影 A</option>
+                <option value="大陰影 B">大陰影 B</option>
+                <option value="大陰影 C">大陰影 C</option>
+              </select>
+            </div>
+            <div>
+              <label>肺機能検査</label>
+              <select value={pneumoF} onChange={(e) => setPneumoF(e.target.value)}>
+                <option value="">未実施</option>
+                <option value="F(-)">F(-)</option>
+                <option value="F(+)">F(+)</option>
+                <option value="F(++)">F(++)</option>
+              </select>
+            </div>
+            {pneumoKind === "定期外" && (
+              <label style={{ display: "flex", gap: 6, alignItems: "center", fontWeight: "normal" }}>
+                <input type="checkbox" checked={pneumoLungCancer} onChange={(e) => setPneumoLungCancer(e.target.checked)} /> 肺がんに関する検査を行った
+              </label>
+            )}
+          </div>
+          <span className="muted" style={{ fontSize: 12 }}>
+            エックス線写真の像が 1/0 以上(第1型以上)のときは、台帳で「管理区分の決定待ち」になります。労働局長の決定通知が届いたら台帳で管理区分を入れてください。
+          </span>
+        </div>
+      )}
 
       <div className="form-row checkbox-row">
         <input

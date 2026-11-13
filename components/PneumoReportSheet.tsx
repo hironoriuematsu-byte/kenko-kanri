@@ -60,7 +60,7 @@ export default function PneumoReportSheet({
         <a href={MHLW_URL} target="_blank" rel="noopener noreferrer">
           入力支援サービス
         </a>
-        でも作れます。下の数値は「じん肺健康管理台帳」に入力した内容から数えています。「（記入）」の欄は事業場で確認して記入してください。
+        でも作れます。下の数値は「じん肺健康管理台帳」から数えています。健康診断管理で「特殊健診(じん肺)」として登録した健診は、台帳に自動で入ります。「（記入）」の欄は事業場で確認して記入してください。
       </div>
       {!ready && (
         <div className="notice no-print" style={{ borderColor: "var(--orange)" }}>
@@ -176,6 +176,14 @@ export default function PneumoReportSheet({
             <th style={{ ...th, width: 300 }}>計（(イ)〜(ホ)）</th>
             <N n={r.kanri.total} />
           </tr>
+          {r.kanri.pending > 0 && (
+            <tr>
+              <td colSpan={2} style={{ color: "#B45309", fontWeight: 700 }}>
+                ⚠ じん肺健診で所見あり(第1型以上)となり、管理区分の決定を待っている方が {r.kanri.pending} 人います(この内訳には数えていません)。
+                決定通知書が届いたら台帳で管理区分を入れてください。
+              </td>
+            </tr>
+          )}
           <tr>
             <th style={th}>(イ) 管理1</th>
             <N n={r.kanri.k1} />

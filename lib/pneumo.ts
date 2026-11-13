@@ -23,6 +23,7 @@ export type PneumoWorker = {
   complication_started_on: string | null;
   left_on: string | null;
   note: string | null;
+  kanri_pending?: boolean; // 所見あり(第1型以上)で管理区分の決定待ち(SQL 0154)
 };
 
 export type PneumoExam = {
@@ -33,6 +34,8 @@ export type PneumoExam = {
   lung_cancer: boolean;
   xray: string | null;
   note: string | null;
+  checkup_id?: string | null; // 健康診断管理から写した記録(SQL 0154)
+  lung_function?: string | null; // 肺機能(F(-)・F(+)・F(++))
 };
 
 export const KANRI_LABEL: Record<Kanri, string> = {
@@ -83,7 +86,8 @@ const isKanri2or3 = (k: Kanri) => k === "2" || k === "3i" || k === "3ro";
 // 定期健診の第1号〜第4号(じん肺法第8条第1項)
 //   第1号: 現在粉じん作業に従事・管理1 / 第2号: 現在従事・管理2又は3
 //   第3号: 過去に従事・管理2 / 第4号: 過去に従事・管理3
-export function periodicClass(w: Pick<PneumoWorker, "dust_status" | "kanri">): 1 | 2 | 3 | 4 | null {
+export function periodicClass(w: Pick<PneumoWorker, "dust_status" | "kanri" | "kanri_pending">): 1 | 2 | 3 | 4 | null {
+  if (w.kanri_pending) return null; // 管理区分の決定待ちは号が決まらない
   if (w.dust_status === "current") {
     if (w.kanri === "1") return 1;
     if (isKanri2or3(w.kanri)) return 2;
@@ -109,6 +113,7 @@ export type PneumoReport = {
     leaving: number; // (ニ)離職時
   };
   kanri: {
+    pending: number; // 所見あり・管理区分の決定待ち(どの区分にも数えない)
     total: number; // 計(イ)〜(ホ)
     k1: number; // (イ)管理1
     findings: number; // 有所見者数小計(ロ)〜(ホ)
@@ -162,7 +167,8 @@ export function computePneumoReport(workers: PneumoWorker[], exams: PneumoExam[]
 
   // じん肺管理区分別の内訳(12月末現在、現在従事+過去に従事の在籍者)
   const k = {
-    total: enrolled.length,
+    pending: 0,
+    total: 0,
     k1: 0,
     findings: 0,
     k2: 0,
@@ -171,6 +177,11 @@ export function computePneumoReport(workers: PneumoWorker[], exams: PneumoExam[]
     k4: { PR4C: 0, "F++": 0, other: 0 },
   };
   for (const w of enrolled) {
+    if (w.kanri_pending) {
+      k.pending += 1;
+      continue;
+    }
+    k.total += 1;
     if (w.kanri === "1") {
       k.k1 += 1;
       continue;

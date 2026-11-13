@@ -29,7 +29,7 @@ export default async function CompanyPneumoPage() {
         <h1 className="page-title">じん肺健康管理台帳{company?.name ? `: ${company.name}` : ""}</h1>
         <div className="card">
           {pneumo.ready ? (
-            <PneumoRegister companyId={profile.company_id} initialWorkers={pneumo.workers} initialExams={pneumo.exams} />
+            <PneumoRegister companyId={profile.company_id} initialWorkers={pneumo.workers} initialExams={pneumo.exams} checkups={pneumo.checkups} />
           ) : (
             <p className="muted">じん肺健康管理台帳の準備がまだです。産業医事務所にお問い合わせください。</p>
           )}

@@ -334,7 +334,12 @@ export async function loadSpecialReport(companyId: string, year: number, round?:
   const organic = pick(organicAll);
   const chemical = pick(chemicalAll);
   const otherKinds = Array.from(
-    new Set(rows.filter((r) => !isOrganicKind(r.special_kind) && !isChemicalKind(r.special_kind)).map((r) => r.special_kind || "（種類未設定）"))
+    new Set(
+      rows
+        // じん肺は「じん肺（様式第8号）」のタブで扱う
+        .filter((r) => !isOrganicKind(r.special_kind) && !isChemicalKind(r.special_kind) && !/じん肺|塵肺/.test(r.special_kind ?? ""))
+        .map((r) => r.special_kind || "（種類未設定）")
+    )
   );
   const items = (await fetchCheckupItems([...organic.rows, ...chemical.rows].map((r) => r.id))) as ReportItem[];
   return {

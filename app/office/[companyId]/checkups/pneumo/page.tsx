@@ -30,7 +30,7 @@ export default async function OfficePneumoPage({ params }: { params: { companyId
         <h1 className="page-title">じん肺健康管理台帳: {company.name}</h1>
         <div className="card">
           {pneumo.ready ? (
-            <PneumoRegister companyId={company.id} initialWorkers={pneumo.workers} initialExams={pneumo.exams} />
+            <PneumoRegister companyId={company.id} initialWorkers={pneumo.workers} initialExams={pneumo.exams} checkups={pneumo.checkups} />
           ) : (
             <p className="muted">じん肺健康管理台帳の準備（SQL 0153 の実行）がまだです。</p>
           )}

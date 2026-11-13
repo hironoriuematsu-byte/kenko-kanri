@@ -4,6 +4,8 @@ import { FormEvent, useState } from "react";
 import { createClient } from "@/lib/supabase/browser";
 import { currentUserId, logAccessInBackground } from "@/lib/session";
 import { formatDateJa } from "@/lib/fiscal";
+import { CHECKUP_WORK_JUDGMENTS } from "@/lib/checkups";
+import type { PneumoCheckupInfo } from "@/lib/pneumoServer";
 import {
   COMPLICATION_LABEL,
   DUST_STATUS_LABEL,
@@ -33,9 +35,9 @@ const EMPTY: WorkerInput = {
   left_on: null,
   note: null,
 };
-const WORKER_COLS =
-  "id, company_id, person_id, full_name, dust_status, dust_work_code, kanri, kanri_detail, kanri_decided_on, kanri_previous, transferred_on, complication, complication_started_on, left_on, note";
-const EXAM_COLS = "id, worker_id, exam_date, exam_kind, lung_cancer, xray, note";
+// 列は SQL 0154 の実行前後で変わるため、すべて読む
+const WORKER_COLS = "*";
+const EXAM_COLS = "*";
 
 const opt = (v: string) => (v === "" ? null : v);
 
@@ -44,10 +46,12 @@ export default function PneumoRegister({
   companyId,
   initialWorkers,
   initialExams,
+  checkups = {},
 }: {
   companyId: string;
   initialWorkers: PneumoWorker[];
   initialExams: PneumoExam[];
+  checkups?: Record<string, PneumoCheckupInfo>; // 健康診断管理から写した記録の就業判定など
 }) {
   const [workers, setWorkers] = useState<PneumoWorker[]>(initialWorkers);
   const [exams, setExams] = useState<PneumoExam[]>(initialExams);
@@ -159,6 +163,9 @@ export default function PneumoRegister({
                     <td>{w.dust_work_code ?? "—"}</td>
                     <td style={{ whiteSpace: "nowrap" }}>
                       <span className={`badge${w.kanri === "1" ? "" : " orange"}`}>{KANRI_LABEL[w.kanri]}</span>
+                      {w.kanri_pending && (
+                        <div style={{ fontSize: 12, color: "#B45309", fontWeight: 700 }}>所見あり・決定待ち</div>
+                      )}
                       {w.kanri_detail && <div className="muted" style={{ fontSize: 12 }}>{w.kanri_detail === "other" ? "その他" : w.kanri_detail}</div>}
                       {w.complication && <div className="muted" style={{ fontSize: 12 }}>合併症 {COMPLICATION_LABEL[w.complication]}</div>}
                     </td>
@@ -187,7 +194,12 @@ export default function PneumoRegister({
                   openExams === w.id && (
                     <tr key={`${w.id}-exams`}>
                       <td colSpan={6}>
-                        <ExamList exams={exams.filter((e) => e.worker_id === w.id)} onAdd={(e) => addExam(w.id, e)} onDelete={deleteExam} />
+                        <ExamList
+                          exams={exams.filter((e) => e.worker_id === w.id)}
+                          checkups={checkups}
+                          onAdd={(e) => addExam(w.id, e)}
+                          onDelete={deleteExam}
+                        />
                       </td>
                     </tr>
                   ),
@@ -202,6 +214,7 @@ export default function PneumoRegister({
 }
 
 function WorkerForm({ initial, onSave, onCancel }: { initial: WorkerInput; onSave: (v: WorkerInput) => Promise<void>; onCancel: () => void }) {
+  const pending = Boolean(initial.kanri_pending);
   const [v, setV] = useState<WorkerInput>({ ...EMPTY, ...pickInput(initial) });
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
@@ -220,6 +233,8 @@ function WorkerForm({ initial, onSave, onCancel }: { initial: WorkerInput; onSav
       full_name: v.full_name.trim(),
       kanri_detail: details.includes(v.kanri_detail as KanriDetail) ? v.kanri_detail : null,
       note: v.note?.trim() || null,
+      // 管理区分の決定(管理2以上、または決定日)を入れたら「決定待ち」を外す
+      ...(pending && (v.kanri !== "1" || v.kanri_decided_on) ? { kanri_pending: false } : {}),
     });
     setBusy(false);
   };
@@ -227,6 +242,11 @@ function WorkerForm({ initial, onSave, onCancel }: { initial: WorkerInput; onSav
   const row = { display: "flex", gap: 14, flexWrap: "wrap" as const };
   return (
     <form onSubmit={submit} style={{ background: "#FAFCFC", border: "1px solid var(--line)", borderRadius: 8, padding: 12, margin: "6px 0 12px" }}>
+      {pending && (
+        <div className="notice" style={{ marginTop: 0 }}>
+          じん肺健診でエックス線写真の像が第1型以上(所見あり)でした。労働局長から「じん肺管理区分決定通知書」が届いたら、管理区分と決定日を入れてください(入れると決定待ちが外れます)。
+        </div>
+      )}
       <div style={row}>
         <div className="form-row" style={{ minWidth: 180 }}>
           <label>氏名 *</label>
@@ -345,10 +365,12 @@ function pickInput(w: WorkerInput): WorkerInput {
 
 function ExamList({
   exams,
+  checkups,
   onAdd,
   onDelete,
 }: {
   exams: PneumoExam[];
+  checkups: Record<string, PneumoCheckupInfo>;
   onAdd: (e: Omit<PneumoExam, "id" | "worker_id">) => Promise<void>;
   onDelete: (e: PneumoExam) => void;
 }) {
@@ -376,18 +398,38 @@ function ExamList({
         <p className="muted" style={{ margin: "6px 0" }}>まだ記録はありません。</p>
       ) : (
         <ul style={{ margin: "6px 0 10px", paddingLeft: 20, fontSize: 13.5, lineHeight: 1.9 }}>
-          {sorted.map((e) => (
-            <li key={e.id}>
-              {formatDateJa(e.exam_date)} {EXAM_KIND_LABEL[e.exam_kind]}
-              {e.lung_cancer && "(肺がんに関する検査あり)"}
-              {e.xray && ` / エックス線の像 ${e.xray}`}{" "}
-              <button onClick={() => onDelete(e)} style={{ background: "none", border: 0, color: "#B02A2A", cursor: "pointer", fontSize: 12 }}>
-                削除
-              </button>
-            </li>
-          ))}
+          {sorted.map((e) => {
+            const c = e.checkup_id ? checkups[e.checkup_id] : undefined;
+            return (
+              <li key={e.id}>
+                {formatDateJa(e.exam_date)} {EXAM_KIND_LABEL[e.exam_kind]}
+                {e.lung_cancer && "(肺がんに関する検査あり)"}
+                {e.xray && ` / エックス線の像 ${e.xray}`}
+                {e.lung_function && ` / 肺機能 ${e.lung_function}`}
+                {e.checkup_id ? (
+                  <>
+                    {" / 就業判定 "}
+                    {c?.work_judgment ? CHECKUP_WORK_JUDGMENTS[c.work_judgment] ?? c.work_judgment : "未入力"}{" "}
+                    <a href={`/checkup/${e.checkup_id}`} style={{ fontSize: 12 }}>
+                      健康診断管理で見る
+                    </a>
+                  </>
+                ) : (
+                  <>
+                    {" "}
+                    <button onClick={() => onDelete(e)} style={{ background: "none", border: 0, color: "#B02A2A", cursor: "pointer", fontSize: 12 }}>
+                      削除
+                    </button>
+                  </>
+                )}
+              </li>
+            );
+          })}
         </ul>
       )}
+      <p className="muted" style={{ fontSize: 12, margin: "0 0 8px" }}>
+        健康診断管理で「特殊健診(じん肺)」として登録した健診は、ここに自動で入ります(修正・削除は健康診断管理で行います)。健診機関の結果が紙だけで健康診断管理に入れない場合は、下で記録を追加してください。
+      </p>
       <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "end" }}>
         <div className="form-row" style={{ marginBottom: 0 }}>
           <label>健診日</label>
