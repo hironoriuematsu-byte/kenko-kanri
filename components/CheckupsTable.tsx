@@ -234,19 +234,27 @@ export default function CheckupsTable({
 
   // 一覧の絞り込み(有所見D・就業制限Rの方を特に注意して確認できるようにする)
   const [view, setView] = useState<ViewFilter>("all");
-  // 個別の画面から戻ってきたとき: 開いた人の行までスクロールし、しばらく色を付けて示す
+  // 個別の画面から戻ってきたとき: 開いたときの絞り込みに戻し、開いた人の行までスクロールして、しばらく色を付けて示す
   const [returnedId, setReturnedId] = useState<string | null>(null);
+  const [scrollTo, setScrollTo] = useState<string | null>(null);
   useEffect(() => {
     const r = readListReturn();
     if (!r || r.url !== location.pathname + location.search) return;
     clearListReturn();
-    const el = document.getElementById(`checkup-row-${r.id}`);
+    if (r.view && r.view in VIEW_LABEL) setView(r.view as ViewFilter);
+    setScrollTo(r.id);
+  }, []);
+  // 絞り込みを戻した後の表示がそろってからスクロールする
+  useEffect(() => {
+    if (!scrollTo) return;
+    const el = document.getElementById(`checkup-row-${scrollTo}`);
+    setScrollTo(null);
     if (!el) return;
     requestAnimationFrame(() => el.scrollIntoView({ block: "center" }));
-    setReturnedId(r.id);
+    setReturnedId(el.id.replace("checkup-row-", ""));
     const t = setTimeout(() => setReturnedId(null), 2500);
     return () => clearTimeout(t);
-  }, []);
+  }, [scrollTo, view]);
   const visibleRows = useMemo(() => {
     if (view === "d") return rows.filter((r) => dIds.has(r.id));
     if (view === "r") return rows.filter((r) => restrictionIds.has(r.id));
@@ -721,7 +729,7 @@ export default function CheckupsTable({
 
       {/* 表示の絞り込み: 有所見(D)・就業制限(R)の方だけを確認できるようにする */}
       {/* 「表示:」の見出しは左の列に固定し、ボタンは折り返しても先頭のボタンの位置にそろえる */}
-      <div style={{ display: "flex", gap: 8, alignItems: "flex-start", margin: "8px 0" }}>
+      <div style={{ display: "flex", gap: 8, alignItems: "flex-start", margin: "20px 0 8px" }}>
         <span className="muted" style={{ fontSize: 13, lineHeight: "30px", flexShrink: 0 }}>表示:</span>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", flex: 1 }}>
           {(Object.keys(VIEW_LABEL) as ViewFilter[])
@@ -869,7 +877,7 @@ export default function CheckupsTable({
                     {demo ? (
                       <span style={{ color: "var(--teal-dark)" }}>{c.target_name}</span>
                     ) : (
-                      <Link href={`/checkup/${c.id}`} onClick={() => rememberListPosition(c.id)}>
+                      <Link href={`/checkup/${c.id}`} onClick={() => rememberListPosition(c.id, view)}>
                         {c.target_name}
                       </Link>
                     )}
