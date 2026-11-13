@@ -2,8 +2,6 @@
 
 import {
   CHECKUP_TYPES,
-  CHECKUP_WORK_JUDGMENTS,
-  conditionLabel,
   isFindingJudgment,
   isRestrictionJudgment,
   isSevereJudgment,
@@ -12,8 +10,9 @@ import { downloadCsv } from "@/lib/checkupReport";
 import { createClient } from "@/lib/supabase/browser";
 import type { OfficeInfo } from "@/lib/officeInfo";
 import type { CheckupRow } from "@/components/CheckupsTable";
+import { LEGAL_NOTE, conditionText, consultLabel, interviewNeeded, judgmentLabel, summarize } from "@/lib/workJudgmentReport";
 
-// 就業判定結果(報告書): 事業者が就業上の措置を検討するための一覧をCSVで出す
+// 就業判定・事後措置報告書のCSV(PDFは印刷画面 WorkJudgmentSheet。内容は lib/workJudgmentReport で共通)
 export default function WorkJudgmentReportButton({
   companyName,
   fiscalYear,
@@ -35,31 +34,30 @@ export default function WorkJudgmentReportButton({
       .map((it) => it.item_name)
       .join("、");
 
-  const count = (v: string | null) => rows.filter((r) => (r.work_judgment ?? null) === v).length;
-  const restrictionCount = rows.filter((r) => names(r, isRestrictionJudgment) !== "").length;
-
   const onDownload = () => {
+    const sum = summarize(rows);
     const csv: (string | number | null)[][] = [
-      ["就業判定結果報告書"],
+      ["健康診断結果に基づく就業判定・事後措置報告書"],
       ["事業場名", companyName],
       ["対象年度", `${fiscalYear}年度${round ? `（第${round}回）` : ""}${groupLabel ? ` ${groupLabel}` : ""}`],
       ["作成日", new Date().toLocaleDateString("ja-JP")],
-      ["産業医氏名", officeInfo?.physician_name ?? "上松弘典"],
-      ["産業医所属機関の名称", officeInfo?.office_name ?? "うえまつ産業医事務所"],
-      ["産業医所属機関の所在地", officeInfo?.address ?? ""],
-      ...(officeInfo?.tel ? [["産業医所属機関の電話番号", officeInfo.tel]] : []),
+      ["作成", officeInfo?.office_name ?? "うえまつ産業医事務所"],
+      ["所在地", officeInfo?.address ?? ""],
+      ...(officeInfo?.tel ? [["電話番号", officeInfo.tel]] : []),
+      ["産業医", officeInfo?.physician_name ?? "上松弘典"],
       [],
-      ["受診者数", rows.length],
-      ["通常勤務可", count("normal")],
-      [
-        "　うち受診が条件",
-        rows.filter((r) => r.work_judgment === "normal" && r.work_judgment_condition).length,
-      ],
-      ["要就業制限", count("restricted")],
-      ["要休業", count("leave")],
-      ["判定保留", count("pending")],
-      ["未判定", count(null)],
-      ["就業制限項目(R)に該当", restrictionCount],
+      ["【就業判定】"],
+      ["受診者数", sum.total],
+      ["通常勤務可", sum.normal],
+      ["　うち受診が条件", sum.normalWithCondition],
+      ["要就業制限", sum.restricted],
+      ["要休業", sum.leave],
+      ["判定保留", sum.pending],
+      ["未判定", sum.unjudged],
+      ["【事後措置】"],
+      ["受診勧奨", sum.consult],
+      ["　うち受診済", sum.consultDone],
+      ["産業医面談", sum.interview],
       [],
       [
         "社員番号",
@@ -74,12 +72,13 @@ export default function WorkJudgmentReportButton({
         "有所見項目(C)",
         "要医療項目(D)",
         "就業制限項目(R)",
-        "就業判定",
-        "判定条件",
-        "判定日",
-        "医師の意見",
-        "受診勧奨",
-        "産業医面談",
+        "【就業判定】就業判定",
+        "【就業判定】判定条件",
+        "【就業判定】判定日",
+        "【就業判定】医師の意見",
+        "【事後措置】受診勧奨",
+        "【事後措置】受診日(本人の受診報告)",
+        "【事後措置】産業医面談",
       ],
       ...rows.map((r) => [
         r.employee_no ?? "",
@@ -95,36 +94,33 @@ export default function WorkJudgmentReportButton({
         names(r, (j) => isFindingJudgment(j) && !isSevereJudgment(j)),
         names(r, (j) => isSevereJudgment(j) && !isRestrictionJudgment(j)),
         names(r, isRestrictionJudgment),
-        r.work_judgment ? CHECKUP_WORK_JUDGMENTS[r.work_judgment] : "未判定",
+        judgmentLabel(r),
         // 判定条件: 要医療項目(D)・就業制限項目(R)があるのに通常勤務可とした場合の「受診が条件」
-        conditionLabel(r.work_judgment_condition),
+        conditionText(r),
         r.work_judgment_date ?? "",
         r.work_judgment_note ?? "",
-        // 受診勧奨が必要な方(受診勧奨・勧奨済・受診済)は「要」、措置不要は「不要」
-        r.followup_status && r.followup_status !== "none" ? "要" : "不要",
-        // 産業医面談: 要就業制限の方と、医師の意見に「産業医面談」が含まれる方は「要」、それ以外は「不要」
-        r.work_judgment === "restricted" || (r.work_judgment_note ?? "").includes("産業医面談") ? "要" : "不要",
+        consultLabel(r),
+        r.report?.visit_date ?? "",
+        interviewNeeded(r) ? "要" : "不要",
       ]),
       [],
-      [
-        "※ 就業判定と医師の意見は、健康診断の結果に基づき産業医が述べたものです。事業者はこの意見を勘案し、必要な就業上の措置をご検討ください(労働安全衛生法第66条の4・第66条の5)。",
-      ],
+      [`※ ${LEGAL_NOTE}`],
     ];
-    downloadCsv(`就業判定結果_${companyName}_${fiscalYear}年度${round ? `_第${round}回` : ""}${groupLabel ? `_${groupLabel}` : ""}.csv`, csv);
+    downloadCsv(`就業判定・事後措置_${companyName}_${fiscalYear}年度${round ? `_第${round}回` : ""}${groupLabel ? `_${groupLabel}` : ""}.csv`, csv);
     // 健康情報の出力としてアクセスログに残す
     createClient()
       .rpc("hm_log_access", {
         p_action: "export_work_judgment",
         p_target_table: "hm_checkups",
         p_target_id: null,
-        p_detail: { company_name: companyName, fiscal_year: fiscalYear, round: round ?? null, rows: rows.length },
+        p_detail: { company_name: companyName, fiscal_year: fiscalYear, round: round ?? null, format: "csv", rows: rows.length },
       })
       .then(() => undefined, () => undefined);
   };
 
   return (
-    <button className="btn" onClick={onDownload}>
-      就業判定結果出力
+    <button className="btn secondary" onClick={onDownload}>
+      就業判定・事後措置（CSV）
     </button>
   );
 }

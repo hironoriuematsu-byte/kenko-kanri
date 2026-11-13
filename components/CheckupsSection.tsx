@@ -5,7 +5,6 @@ import CsvUploadsStatus from "@/components/CsvUploadsStatus";
 import CsvUploadsArchive from "@/components/CsvUploadsArchive";
 import RecomputeJudgments from "@/components/RecomputeJudgments";
 import WorkJudgmentReportButton from "@/components/WorkJudgmentReportButton";
-import CheckupListCsvButton from "@/components/CheckupListCsvButton";
 import Form6Sheet from "@/components/Form6Sheet";
 import { loadCheckupList } from "@/lib/checkupList";
 
@@ -67,7 +66,10 @@ export default async function CheckupsSection({
             <>
               <span className="muted" style={{ fontWeight: 700, whiteSpace: "nowrap" }}>出力</span>
               <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-                {/* 事業者が就業上の措置を検討するための一覧 */}
+                {/* 就業判定・事後措置報告書(産業医事務所として作成)。PDF(印刷画面)とCSV */}
+                <Link className="btn" href={`${basePath}/work-judgment?year=${year}${roundQuery}${groupQuery}`}>
+                  就業判定・事後措置（PDF）
+                </Link>
                 <WorkJudgmentReportButton
                   companyName={companyName}
                   fiscalYear={year}
@@ -76,21 +78,9 @@ export default async function CheckupsSection({
                   rows={list}
                   officeInfo={officeInfo}
                 />
-                {/* 検査値付きの一覧(実施者のみ。事業者担当者には出さない) */}
-                {canDelete && (
-                  <CheckupListCsvButton
-                    companyName={companyName}
-                    fiscalYear={year}
-                    round={rounds.length > 1 ? round : undefined}
-                    groupLabel={groupLabel}
-                    rows={list}
-                    items={items}
-                    officeInfo={officeInfo}
-                  />
-                )}
                 {/* 労働基準監督署への報告(様式第6号)に転記する数値を印刷・PDF保存できる画面 */}
                 <Link className="btn secondary" href={`${basePath}/report?year=${year}${roundQuery}${reportForm}`}>
-                  労基署報告（様式第6号・特殊健診）
+                  労基署報告
                 </Link>
               </div>
               <span className="muted" style={{ fontWeight: 700, whiteSpace: "nowrap" }}>通知</span>

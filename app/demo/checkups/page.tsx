@@ -52,11 +52,9 @@ export default function DemoCheckupsPage({ searchParams }: { searchParams: { vie
             </div>
             <span className="muted" style={{ fontWeight: 700, whiteSpace: "nowrap" }}>出力</span>
             <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-              <span className="btn" aria-disabled style={{ opacity: 0.6, cursor: "default" }}>就業判定結果出力</span>
-              {!company && (
-                <span className="btn secondary" aria-disabled style={{ opacity: 0.6, cursor: "default" }}>健康診断結果出力</span>
-              )}
-              <Link className="btn secondary" href="/demo/checkups/report">労基署報告（様式第6号）</Link>
+              <span className="btn" aria-disabled style={{ opacity: 0.6, cursor: "default" }}>就業判定・事後措置（PDF）</span>
+              <span className="btn secondary" aria-disabled style={{ opacity: 0.6, cursor: "default" }}>就業判定・事後措置（CSV）</span>
+              <Link className="btn secondary" href="/demo/checkups/report">労基署報告</Link>
             </div>
             <span className="muted" style={{ fontWeight: 700, whiteSpace: "nowrap" }}>通知</span>
             <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
