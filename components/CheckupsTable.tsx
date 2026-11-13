@@ -729,7 +729,7 @@ export default function CheckupsTable({
 
       {/* 表示の絞り込み: 有所見(D)・就業制限(R)の方だけを確認できるようにする */}
       {/* 「表示:」の見出しは左の列に固定し、ボタンは折り返しても先頭のボタンの位置にそろえる */}
-      <div style={{ display: "flex", gap: 8, alignItems: "flex-start", margin: "20px 0 8px" }}>
+      <div style={{ display: "flex", gap: 8, alignItems: "flex-start", margin: "36px 0 10px" }}>
         <span className="muted" style={{ fontSize: 13, lineHeight: "30px", flexShrink: 0 }}>表示:</span>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", flex: 1 }}>
           {(Object.keys(VIEW_LABEL) as ViewFilter[])
