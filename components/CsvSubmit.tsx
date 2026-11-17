@@ -7,6 +7,7 @@ import { getFiscalYear } from "@/lib/fiscal";
 import { CHECKUP_TYPES, parseCsv, readCsvFile } from "@/lib/checkups";
 import { startNavigationProgress } from "@/lib/navigate";
 import AutoReadRunner, { type ReadTarget } from "@/components/AutoReadRunner";
+import RoundHint from "@/components/RoundHint";
 
 const MAX_PDF_BYTES = 20 * 1024 * 1024;
 
@@ -270,6 +271,8 @@ export default function CsvSubmit({
           </div>
         )}
       </div>
+      {/* 同じ年度・種別にすでに登録されている実施回を知らせる(2回目の健診を「1回目」のまま送らないように) */}
+      <RoundHint companyId={companyId} fiscalYear={fiscalYear} checkupType={checkupType} specialKind={specialKind} round={round} />
       <p className="muted" style={{ fontSize: 12, marginTop: 0 }}>
         年度・種別・連絡事項は、ここで選んだファイルすべてに共通で付きます。年度や種別が違うファイルは分けて送ってください。
       </p>

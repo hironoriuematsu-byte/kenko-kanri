@@ -1,6 +1,7 @@
 "use client";
 
 import { ChangeEvent, useEffect, useMemo, useState } from "react";
+import RoundHint from "@/components/RoundHint";
 import { startNavigationProgress } from "@/lib/navigate";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/browser";
@@ -456,6 +457,8 @@ export default function CheckupImport({
           </div>
         )}
       </div>
+      {/* 同じ年度・種別にすでに登録されている実施回を知らせる(2回目の健診を「1回目」のまま取り込まないように) */}
+      <RoundHint companyId={companyId} fiscalYear={fiscalYear} checkupType={checkupType} specialKind={specialKind} round={round} />
 
       {/* 判定・統合の設定は実施者の画面だけに出す(事業者担当者は既定のまま) */}
       {!simple && (

@@ -53,6 +53,39 @@ export function roundLabel(round: number | null | undefined): string {
   return r <= 1 ? "" : `第${r}回`;
 }
 
+// 実施回ごとの人数と健診日の範囲(「第1回(5月・42名)」のように、どの回かが分かるように表示する)
+export type RoundInfo = { round: number; count: number; from: string | null; to: string | null };
+
+export function summarizeRounds(rows: { round?: number | null; checkup_date?: string | null }[]): RoundInfo[] {
+  const m = new Map<number, RoundInfo>();
+  for (const r of rows) {
+    const round = r.round ?? 1;
+    const info = m.get(round) ?? { round, count: 0, from: null, to: null };
+    info.count += 1;
+    const d = (r.checkup_date ?? "").slice(0, 10);
+    if (/^\d{4}-\d{2}-\d{2}$/.test(d)) {
+      if (!info.from || d < info.from) info.from = d;
+      if (!info.to || d > info.to) info.to = d;
+    }
+    m.set(round, info);
+  }
+  return Array.from(m.values()).sort((a, b) => a.round - b.round);
+}
+
+// 健診日の範囲を月で表す(例: "5月" / "5〜6月" / "12〜1月")
+export function roundPeriod(info: Pick<RoundInfo, "from" | "to">): string {
+  if (!info.from || !info.to) return "";
+  const a = Number(info.from.slice(5, 7));
+  const b = Number(info.to.slice(5, 7));
+  return info.from.slice(0, 7) === info.to.slice(0, 7) ? `${a}月` : `${a}〜${b}月`;
+}
+
+// 例: "第1回（5月・42名）"
+export function roundCaption(info: RoundInfo): string {
+  const period = roundPeriod(info);
+  return `第${info.round}回（${period ? `${period}・` : ""}${info.count}名）`;
+}
+
 // 就業判定が「要対応」(未判定・判定保留)か
 export function needsAttention(workJudgment: string | null | undefined): boolean {
   return !workJudgment || workJudgment === "pending";

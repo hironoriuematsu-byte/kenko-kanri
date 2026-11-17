@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { roundCaption, type RoundInfo } from "@/lib/checkups";
 
 export type ReportForm = "6" | "organic" | "chemical" | "pneumo";
 
@@ -17,8 +18,9 @@ export default function ReportTabs({
   year: number; // 表示中の年度
   years: number[]; // 健診結果が登録されている年度(新しい順)
   current: ReportForm;
-  counts: { regular: number; organic: number; chemical: number; pneumo: number }; // じん肺は台帳の在籍者数
-  rounds?: number[]; // 表示中の様式に存在する実施回(2回以上あるときだけ選択肢を出す)
+  // タブを押したときに表示される回の人数(年に複数回ある様式は、表示中の回、または最初の回)。じん肺は台帳の在籍者数
+  counts: { regular: number; organic: number; chemical: number; pneumo: number };
+  rounds?: RoundInfo[]; // 表示中の様式に存在する実施回(2回以上あるときだけ選択肢を出す)
   round?: number;
 }) {
   const formQuery = current === "6" ? "" : `&form=${current}`;
@@ -66,12 +68,12 @@ export default function ReportTabs({
               <span className="muted" style={{ marginLeft: 12 }}>実施回:</span>
               {rounds.map((r) => (
                 <Link
-                  key={r}
-                  href={`${path}?year=${year}${formQuery}&round=${r}`}
-                  className={r === round ? "badge" : ""}
-                  style={r === round ? {} : { padding: "2px 8px" }}
+                  key={r.round}
+                  href={`${path}?year=${year}${formQuery}&round=${r.round}`}
+                  className={r.round === round ? "badge" : ""}
+                  style={r.round === round ? {} : { padding: "2px 8px" }}
                 >
-                  第{r}回
+                  {roundCaption(r)}
                 </Link>
               ))}
             </>

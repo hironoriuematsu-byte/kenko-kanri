@@ -11,7 +11,7 @@ export type ReadTarget = { id: string; name: string; kind: "csv" | "pdf"; hash?:
 type ApiState = {
   status?: string;
   progress?: { done: number; total: number } | null;
-  result?: { summary: ReadSummary; coverage?: Coverage } | null;
+  result?: { summary: ReadSummary; coverage?: Coverage; otherRound?: boolean } | null;
   error?: string | null;
   busy?: boolean;
 };
@@ -170,6 +170,16 @@ export default function AutoReadRunner({
               </div>
             )}
             {s.phase === "end" && s.result && (s.status === "done" || s.status === "review") && <ReadSummaryView summary={s.result.summary} role={role} coverage={s.result.coverage} />}
+            {/* 別の回(2回目など)の健診を、違う回として送ったとみられるとき */}
+            {s.phase === "end" && s.status === "review" && s.result?.otherRound && (
+              <p style={{ margin: "8px 0 0", background: "var(--orange-light)", border: "1px solid var(--orange)", borderRadius: 8, padding: "8px 12px", fontSize: 14 }}>
+                <strong>別の回の健診のようです。</strong>
+                同じ年度・同じ実施回としてすでに登録されている結果と、健診日が大きく離れているため、取り込みを止めています。
+                {role === "office"
+                  ? "ダッシュボードの「読み取りの確認待ち」で、実施回を直して読み直せます。"
+                  : "年に2回ある健診の2回目だった場合も、送り直す必要はありません。産業医事務所が実施回を直して取り込みます。"}
+              </p>
+            )}
             {s.phase === "end" && s.status === "failed" && (
               <div>
                 <p className="error-message" style={{ margin: "0 0 8px" }}>

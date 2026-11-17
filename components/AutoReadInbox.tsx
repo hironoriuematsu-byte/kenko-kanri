@@ -37,15 +37,19 @@ type Item = {
   created_at: string;
   read_status: string;
   read_error: string | null;
-  read_result: { summary: ReadSummary; people: Person[]; coverage?: Coverage } | null;
+  read_result: { summary: ReadSummary; people: Person[]; coverage?: Coverage; otherRound?: boolean } | null;
   progress: { done: number; total: number } | null;
 };
+
+// 実施回の直し先の初期値(今の回の次。第4回のときは第3回)
+const nextRound = (round: number | null) => ((round ?? 1) >= 4 ? 3 : (round ?? 1) + 1);
 
 const judgmentLabel = (j: AutoJudgment | null) =>
   !j ? "産業医が判定" : j.judgment === "pending" ? "判定保留(産業医が確定)" : j.condition === "consult" ? "通常勤務可・受診が条件" : CHECKUP_WORK_JUDGMENTS.normal;
 
 export default function AutoReadInbox() {
   const [items, setItems] = useState<Item[] | null>(null);
+  const [roundPick, setRoundPick] = useState<Record<string, number>>({}); // 実施回の直し先(ファイルごと)
   const [open, setOpen] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
@@ -85,13 +89,13 @@ export default function AutoReadInbox() {
   };
 
   // 読み取りの続き・読み直し(終わるまで続けて呼ぶ)
-  const resume = async (it: Item, action: "run" | "retry") => {
+  const resume = async (it: Item, action: "run" | "retry" | "reround", extra: Record<string, unknown> = {}) => {
     setBusy(it.id);
     setErr(null);
     setMsg(null);
     let a: string = action;
     for (let n = 0; n < 600; n++) {
-      const r = await post({ action: a, uploadId: it.id });
+      const r = await post({ action: a, uploadId: it.id, ...(a === action ? extra : {}) });
       a = "run";
       if (!r.ok) {
         setErr(r.error ?? "処理できませんでした");
@@ -180,6 +184,38 @@ export default function AutoReadInbox() {
               )}
             </div>
             {it.read_status === "failed" && <p className="error-message" style={{ margin: "8px 0 0" }}>自動では読み取れませんでした: {it.read_error}</p>}
+            {/* 別の回(2回目など)の健診を、違う回として送ってしまったとみられるファイル: 実施回を直して読み直せる */}
+            {it.read_status === "review" && it.read_result?.otherRound && (
+              <div style={{ marginTop: 10, background: "var(--orange-light)", border: "1px solid var(--orange)", borderRadius: 8, padding: "10px 14px", fontSize: 14 }}>
+                <div>
+                  <strong>別の回の健診のようです。</strong>
+                  {it.fiscal_year}年度の第{it.round ?? 1}回としてすでに登録されている結果と、健診日が大きく離れています。年に2回ある健診の別の回なら、実施回を直して読み直してください（まだ誰も取り込んでいません）。
+                </div>
+                <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", marginTop: 8 }}>
+                  <select
+                    value={roundPick[it.id] ?? nextRound(it.round)}
+                    onChange={(e) => setRoundPick((m) => ({ ...m, [it.id]: Number(e.target.value) }))}
+                    aria-label="実施回"
+                    style={{ width: "auto" }}
+                  >
+                    {[1, 2, 3, 4].filter((r) => r !== (it.round ?? 1)).map((r) => (
+                      <option key={r} value={r}>
+                        第{r}回
+                      </option>
+                    ))}
+                  </select>
+                  <button
+                    className="btn orange"
+                    disabled={busy === it.id}
+                    onClick={() => resume(it, "reround", { round: roundPick[it.id] ?? nextRound(it.round) })}
+                    style={{ padding: "6px 14px", fontSize: 13 }}
+                  >
+                    {busy === it.id ? "読み直しています…" : "この回として読み直す"}
+                  </button>
+                  <span className="muted" style={{ fontSize: 12.5 }}>同じ回の受け直し・再検査の場合は、「内容を見る」から確かめてください。</span>
+                </div>
+              </div>
+            )}
             {it.read_status === "review" && isOpen && it.read_result && (
               <div style={{ marginTop: 12 }}>
                 <ReadSummaryView summary={it.read_result.summary} role="office" coverage={it.read_result.coverage} />

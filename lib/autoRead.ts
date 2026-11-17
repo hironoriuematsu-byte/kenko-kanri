@@ -279,6 +279,7 @@ export type ExistingCheckup = {
   sex: string | null;
   work_judgment: string | null;
   work_judgment_auto: boolean;
+  checkup_date?: string | null; // 登録済みの結果の健診日(別の回の健診かどうかの見分けに使う)
   items: { item_name: string; value: string | null; judgment: string | null }[];
 };
 export type Against =
@@ -299,6 +300,16 @@ export function findExisting(row: ImportRow, existing: ExistingCheckup[]): Exist
     ) ?? null
   );
 }
+
+// 2つの日付が何日離れているか(どちらかが無い・読めないときは null)
+export function daysApart(a: string | null | undefined, b: string | null | undefined): number | null {
+  const t = (d: string | null | undefined) => (d && /^\d{4}-\d{2}-\d{2}/.test(d) ? Date.parse(`${d.slice(0, 10)}T00:00:00Z`) : NaN);
+  const x = t(a);
+  const y = t(b);
+  return Number.isNaN(x) || Number.isNaN(y) ? null : Math.round(Math.abs(x - y) / 86_400_000);
+}
+// 登録済みの結果と健診日がこれ以上離れていたら、別の回の健診とみる(年2回の健診は約6か月おき。再検査や受け直しは通常2か月以内)
+export const OTHER_ROUND_DAYS = 60;
 
 export function classifyAgainstExisting(row: ImportRow, existing: ExistingCheckup[]): Against {
   const e = findExisting(row, existing);
@@ -369,6 +380,7 @@ export type PlannedPerson = {
   diffs: Diff[]; // 食い違い(2回の読み取り / すでに登録されている結果)
   diffKind: "read" | "existing" | null;
   clean: boolean; // 確認待ちだが、問題は見つかっていない(PDFの確認運用のため)
+  otherRound: boolean; // このファイルは、別の回(2回目など)の健診とみられる
   judgment: AutoJudgment | null; // 取り込むときに付ける就業判定(null は付けない)
   needsFollowup: boolean; // 受診勧奨の対象か
 };
@@ -387,6 +399,17 @@ export function planPeople(opts: {
 }): PlannedPerson[] {
   const rules = opts.rules ?? [];
   const seen = new Set<string>();
+  // 別の回(2回目など)の健診を、同じ回として送っていないか。
+  // すでに登録されている結果と健診日が大きく離れている方が何人もいれば、ファイル全体を止めて事務所が確かめる
+  // (止めないと、1回目に結果のない方だけが、違う回に取り込まれてしまう)
+  const far = opts.rows.map((row) => {
+    const e = findExisting(row, opts.existing);
+    const gap = e ? daysApart(row.checkup_date, e.checkup_date) : null;
+    return { matched: Boolean(e), date: e?.checkup_date ?? null, far: gap != null && gap >= OTHER_ROUND_DAYS };
+  });
+  const farCount = far.filter((f) => f.far).length;
+  const matchedCount = far.filter((f) => f.matched).length;
+  const otherRound = farCount >= 2 || (farCount >= 1 && farCount * 2 >= matchedCount);
   return opts.rows.map((row, i) => {
     const sex = row.sex === "male" || row.sex === "female" ? row.sex : null;
     const reasons: string[] = [];
@@ -411,6 +434,11 @@ export function planPeople(opts: {
     if (opts.kind === "pdf" && opts.rosterSize > 0 && !row.person_id) {
       reasons.push("名簿(個人カルテ)の方と結びつきませんでした(氏名の読み違い、または新しい方)");
     }
+    if (far[i].far) {
+      reasons.push(`すでに登録されている結果(健診日 ${far[i].date})と、健診日(${row.checkup_date})が離れています。別の回(2回目など)の健診のようです`);
+    } else if (otherRound) {
+      reasons.push("同じファイルに、別の回(2回目など)の健診とみられる方がいるため、取り込みを止めています");
+    }
 
     const against = classifyAgainstExisting(row, opts.existing);
     if (against.mode === "conflict" && diffKind == null) {
@@ -421,7 +449,7 @@ export function planPeople(opts: {
       reasons.push("すでに登録されている結果と、値が違います");
     }
     const existing = against.mode === "new" ? null : against.existing;
-    const base = { row, page: opts.pages?.[i] ?? null, existingId: existing?.id ?? null, diffs, diffKind };
+    const base = { row, page: opts.pages?.[i] ?? null, existingId: existing?.id ?? null, diffs, diffKind, otherRound };
 
     if (against.mode === "same" && reasons.length === 0) {
       return { ...base, action: "same" as const, addItems: [], reasons, clean: true, judgment: null, needsFollowup: false };

@@ -47,9 +47,9 @@ export default async function CompanyNoticePage({
       <Header profile={profile} />
       <main className="container">
         <p className="muted no-print">
-          <Link href={`/company/checkups?year=${data.year}${data.roundQuery}`}>← 健康診断管理に戻る</Link>
+          <Link href={`/company/checkups?year=${data.year}${data.roundQuery}${data.groupQuery}`}>← 健康診断管理に戻る</Link>
         </p>
-        <h1 className="page-title no-print">{tpl.label}書の作成（{data.year}年度）</h1>
+        <h1 className="page-title no-print">{tpl.label}書の作成（{data.year}年度{data.rounds.length > 1 ? ` 第${data.round}回` : ""}{data.group && data.groups.length > 1 ? ` ${data.group.label}` : ""}）</h1>
         <div className="notice no-print">
           {kind === "interview"
             ? "産業医の就業判定で産業医面談が必要となった従業員へ、面談を案内する文書です。"

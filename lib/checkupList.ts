@@ -2,7 +2,7 @@ import { createClient } from "@/lib/supabase/server";
 import type { CheckupRow } from "@/components/CheckupsTable";
 import { getOfficeInfo, type OfficeInfo } from "@/lib/officeInfo";
 import { summarizeByCategory, type CategorySummary, type ReportItem } from "@/lib/checkupReport";
-import { CHECKUP_TYPES, isFindingJudgment, isRestrictionJudgment, isSevereJudgment, needsAttention } from "@/lib/checkups";
+import { CHECKUP_TYPES, isFindingJudgment, isRestrictionJudgment, isSevereJudgment, needsAttention, summarizeRounds, type RoundInfo } from "@/lib/checkups";
 import { reachesReferral } from "@/lib/referral";
 import { getJudgmentRules } from "@/lib/judgmentRules";
 import type { JudgmentRule } from "@/lib/judgment";
@@ -75,13 +75,16 @@ export function computeCheckupStats(list: CheckupRow[], items: ReportItem[]): { 
   return { stats, form6 };
 }
 
+type YearRow = { fiscal_year: number; round: number | null; checkup_type: string; special_kind: string | null; checkup_date: string | null };
+
 // 健診の区分(定期健診 / 雇入時健診 / 特殊健診(種類ごと))。区分ごとに一覧・集計を分けて表示する
 export type CheckupGroup = {
   key: string; // "regular" / "hiring" / "special:有機溶剤" など(URLの group= に使う)
   type: string; // checkup_type
   kind: string | null; // special_kind(特殊健診のみ)
   label: string;
-  count: number; // その年度の受診者数(全実施回)
+  count: number; // その年度の受診者数(全実施回の合計)
+  rounds: number; // その年度の実施回の数(2以上なら count は延べ人数)
 };
 
 export function groupKeyOf(type: string, kind: string | null | undefined): string {
@@ -97,6 +100,7 @@ export type CheckupListData = {
   years: number[];
   year: number | undefined;
   rounds: number[];
+  roundInfo: RoundInfo[]; // 表示中の区分の、実施回ごとの人数と健診日の範囲
   round: number;
   roundQuery: string;
   list: CheckupRow[];
@@ -117,17 +121,17 @@ export async function loadCheckupList(
   // 受診者×年度が1000件を超えると古い年度が欠けてしまうため、全件を分けて取得する
   const fetchYearRows = async () => {
     const PAGE = 1000;
-    const all: { fiscal_year: number; round: number | null; checkup_type: string; special_kind: string | null }[] = [];
+    const all: YearRow[] = [];
     for (let from = 0; ; from += PAGE) {
       const { data } = await supabase
         .from("hm_checkups")
-        .select("fiscal_year, round, checkup_type, special_kind")
+        .select("fiscal_year, round, checkup_type, special_kind, checkup_date")
         .eq("company_id", companyId)
         .order("fiscal_year", { ascending: false })
         .order("round")
         .range(from, from + PAGE - 1);
       if (!data || data.length === 0) break;
-      all.push(...(data as { fiscal_year: number; round: number | null; checkup_type: string; special_kind: string | null }[]));
+      all.push(...(data as YearRow[]));
       if (data.length < PAGE) break;
     }
     return all;
@@ -140,6 +144,7 @@ export async function loadCheckupList(
 
   // その年度の区分(定期・雇入時・特殊健診の種類ごと)。定期健診 → 雇入時 → 特殊健診(種類順) → その他 の順
   const groupMap = new Map<string, CheckupGroup>();
+  const roundsByGroup = new Map<string, Set<number>>();
   for (const r of (yearRows ?? []).filter((r) => r.fiscal_year === year)) {
     const key = groupKeyOf(r.checkup_type, r.special_kind);
     const g = groupMap.get(key) ?? {
@@ -150,10 +155,17 @@ export async function loadCheckupList(
         (CHECKUP_TYPES[r.checkup_type] ?? r.checkup_type) +
         (r.checkup_type === "special" ? `（${(r.special_kind ?? "").trim() || "種類未設定"}）` : ""),
       count: 0,
+      rounds: 0,
     };
     g.count += 1;
     groupMap.set(key, g);
+    const seen = roundsByGroup.get(key) ?? new Set<number>();
+    seen.add(r.round ?? 1);
+    roundsByGroup.set(key, seen);
   }
+  groupMap.forEach((g, key) => {
+    g.rounds = roundsByGroup.get(key)?.size ?? 1;
+  });
   const typeOrder = (t: string) => (t === "regular" ? 0 : t === "hiring" ? 1 : t === "special" ? 2 : 3);
   const groups = Array.from(groupMap.values()).sort(
     (a, b) => typeOrder(a.type) - typeOrder(b.type) || (a.kind ?? "").localeCompare(b.kind ?? "", "ja")
@@ -162,14 +174,12 @@ export async function loadCheckupList(
   const groupQuery = group && groups.length > 1 ? `&group=${encodeURIComponent(group.key)}` : "";
 
   // その区分に存在する実施回(1回だけなら選択肢は出さない)
-  const rounds = Array.from(
-    new Set(
-      (yearRows ?? [])
-        .filter((r) => r.fiscal_year === year && group && groupKeyOf(r.checkup_type, r.special_kind) === group.key)
-        .map((r) => r.round ?? 1)
-    )
-  ).sort((a, b) => a - b);
-  const round = selectedRound ?? rounds[0] ?? 1;
+  const roundInfo = summarizeRounds(
+    (yearRows ?? []).filter((r) => r.fiscal_year === year && group && groupKeyOf(r.checkup_type, r.special_kind) === group.key)
+  );
+  const rounds = roundInfo.map((r) => r.round);
+  // 指定の実施回がこの区分に無いとき(区分や年度を切り替えた直後など)は、最初の回を表示する
+  const round = selectedRound != null && rounds.includes(selectedRound) ? selectedRound : rounds[0] ?? 1;
   const roundQuery = rounds.length > 1 ? `&round=${round}` : "";
 
   const listCols =
@@ -247,5 +257,5 @@ export async function loadCheckupList(
   }));
   const { stats, form6 } = computeCheckupStats(list, items);
 
-  return { officeInfo, groups, group, groupQuery, rules, years, year, rounds, round, roundQuery, list, items, stats, form6 };
+  return { officeInfo, groups, group, groupQuery, rules, years, year, rounds, roundInfo, round, roundQuery, list, items, stats, form6 };
 }

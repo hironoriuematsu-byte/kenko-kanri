@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { adminClient } from "@/lib/supabase/admin";
 import { aiReady } from "@/lib/autoReadServer";
-import { approveHeld, loadUpload, pdfAutoSetting, purgeOldUploads, runStep, stateOf, type Actor, type ReadResult } from "@/lib/autoReadRun";
+import { approveHeld, changeRound, loadUpload, pdfAutoSetting, purgeOldUploads, runStep, stateOf, type Actor, type ReadResult } from "@/lib/autoReadRun";
 
 export const runtime = "nodejs";
 export const maxDuration = 300;
@@ -16,6 +16,7 @@ export const dynamic = "force-dynamic";
 //   POST { action: "run", uploadId }                    読み取りを1区切り進める
 //        { action: "retry", uploadId }                  失敗したファイルをはじめから読み直す
 //        { action: "approve" | "skip", uploadId, indexes, choices }  確認待ちの方を取り込む / 取り込まない(事務所)
+//        { action: "reround", uploadId, round }         実施回を直して読み直す(事務所。まだ誰も取り込んでいないファイルだけ)
 //        { action: "settings", pdfAuto }                設定を変える(事務所)
 
 const fail = (status: number, error: string) => NextResponse.json({ error }, { status });
@@ -97,7 +98,7 @@ export async function POST(req: Request) {
   if (!actor) return fail(401, "ログインの有効期限が切れました。ページを再読み込みしてください。");
   const admin = adminClient();
   if (!admin) return fail(503, "自動の読み取りは準備中です(設定が済むと使えるようになります)");
-  let body: { action?: unknown; uploadId?: unknown; indexes?: unknown; choices?: unknown; pdfAuto?: unknown; hash?: unknown };
+  let body: { action?: unknown; uploadId?: unknown; indexes?: unknown; choices?: unknown; pdfAuto?: unknown; hash?: unknown; round?: unknown };
   try {
     body = await req.json();
   } catch {
@@ -139,6 +140,10 @@ export async function POST(req: Request) {
     const indexes = (Array.isArray(body.indexes) ? body.indexes : []).filter((x): x is number => Number.isInteger(x));
     const choices = (body.choices && typeof body.choices === "object" ? body.choices : {}) as Record<string, string[]>;
     return out(await approveHeld(admin, uploadId, actor, indexes, choices, body.action === "skip"));
+  }
+  if (body.action === "reround") {
+    if (actor.role !== "office") return fail(403, "実施回の変更は、産業医事務所が行います");
+    return out(await changeRound(admin, uploadId, actor, Number(body.round)));
   }
   return fail(400, "操作の指定が不正です");
 }

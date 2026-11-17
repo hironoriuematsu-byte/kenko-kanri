@@ -48,10 +48,10 @@ export default async function OfficeNoticePage({
       <Header profile={profile} />
       <main className="container">
         <p className="muted no-print">
-          <Link href={`/office/${company.id}/checkups?year=${data.year}${data.roundQuery}`}>← 健康診断管理に戻る</Link>
+          <Link href={`/office/${company.id}/checkups?year=${data.year}${data.roundQuery}${data.groupQuery}`}>← 健康診断管理に戻る</Link>
         </p>
         <h1 className="page-title no-print">
-          {company.name} — {tpl.label}書の作成（{data.year}年度）
+          {company.name} — {tpl.label}書の作成（{data.year}年度{data.rounds.length > 1 ? ` 第${data.round}回` : ""}{data.group && data.groups.length > 1 ? ` ${data.group.label}` : ""}）
         </h1>
         <CheckupNoticesView
           kind={kind}

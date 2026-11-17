@@ -25,17 +25,18 @@ export default async function OfficeCheckupReportPage({
   const supabase = createClient();
   const year = searchParams.year ? Number(searchParams.year) : undefined;
   const round = searchParams.round ? Number(searchParams.round) : undefined;
+  // 様式はクエリ form で切り替える。実施回(round)は、表示中の様式にだけ当てはめる
+  const form: ReportForm =
+    searchParams.form === "organic" || searchParams.form === "chemical" || searchParams.form === "pneumo" ? searchParams.form : "6";
   const [{ profile }, { data: company }, data] = await Promise.all([
     requireProfile(),
     supabase.from("companies").select("id, name").eq("id", params.companyId).single(),
-    loadCheckupList(params.companyId, year, round, "regular"),
+    loadCheckupList(params.companyId, year, form === "6" ? round : undefined, "regular"),
   ]);
   if (profile.role !== "office") redirect("/");
   if (!company || !data.year) notFound();
   // 特殊健診(有機溶剤・特定化学物質)の報告書用の集計。様式はクエリ form で切り替える
-  const form: ReportForm =
-    searchParams.form === "organic" || searchParams.form === "chemical" || searchParams.form === "pneumo" ? searchParams.form : "6";
-  const [special, pneumo] = await Promise.all([loadSpecialReport(company.id, data.year, round), loadPneumo(company.id)]);
+  const [special, pneumo] = await Promise.all([loadSpecialReport(company.id, data.year, round, form === "organic" || form === "chemical" ? form : undefined), loadPneumo(company.id)]);
   // じん肺(様式第8号)は暦年。対象年は py(既定: 1〜3月は前年、それ以降はその年)
   const pneumoYear = searchParams.py && /^\d{4}$/.test(searchParams.py) ? Number(searchParams.py) : defaultPneumoYear();
   const pneumoReport = computePneumoReport(pneumo.workers, pneumo.exams, pneumoYear);
@@ -62,11 +63,11 @@ export default async function OfficeCheckupReportPage({
             current={form}
             counts={{
               regular: data.form6.regularCount,
-              organic: special.organicTotal,
-              chemical: special.chemicalTotal,
+              organic: special.organicRows.length,
+              chemical: special.chemicalRows.length,
               pneumo: pneumo.workers.filter((w) => !w.left_on).length,
             }}
-            rounds={form === "organic" ? special.organicRounds : form === "chemical" ? special.chemicalRounds : form === "pneumo" ? undefined : data.rounds}
+            rounds={form === "organic" ? special.organicRoundInfo : form === "chemical" ? special.chemicalRoundInfo : form === "pneumo" || data.group?.type !== "regular" ? undefined : data.roundInfo}
             round={form === "organic" ? special.organicRound : form === "chemical" ? special.chemicalRound : data.round}
           />
           {form === "pneumo" ? (

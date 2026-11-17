@@ -74,7 +74,8 @@ export type StoredPerson = {
   row?: ImportRow;
   read?: ReadPerson; // PDFから読んだ内容(食い違いのどちらを採るか選べるように)
 };
-export type ReadResult = { kind: "csv" | "pdf"; summary: ReadSummary; people: StoredPerson[]; at: string; coverage?: Coverage };
+// otherRound: 別の回(2回目など)の健診とみられるため、ファイル全体を止めている(事務所が実施回を直して読み直せる)
+export type ReadResult = { kind: "csv" | "pdf"; summary: ReadSummary; people: StoredPerson[]; at: string; coverage?: Coverage; otherRound?: boolean };
 
 export type RunState = {
   status: string; // none / reading / review / done / failed
@@ -126,7 +127,7 @@ async function loadContext(admin: SupabaseClient, u: Upload) {
     admin.from("hm_persons").select("id, full_name, employee_no, birth_date, user_id").eq("company_id", u.company_id),
     admin
       .from("hm_checkups")
-      .select("id, person_id, employee_no, target_name, birth_date, sex, special_kind, work_judgment, work_judgment_auto")
+      .select("id, person_id, employee_no, target_name, birth_date, sex, special_kind, work_judgment, work_judgment_auto, checkup_date")
       .eq("company_id", u.company_id)
       .eq("fiscal_year", u.fiscal_year!)
       .eq("round", round)
@@ -209,7 +210,7 @@ async function finalize(admin: SupabaseClient, u: Upload, actor: Actor, kind: "c
   const people = plan
     .filter((p) => p.action === "import" || p.action === "add")
     .map((p) => toApply(p.row, p.action === "add" ? "add" : "new", p.existingId, p.action === "add" ? p.addItems : p.row.items, p.judgment, p.page, p.needsFollowup));
-  const result: ReadResult = { kind, summary: summarize(plan), people: plan.map((p, i) => toStored(p, extra?.reads[i])), at: new Date().toISOString(), coverage };
+  const result: ReadResult = { kind, summary: summarize(plan), people: plan.map((p, i) => toStored(p, extra?.reads[i])), at: new Date().toISOString(), coverage, otherRound: plan.some((p) => p.otherRound) };
   return apply(admin, u, actor, people, result);
 }
 
@@ -448,4 +449,23 @@ export async function purgeOldUploads(admin: SupabaseClient): Promise<number> {
   if (paths.length > 0) await admin.storage.from("hm-files").remove(paths);
   await admin.from("hm_csv_uploads").delete().in("id", rows.map((r) => r.id));
   return rows.length;
+}
+
+// 実施回を直して、読み直す(事務所)。別の回の健診を、違う回として送ってしまったファイルのため。
+// このファイルからまだ誰も取り込んでいないときだけ使える。読み取りは、はじめからやり直す
+export async function changeRound(admin: SupabaseClient, uploadId: string, actor: Actor, round: number): Promise<RunState> {
+  const u = await loadUpload(admin, uploadId);
+  if (!u) return { status: "failed", progress: null, result: null, error: "ファイルが見つかりません" };
+  if (u.status !== "pending" || u.read_status !== "review" || !u.read_result) return stateOf(u);
+  if (!Number.isInteger(round) || round < 1 || round > 4 || round === (u.round ?? 1)) return { ...stateOf(u), error: "実施回の指定が正しくありません" };
+  if (u.read_result.people.some((p) => p.status === "imported" || p.status === "added")) {
+    return { ...stateOf(u), error: "このファイルからすでに取り込んだ方がいるため、実施回は変えられません。取り込んだ方を取り消してから、ファイルを送り直してください" };
+  }
+  const { error } = await admin
+    .from("hm_csv_uploads")
+    .update({ round, read_status: "none", read_work: null, read_result: null, read_error: null, read_updated_at: null })
+    .eq("id", u.id);
+  if (error) return { ...stateOf(u), error: "実施回を変えられませんでした" };
+  await admin.from("hm_access_logs").insert({ user_id: actor.id, action: "update", target_table: "hm_csv_uploads", target_id: u.id, detail: { company_id: u.company_id, change: "round", from: u.round ?? 1, to: round } });
+  return runStep(admin, uploadId, actor);
 }

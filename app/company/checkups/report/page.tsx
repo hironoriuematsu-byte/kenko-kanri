@@ -22,14 +22,15 @@ export default async function CompanyCheckupReportPage({ searchParams }: { searc
   const supabase = createClient();
   const year = searchParams.year ? Number(searchParams.year) : undefined;
   const round = searchParams.round ? Number(searchParams.round) : undefined;
-  const [{ data: company }, data] = await Promise.all([
-    supabase.from("companies").select("id, name").eq("id", profile.company_id).single(),
-    loadCheckupList(profile.company_id, year, round, "regular"),
-  ]);
-  if (!data.year) notFound();
+  // 様式はクエリ form で切り替える。実施回(round)は、表示中の様式にだけ当てはめる
   const form: ReportForm =
     searchParams.form === "organic" || searchParams.form === "chemical" || searchParams.form === "pneumo" ? searchParams.form : "6";
-  const [special, pneumo] = await Promise.all([loadSpecialReport(profile.company_id, data.year, round), loadPneumo(profile.company_id)]);
+  const [{ data: company }, data] = await Promise.all([
+    supabase.from("companies").select("id, name").eq("id", profile.company_id).single(),
+    loadCheckupList(profile.company_id, year, form === "6" ? round : undefined, "regular"),
+  ]);
+  if (!data.year) notFound();
+  const [special, pneumo] = await Promise.all([loadSpecialReport(profile.company_id, data.year, round, form === "organic" || form === "chemical" ? form : undefined), loadPneumo(profile.company_id)]);
   // じん肺(様式第8号)は暦年。対象年は py(既定: 1〜3月は前年、それ以降はその年)
   const pneumoYear = searchParams.py && /^\d{4}$/.test(searchParams.py) ? Number(searchParams.py) : defaultPneumoYear();
   const pneumoReport = computePneumoReport(pneumo.workers, pneumo.exams, pneumoYear);
@@ -56,11 +57,11 @@ export default async function CompanyCheckupReportPage({ searchParams }: { searc
             current={form}
             counts={{
               regular: data.form6.regularCount,
-              organic: special.organicTotal,
-              chemical: special.chemicalTotal,
+              organic: special.organicRows.length,
+              chemical: special.chemicalRows.length,
               pneumo: pneumo.workers.filter((w) => !w.left_on).length,
             }}
-            rounds={form === "organic" ? special.organicRounds : form === "chemical" ? special.chemicalRounds : form === "pneumo" ? undefined : data.rounds}
+            rounds={form === "organic" ? special.organicRoundInfo : form === "chemical" ? special.chemicalRoundInfo : form === "pneumo" || data.group?.type !== "regular" ? undefined : data.roundInfo}
             round={form === "organic" ? special.organicRound : form === "chemical" ? special.chemicalRound : data.round}
           />
           {form === "pneumo" ? (

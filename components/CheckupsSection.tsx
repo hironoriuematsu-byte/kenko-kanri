@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { roundCaption } from "@/lib/checkups";
 import CheckupsTable from "@/components/CheckupsTable";
 import RecentImports from "@/components/RecentImports";
 import CsvUploadsStatus from "@/components/CsvUploadsStatus";
@@ -31,7 +32,7 @@ export default async function CheckupsSection({
   canDelete?: boolean;
   canJudge?: boolean;
 }) {
-  const { officeInfo, groups, group, groupQuery, rules, years, year, rounds, round, roundQuery, list, items, stats, form6 } =
+  const { officeInfo, groups, group, groupQuery, rules, years, year, rounds, roundInfo, round, roundQuery, list, items, stats, form6 } =
     await loadCheckupList(companyId, selectedYear, selectedRound, selectedGroup);
   const isRegular = group?.type === "regular";
   const groupLabel = group && groups.length > 1 ? group.label : undefined;
@@ -107,22 +108,6 @@ export default async function CheckupsSection({
               {y}年度
             </Link>
           ))}
-          {/* 年に複数回の定期健診がある事業場では、実施回を分けて表示する */}
-          {rounds.length > 1 && (
-            <>
-              <span className="muted" style={{ marginLeft: 12 }}>実施回:</span>
-              {rounds.map((r) => (
-                <Link
-                  key={r}
-                  href={`${basePath}?year=${year}&round=${r}${groupQuery}`}
-                  className={r === round ? "badge" : ""}
-                  style={r === round ? {} : { padding: "2px 8px" }}
-                >
-                  第{r}回
-                </Link>
-              ))}
-            </>
-          )}
         </p>
       )}
 
@@ -138,7 +123,25 @@ export default async function CheckupsSection({
               style={g.key === group?.key ? {} : { padding: "2px 8px" }}
             >
               {g.label}
-              <span style={{ marginLeft: 4, opacity: 0.8 }}>{g.count}名</span>
+              {/* 年に2回以上ある区分は、各回の合計(延べ人数) */}
+              <span style={{ marginLeft: 4, opacity: 0.8 }}>{g.rounds > 1 ? `${g.rounds}回・延べ${g.count}名` : `${g.count}名`}</span>
+            </Link>
+          ))}
+        </p>
+      )}
+
+      {/* 年に複数回の健診がある区分では、実施回を分けて表示する。どの回か分かるように、健診日の月と人数を添える */}
+      {year && rounds.length > 1 && (
+        <p style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+          <span className="muted">実施回:</span>
+          {roundInfo.map((r) => (
+            <Link
+              key={r.round}
+              href={`${basePath}?year=${year}&round=${r.round}${groupQuery}`}
+              className={r.round === round ? "badge" : ""}
+              style={r.round === round ? {} : { padding: "2px 8px" }}
+            >
+              {roundCaption(r)}
             </Link>
           ))}
         </p>
@@ -146,11 +149,11 @@ export default async function CheckupsSection({
 
       {year ? (
         <>
-          {group && groups.length > 1 && (
+          {group && (groups.length > 1 || rounds.length > 1) && (
             <p style={{ margin: "0 0 8px", fontWeight: 700 }}>
               {year}年度{rounds.length > 1 ? ` 第${round}回` : ""} {group.label}
               <span className="muted" style={{ fontWeight: 400, marginLeft: 8, fontSize: 12 }}>
-                （この区分のみの一覧・集計です）
+                （{groups.length > 1 ? "この区分" : ""}{groups.length > 1 && rounds.length > 1 ? "・" : ""}{rounds.length > 1 ? "この回" : ""}のみの一覧・集計です）
               </span>
             </p>
           )}

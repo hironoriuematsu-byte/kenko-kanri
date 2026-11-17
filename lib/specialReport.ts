@@ -11,7 +11,7 @@
 // (B1 は「医師が第二次健康診断を必要としないと判断」したものなので含めない)。
 
 import { splitDistribution } from "@/lib/gradeText";
-import { isFindingJudgment } from "@/lib/checkups";
+import { isFindingJudgment, summarizeRounds, type RoundInfo } from "@/lib/checkups";
 import { isNoneStatement } from "@/lib/textJudgment";
 import { createClient } from "@/lib/supabase/server";
 import { fetchCheckupItems } from "@/lib/checkupItems";
@@ -305,6 +305,8 @@ export type SpecialReportData = {
   chemicalTotal: number;
   organicRounds: number[]; // その年度に存在する実施回
   chemicalRounds: number[];
+  organicRoundInfo: RoundInfo[]; // 実施回ごとの人数と健診日の範囲
+  chemicalRoundInfo: RoundInfo[];
   organicRound: number; // 選択中の実施回
   chemicalRound: number;
   otherKinds: string[]; // 有機溶剤・特定化学物質以外の特殊健診の種類
@@ -312,8 +314,9 @@ export type SpecialReportData = {
   chemical: ChemicalReport;
 };
 
-// 実施回(第1回・第2回)ごとに分けて集計する。round を省略すると、その種類の最初の実施回
-export async function loadSpecialReport(companyId: string, year: number, round?: number): Promise<SpecialReportData> {
+// 実施回(第1回・第2回)ごとに分けて集計する。round を省略すると、その種類の最初の実施回。
+// form を指定すると、round はその様式にだけ当てはめる(もう一方の様式は最初の実施回。回の数や時期が様式ごとに違うため)
+export async function loadSpecialReport(companyId: string, year: number, round?: number, form?: "organic" | "chemical"): Promise<SpecialReportData> {
   const supabase = createClient();
   const { data } = await supabase
     .from("hm_checkups")
@@ -324,15 +327,16 @@ export async function loadSpecialReport(companyId: string, year: number, round?:
     .order("target_name");
   const rows = (data ?? []) as SpecialRow[];
   const roundsOf = (rs: SpecialRow[]) => Array.from(new Set(rs.map((r) => r.round ?? 1))).sort((a, b) => a - b);
-  const pick = (rs: SpecialRow[]) => {
+  const pick = (rs: SpecialRow[], mine: "organic" | "chemical") => {
     const rounds = roundsOf(rs);
-    const sel = round != null && rounds.includes(round) ? round : rounds[0] ?? 1;
-    return { rounds, round: sel, rows: rs.filter((r) => (r.round ?? 1) === sel) };
+    const want = !form || form === mine ? round : undefined;
+    const sel = want != null && rounds.includes(want) ? want : rounds[0] ?? 1;
+    return { rounds, round: sel, rows: rs.filter((r) => (r.round ?? 1) === sel), info: summarizeRounds(rs) };
   };
   const organicAll = rows.filter((r) => isOrganicKind(r.special_kind));
   const chemicalAll = rows.filter((r) => isChemicalKind(r.special_kind));
-  const organic = pick(organicAll);
-  const chemical = pick(chemicalAll);
+  const organic = pick(organicAll, "organic");
+  const chemical = pick(chemicalAll, "chemical");
   const otherKinds = Array.from(
     new Set(
       rows
@@ -349,6 +353,8 @@ export async function loadSpecialReport(companyId: string, year: number, round?:
     chemicalTotal: chemicalAll.length,
     organicRounds: organic.rounds,
     chemicalRounds: chemical.rounds,
+    organicRoundInfo: organic.info,
+    chemicalRoundInfo: chemical.info,
     organicRound: organic.round,
     chemicalRound: chemical.round,
     otherKinds,
