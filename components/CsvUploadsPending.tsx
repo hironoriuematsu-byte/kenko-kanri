@@ -65,6 +65,35 @@ export default function CsvUploadsPending() {
   const [busy, setBusy] = useState<string | null>(null); // 処理中の行id(一括のときは "bulk")
   const [progress, setProgress] = useState<string | null>(null);
   const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [autoReady, setAutoReady] = useState(false); // 自動の読み取り(AI)が使えるか
+
+  // 取込待ちのファイルを、自動で読み取る(終わるまで続けて呼び、終わったら画面を読み直す)
+  const autoRead = async (u: Upload) => {
+    setBusy(u.id);
+    setError(null);
+    let action = "retry";
+    for (let n = 0; n < 600; n++) {
+      setProgress(`${u.file_name}: 自動で読み取っています…`);
+      const res = await fetch("/api/checkup-read", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action, uploadId: u.id }) });
+      const j = (await res.json().catch(() => ({}))) as { status?: string; error?: string; busy?: boolean };
+      action = action === "retry" && j.status !== "reading" ? "run" : "run";
+      if (!res.ok || (j.error && !j.busy && j.status !== "failed")) {
+        setError(j.error ?? "読み取れませんでした");
+        break;
+      }
+      if (j.status === "failed") {
+        setError(`${u.file_name}: 自動では読み取れませんでした(${j.error ?? ""})。手作業で取り込んでください。`);
+        break;
+      }
+      if (j.status === "done" || j.status === "review") {
+        window.location.reload();
+        return;
+      }
+      if (j.busy) await new Promise((r) => setTimeout(r, 6000));
+    }
+    setProgress(null);
+    setBusy(null);
+  };
 
   const load = async () => {
     const supabase = createClient();
@@ -73,7 +102,17 @@ export default function CsvUploadsPending() {
       setUploads([]); // 0135 未適用のときは何も出さない
       return;
     }
-    const rows = (data ?? []) as Upload[];
+    let rows = (data ?? []) as Upload[];
+    // 自動の読み取り(AI)が進んでいるもの・確認待ちのものは「読み取りの確認待ち」に出すので、ここには出さない
+    try {
+      const res = await fetch("/api/checkup-read?list=1");
+      const j = res.ok ? ((await res.json()) as { ready?: boolean; items?: { id: string; read_status: string }[] }) : {};
+      setAutoReady(Boolean(j.ready));
+      const inAuto = new Set((j.items ?? []).filter((x) => x.read_status === "review" || x.read_status === "reading").map((x) => x.id));
+      rows = rows.filter((r) => !inAuto.has(r.id));
+    } catch {
+      /* 自動の読み取りが使えないときは、今までどおり全部を出す */
+    }
     setUploads(rows);
     // 消えた行は選択から外す
     setSelected((prev) => new Set(Array.from(prev).filter((id) => rows.some((r) => r.id === id))));
@@ -342,6 +381,16 @@ export default function CsvUploadsPending() {
                 <td style={{ fontSize: 13 }}>{u.note ?? <span className="muted">—</span>}</td>
                 <td>{u.uploaded_by_name ?? "—"}</td>
                 <td style={{ whiteSpace: "nowrap" }}>
+                  {autoReady && (
+                    <button
+                      className="btn orange"
+                      style={{ padding: "4px 10px", fontSize: 12, marginRight: 6 }}
+                      onClick={() => autoRead(u)}
+                      disabled={rowBusy}
+                    >
+                      自動で読み取る
+                    </button>
+                  )}
                   {isPdf ? (
                     <>
                       <button

@@ -57,7 +57,7 @@ export async function GET(req: Request) {
     purgeOldUploads(admin).catch((e) => console.error("purge failed", e)); // 保管の期限(5年)を過ぎた原本を消す
     const { data } = await admin
       .from("hm_csv_uploads")
-      .select("id, company_id, file_name, kind, fiscal_year, checkup_type, round, special_kind, created_at, read_status, read_result, read_error, read_work, companies(name)")
+      .select("id, company_id, file_name, kind, storage_path, fiscal_year, checkup_type, round, special_kind, created_at, read_status, read_result, read_error, read_work, companies(name)")
       .eq("status", "pending")
       .in("read_status", ["reading", "review", "failed"])
       .order("created_at", { ascending: true })

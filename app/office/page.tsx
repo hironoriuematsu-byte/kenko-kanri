@@ -10,6 +10,8 @@ import CsvUploadsPending from "@/components/CsvUploadsPending";
 import CompanyList from "@/components/CompanyList";
 import { getOfficeInfo } from "@/lib/officeInfo";
 import JudgmentWorkCard from "@/components/JudgmentWorkCard";
+import AutoReadInbox from "@/components/AutoReadInbox";
+import AutoReadSettings from "@/components/AutoReadSettings";
 import { summarizeJudgmentWork, type JudgmentWorkRow } from "@/lib/judgmentWork";
 
 export const dynamic = "force-dynamic";
@@ -116,6 +118,8 @@ async function CompaniesTab() {
         )}
       </div>
 
+      {/* 自動の読み取り(AI)で確認待ちになった方・途中で止まったファイル */}
+      <AutoReadInbox />
       {/* 事業者担当者から送られた取込待ちのCSV */}
       <CsvUploadsPending />
       {/* 取り込まれた健診結果の通知(未確認のものだけ) */}
@@ -173,6 +177,7 @@ async function OfficeSettings() {
           </p>
         </div>
       )}
+      <AutoReadSettings />
       <div className="card">
         <h2>健診結果の判定基準</h2>
         <p>

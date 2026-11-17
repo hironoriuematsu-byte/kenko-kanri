@@ -6,6 +6,7 @@ import { createClient } from "@/lib/supabase/browser";
 import { getFiscalYear } from "@/lib/fiscal";
 import { CHECKUP_TYPES, parseCsv, readCsvFile } from "@/lib/checkups";
 import { startNavigationProgress } from "@/lib/navigate";
+import AutoReadRunner, { type ReadTarget } from "@/components/AutoReadRunner";
 
 const MAX_PDF_BYTES = 20 * 1024 * 1024;
 
@@ -16,11 +17,31 @@ type Picked =
 
 type Result = { name: string; ok: boolean; message?: string };
 
+// ファイルの中身から作る照合用の値(同じファイルをもう一度送っていないかを確かめる)
+async function sha256Hex(data: ArrayBuffer | Uint8Array): Promise<string> {
+  const buf = await crypto.subtle.digest("SHA-256", data as BufferSource);
+  return Array.from(new Uint8Array(buf))
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("");
+}
+
 // 事業者担当者向け: 健診機関のCSVやPDFをそのまま産業医事務所に送る(複数ファイルをまとめて送れる)。
 //   CSV: 中身をそのまま送り、産業医事務所が取込画面で列を指定して取り込む(0135)
 //   PDF: 非公開の保存領域(hm-files/<company_id>/checkup-uploads/)に保存し、
 //        産業医事務所がダウンロードしてCSVに変換して取り込む(0136)
-export default function CsvSubmit({ companyId, backHref }: { companyId: string; backHref: string }) {
+//   送ったあとは、その場でAIが読み取り、事務所の基準で判定して、就業判定を表示する(components/AutoReadRunner)。
+//   産業医事務所が、企業の代わりに送るときも同じ画面を使う(role="office")
+export default function CsvSubmit({
+  companyId,
+  backHref,
+  role = "company",
+  manualHref,
+}: {
+  companyId: string;
+  backHref: string;
+  role?: "company" | "office";
+  manualHref?: string; // 手作業の取込画面(事務所のみ)
+}) {
   const router = useRouter();
   const [fiscalYear, setFiscalYear] = useState(getFiscalYear());
   const [checkupType, setCheckupType] = useState("regular");
@@ -32,6 +53,8 @@ export default function CsvSubmit({ companyId, backHref }: { companyId: string; 
   const [busy, setBusy] = useState(false);
   const [progress, setProgress] = useState<string | null>(null);
   const [results, setResults] = useState<Result[] | null>(null);
+  const [sent, setSent] = useState<ReadTarget[]>([]); // 送ったファイル(このあと自動で読み取る)
+  const [dupes, setDupes] = useState<string[]>([]); // 前に送ったものと同じ中身だったファイル
 
   // ファイルを追加する(何回かに分けて選んでもよい)
   const onFiles = async (e: ChangeEvent<HTMLInputElement>) => {
@@ -91,11 +114,28 @@ export default function CsvSubmit({ companyId, backHref }: { companyId: string; 
       p_note: note.trim() || null,
     };
     const out: Result[] = [];
+    const sentNow: ReadTarget[] = [];
+    const dupNow: string[] = [];
     for (let i = 0; i < files.length; i++) {
       const f = files[i];
       setProgress(`${i + 1} / ${files.length}: ${f.name} を送信中…`);
+      // 同じ中身のファイルを前に送っていたら、送らない(二重の登録を防ぐ)
+      let hash: string | undefined;
+      try {
+        hash = await sha256Hex(f.kind === "csv" ? new TextEncoder().encode(f.content) : await f.file.arrayBuffer());
+        const res = await fetch(`/api/checkup-read?hash=${hash}&companyId=${encodeURIComponent(companyId)}`);
+        const j = res.ok ? ((await res.json()) as { duplicate?: { file_name: string; created_at: string } | null }) : {};
+        if (j.duplicate) {
+          const d = new Date(j.duplicate.created_at);
+          dupNow.push(`${f.name}(${d.getMonth() + 1}月${d.getDate()}日に「${j.duplicate.file_name}」として受け付け済み)`);
+          out.push({ name: f.name, ok: true });
+          continue;
+        }
+      } catch {
+        /* 照合できないときは、そのまま送る */
+      }
       if (f.kind === "csv") {
-        const { error } = await supabase.rpc("hm_submit_csv_upload", {
+        const { data, error } = await supabase.rpc("hm_submit_csv_upload", {
           p_company_id: companyId,
           p_file_name: f.name,
           p_content: f.content,
@@ -103,6 +143,7 @@ export default function CsvSubmit({ companyId, backHref }: { companyId: string; 
           ...common,
         });
         out.push(error ? { name: f.name, ok: false, message: error.message } : { name: f.name, ok: true });
+        if (!error && typeof data === "string") sentNow.push({ id: data, name: f.name, kind: "csv", hash });
         continue;
       }
       // PDF本体を非公開の保存領域に保存してから、記録を作る
@@ -130,7 +171,10 @@ export default function CsvSubmit({ companyId, backHref }: { companyId: string; 
         continue;
       }
       out.push({ name: f.name, ok: true });
+      sentNow.push({ id, name: f.name, kind: "pdf", hash });
     }
+    setSent(sentNow);
+    setDupes(dupNow);
     setProgress(null);
     // 送れなかったものだけ残し、やり直せるようにする
     const failed = new Set(out.filter((r) => !r.ok).map((r) => r.name));
@@ -145,29 +189,39 @@ export default function CsvSubmit({ companyId, backHref }: { companyId: string; 
   const csvCount = files.filter((f) => f.kind === "csv").length;
   const pdfCount = files.filter((f) => f.kind === "pdf").length;
 
-  // 送信結果(すべて成功したら完了画面)
+  const dupNotice = dupes.length > 0 && (
+    <div style={{ background: "var(--orange-light)", border: "1px solid var(--orange)", borderRadius: 8, padding: "10px 14px", marginBottom: 12, fontSize: 14 }}>
+      <strong>前に送ったものと同じファイルのため、送りませんでした(二重の登録を防ぐため)。</strong>
+      <ul style={{ margin: "4px 0 0", paddingLeft: 20 }}>
+        {dupes.map((d) => (
+          <li key={d}>{d}</li>
+        ))}
+      </ul>
+    </div>
+  );
+
+  // 送信結果(すべて成功したら、その場で読み取って結果を表示する)
   if (results && results.every((r) => r.ok)) {
+    const again = () => {
+      setResults(null);
+      setSent([]);
+      setDupes([]);
+    };
     return (
       <div>
-        <p>
-          <strong>{results.length}件</strong>のファイルを産業医事務所に送りました。
-        </p>
-        <ul style={{ margin: "0 0 10px", paddingLeft: 20, fontSize: 13 }}>
-          {results.map((r) => (
-            <li key={r.name}>{r.name}</li>
-          ))}
-        </ul>
-        <p style={{ color: "var(--teal-dark)" }}>
-          産業医事務所が内容を確認して取り込み、就業判定を行います。取り込まれると健康診断管理の一覧に表示されます。
-        </p>
-        <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-          <button className="btn" onClick={() => { startNavigationProgress(); router.push(backHref); }}>
-            健診一覧へ戻る
-          </button>
-          <button className="btn secondary" onClick={() => setResults(null)}>
-            続けて別のファイルを送る
-          </button>
-        </div>
+        {dupNotice}
+        {sent.length > 0 ? (
+          <AutoReadRunner uploads={sent} role={role} listHref={backHref} manualHref={manualHref} onAgain={again} />
+        ) : (
+          <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+            <button className="btn" onClick={() => { startNavigationProgress(); router.push(backHref); }}>
+              健診一覧へ戻る
+            </button>
+            <button className="btn secondary" onClick={again}>
+              続けて別のファイルを送る
+            </button>
+          </div>
+        )}
       </div>
     );
   }
@@ -277,7 +331,7 @@ export default function CsvSubmit({ companyId, backHref }: { companyId: string; 
       )}
 
       <div className="form-row">
-        <label>産業医事務所への連絡事項（任意）</label>
+        <label>{role === "office" ? "メモ（任意）" : "産業医事務所への連絡事項（任意）"}</label>
         <textarea
           value={note}
           onChange={(e) => setNote(e.target.value)}
@@ -301,7 +355,7 @@ export default function CsvSubmit({ companyId, backHref }: { companyId: string; 
       )}
       {progress && <p className="muted">{progress}</p>}
       <button className="btn orange" onClick={onSubmit} disabled={busy || files.length === 0}>
-        {busy ? "送信中…" : `${files.length}件のファイルを産業医事務所に送る`}
+        {busy ? "送信中…" : role === "office" ? `${files.length}件のファイルを読み取って取り込む` : `${files.length}件のファイルを送る(自動で読み取ります)`}
       </button>
     </div>
   );

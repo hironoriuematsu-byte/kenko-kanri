@@ -20,8 +20,9 @@ export default async function CompanyCheckupImportPage() {
         <h1 className="page-title">健康診断結果の送信（CSV・PDF）</h1>
         <div className="card">
           <p className="muted" style={{ marginTop: 0 }}>
-            健診機関から受け取ったCSVまたはPDFをそのまま送ってください。産業医事務所が内容を
-            確認して取り込み、就業判定を行います。取り込まれると健康診断管理の一覧に表示されます。
+            健診機関から受け取ったCSVまたはPDFを、そのまま送ってください。送るとその場で自動で読み取り、
+            産業医があらかじめ定めた基準で判定して、就業判定を表示します。読み取りに確認が必要な方と、
+            就業制限の検討が必要な方は、産業医事務所が確認してから結果をお返しします。
           </p>
           <CsvSubmit companyId={profile.company_id} backHref="/company/checkups" />
         </div>

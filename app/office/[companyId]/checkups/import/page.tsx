@@ -1,6 +1,7 @@
 import { notFound, redirect } from "next/navigation";
 import Header from "@/components/Header";
 import CheckupImport, { type UploadedCsv } from "@/components/CheckupImport";
+import CsvSubmit from "@/components/CsvSubmit";
 import Link from "next/link";
 import { requireProfile } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
@@ -57,12 +58,24 @@ export default async function OfficeCheckupImportPage({
     <>
       <Header profile={profile} />
       <main className="container">
-        <h1 className="page-title">{company.name} — 健康診断結果取込（CSV）</h1>
+        <h1 className="page-title">{company.name} — 健康診断結果の取込</h1>
         <p className="muted">
           <Link href="/office/judgment-criteria">判定基準の設定を確認・編集する</Link>
         </p>
         {uploadError && <p className="error-message">{uploadError}</p>}
+        {/* 送られたCSVを開いたとき(?upload=)は、下の手作業の取込だけを出す */}
+        {!searchParams.upload && (
+          <div className="card">
+            <h2>ファイルを選んで、自動で読み取る（CSV・PDF）</h2>
+            <p className="muted" style={{ marginTop: 0 }}>
+              企業の代わりに、健診機関のCSVまたはPDFをここから入れられます。AIが読み取り、事務所の判定基準で判定して、
+              就業判定まで自動で付けます。読み取りに確認が必要な方は、ダッシュボードの「読み取りの確認待ち」に入ります。
+            </p>
+            <CsvSubmit companyId={company.id} backHref={`/office/${company.id}/checkups`} role="office" manualHref={`/office/${company.id}/checkups/import`} />
+          </div>
+        )}
         <div className="card">
+          <h2>列を自分で指定して取り込む（CSV・手作業）</h2>
           <CheckupImport
             companyId={company.id}
             backHref={`/office/${company.id}/checkups`}
