@@ -653,6 +653,18 @@ table.list td {
   text-decoration: none;
   line-height: 1.4;
 }
+.company-tile-badge {
+  display: inline-block;
+  margin-left: 8px;
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: var(--orange);
+  color: #fff;
+  font-size: 11.5px;
+  font-weight: 700;
+  white-space: nowrap;
+  vertical-align: middle;
+}
 .company-tile:hover {
   border-color: var(--teal-dark);
   background: #f3faf9;

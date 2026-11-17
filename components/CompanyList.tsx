@@ -6,8 +6,10 @@ import { useState } from "react";
 // 産業医事務所ダッシュボードの企業一覧(企業名で絞り込める)
 export default function CompanyList({
   companies,
+  badges = {},
 }: {
   companies: { id: string; name: string }[];
+  badges?: Record<string, number>; // 就業判定が必要な人数(未入力+判定保留)。0の企業には出さない
 }) {
   const [query, setQuery] = useState("");
   const q = query.trim().toLowerCase();
@@ -29,6 +31,11 @@ export default function CompanyList({
           {filtered.map((c) => (
             <Link key={c.id} href={`/office/${c.id}`} className="company-tile">
               {c.name}
+              {badges[c.id] > 0 && (
+                <span className="company-tile-badge" title="就業判定が必要な健診結果">
+                  判定 {badges[c.id]}名
+                </span>
+              )}
             </Link>
           ))}
         </div>

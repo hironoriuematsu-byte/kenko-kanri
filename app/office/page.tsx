@@ -9,6 +9,8 @@ import ImportNotices from "@/components/ImportNotices";
 import CsvUploadsPending from "@/components/CsvUploadsPending";
 import CompanyList from "@/components/CompanyList";
 import { getOfficeInfo } from "@/lib/officeInfo";
+import JudgmentWorkCard from "@/components/JudgmentWorkCard";
+import { summarizeJudgmentWork, type JudgmentWorkRow } from "@/lib/judgmentWork";
 
 export const dynamic = "force-dynamic";
 
@@ -43,34 +45,36 @@ export default async function OfficeDashboard({
 
 async function CompaniesTab() {
   const supabase = createClient();
-  const [
-    { data: companies },
-    { data: interviews },
-    { count: unjudgedCount },
-    { count: heldCount },
-  ] = await Promise.all([
-      // 企業台帳はストレスチェックWebと共有している。健康管理Webも
-      // ご契約いただいている企業(hm_enabled = true)だけを表示する。
-      supabase
-        .from("companies")
-        .select("id, name")
-        .eq("hm_enabled", true)
-        .order("name"),
-      supabase
-        .from("hm_interviews")
-        .select("id, target_name, interview_type, scheduled_at, status, companies(name)")
-        .eq("status", "scheduled")
-        .order("scheduled_at", { ascending: true, nullsFirst: false })
-        .limit(15),
-      supabase
+  // 就業判定が未入力・判定保留の健診結果(1回の問い合わせは1000行までなので、分けて全件を読む)
+  const fetchJudgmentWork = async (): Promise<JudgmentWorkRow[]> => {
+    const PAGE = 1000;
+    const all: JudgmentWorkRow[] = [];
+    for (let from = 0; ; from += PAGE) {
+      const { data } = await supabase
         .from("hm_checkups")
-        .select("id", { count: "exact", head: true })
-        .is("work_judgment", null),
-      supabase
-        .from("hm_checkups")
-        .select("id", { count: "exact", head: true })
-        .eq("work_judgment", "pending"),
-    ]);
+        .select("company_id, fiscal_year, round, checkup_type, special_kind, overall_judgment, work_judgment")
+        .or("work_judgment.is.null,work_judgment.eq.pending")
+        .order("id")
+        .range(from, from + PAGE - 1);
+      all.push(...((data as JudgmentWorkRow[] | null) ?? []));
+      if (!data || data.length < PAGE) return all;
+    }
+  };
+  const [{ data: companies }, { data: interviews }, workRows] = await Promise.all([
+    // 企業台帳はストレスチェックWebと共有している。健康管理Webも
+    // ご契約いただいている企業(hm_enabled = true)だけを表示する。
+    supabase.from("companies").select("id, name").eq("hm_enabled", true).order("name"),
+    supabase
+      .from("hm_interviews")
+      .select("id, target_name, interview_type, scheduled_at, status, companies(name)")
+      .eq("status", "scheduled")
+      .order("scheduled_at", { ascending: true, nullsFirst: false })
+      .limit(15),
+    fetchJudgmentWork(),
+  ]);
+  const work = summarizeJudgmentWork(workRows, companies ?? []);
+  // 企業一覧の企業名の横に出す人数(未入力+判定保留)
+  const workBadges = Object.fromEntries(work.companies.map((c) => [c.companyId, c.unjudged + c.held]));
 
   // ストレスチェックWebへの導線は、URLが設定されているときだけ表示する
   const stressUrl = process.env.NEXT_PUBLIC_STRESS_URL;
@@ -84,10 +88,13 @@ async function CompaniesTab() {
 
   return (
     <>
+      {/* 最初に、産業医の判定が必要な健診結果があるかを知らせる */}
+      <JudgmentWorkCard work={work} />
+
       <div className="card">
         <h2>企業一覧</h2>
         {companies && companies.length > 0 ? (
-          <CompanyList companies={companies} />
+          <CompanyList companies={companies} badges={workBadges} />
         ) : (
           <p className="muted">
             健康管理Webをご利用いただく企業がありません。ストレスチェックWebの
@@ -114,25 +121,13 @@ async function CompaniesTab() {
       {/* 取り込まれた健診結果の通知(未確認のものだけ) */}
       <ImportNotices />
 
-      {(overdue.length > 0 || (unjudgedCount ?? 0) > 0 || (heldCount ?? 0) > 0) && (
+      {overdue.length > 0 && (
         <div className="card" style={{ borderColor: "var(--orange)" }}>
           <h2>未対応タスク</h2>
           <ul style={{ margin: 0, paddingLeft: 20 }}>
-            {(unjudgedCount ?? 0) > 0 && (
-              <li>
-                就業判定が未入力: <strong>{unjudgedCount}名</strong>
-              </li>
-            )}
-            {(heldCount ?? 0) > 0 && (
-              <li>
-                就業判定が「判定保留」: <strong>{heldCount}名</strong>
-              </li>
-            )}
-            {overdue.length > 0 && (
-              <li>
-                予定日を過ぎて未実施の面談: <strong>{overdue.length}件</strong>
-              </li>
-            )}
+            <li>
+              予定日を過ぎて未実施の面談: <strong>{overdue.length}件</strong>
+            </li>
           </ul>
         </div>
       )}
