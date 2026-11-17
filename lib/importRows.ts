@@ -6,6 +6,7 @@ import { normalizeDate } from "@/lib/checkups";
 import { matchPerson, type PersonCandidate } from "@/lib/personMatch";
 import { averageBloodPressure, isAverageHeader } from "@/lib/bloodPressure";
 import { findLegalItemByHeader, judgeItem, overallGrade, splitBloodPressure, worstGrade, type Grade, type JudgmentRule } from "@/lib/judgment";
+import { markReferral, needsReferral } from "@/lib/referral";
 
 // 列の扱い: 法定項目(自動判定) / 値のみ / 判定として取込 / 取り込まない
 export type ColumnMode =
@@ -39,6 +40,8 @@ export type ImportRow = {
   target_user_id: string;
   checkup_date: string | null;
   overall_judgment: string;
+  // 受診勧奨の対象か(総合判定が要医療(D)以上で、受診勧奨の基準(事務所の基準)に届いている項目がある)
+  needs_followup: boolean;
   items: ImportItem[];
 };
 
@@ -298,7 +301,13 @@ export function buildImportRows({
         // 特殊健診は健診機関の総合判定(A・B1・B2・C・R・T)を優先する(無ければ事務所基準の自動判定)
         overall_judgment: checkupType === "special" ? csvOverall || autoOverall || "" : autoOverall ?? csvOverall,
         items: merged,
+        needs_followup: false,
       };
     })
-    .filter((r) => r.target_name);
+    .filter((r) => r.target_name)
+    .map((row) => {
+      const sex = row.sex === "male" || row.sex === "female" ? row.sex : null;
+      const marked = markReferral(row.items.map((it) => ({ item_name: it.name, judgment: it.judgment ?? null, value: it.value ?? null })), sex, rules);
+      return { ...row, needs_followup: needsReferral(row.overall_judgment, marked) };
+    });
 }

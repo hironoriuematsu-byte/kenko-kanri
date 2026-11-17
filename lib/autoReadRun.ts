@@ -9,6 +9,7 @@ import {
   classifyAgainstExisting,
   compareReads,
   decideWorkJudgment,
+  needsFollowup,
   personsToTable,
   planPeople,
   summarize,
@@ -160,13 +161,14 @@ const toStored = (p: PlannedPerson, read?: ReadPerson): StoredPerson => ({
 });
 
 // 取込に渡す形
-const toApply = (row: ImportRow, mode: "new" | "add", existingId: string | null, items: ImportItem[], wj: AutoJudgment | null, page: number | null) => ({
+const toApply = (row: ImportRow, mode: "new" | "add", existingId: string | null, items: ImportItem[], wj: AutoJudgment | null, page: number | null, follow: boolean) => ({
   mode,
   existing_id: existingId,
   page,
   row,
   items,
   wj,
+  needs_followup: follow, // 受診勧奨の対象か(事務所の基準)
 });
 
 async function apply(admin: SupabaseClient, u: Upload, actor: Actor, people: ReturnType<typeof toApply>[], result: ReadResult): Promise<RunState> {
@@ -195,10 +197,11 @@ async function finalize(admin: SupabaseClient, u: Upload, actor: Actor, kind: "c
     kind,
     rosterSize: ctx.persons.length,
     pdfAuto: ctx.pdfAuto,
+    rules: ctx.rules,
   });
   const people = plan
     .filter((p) => p.action === "import" || p.action === "add")
-    .map((p) => toApply(p.row, p.action === "add" ? "add" : "new", p.existingId, p.action === "add" ? p.addItems : p.row.items, p.judgment, p.page));
+    .map((p) => toApply(p.row, p.action === "add" ? "add" : "new", p.existingId, p.action === "add" ? p.addItems : p.row.items, p.judgment, p.page, p.needsFollowup));
   const result: ReadResult = { kind, summary: summarize(plan), people: plan.map((p, i) => toStored(p, extra?.reads[i])), at: new Date().toISOString() };
   return apply(admin, u, actor, people, result);
 }
@@ -215,7 +218,7 @@ async function runCsv(admin: SupabaseClient, u: Upload, actor: Actor): Promise<R
   const header = table[0];
   const dataRows = table.slice(1);
   const ctx = await loadContext(admin, u);
-  if (ctx.rules.length === 0) return fail(admin, u, "判定基準が未登録のため、自動では判定できません");
+  if (!ctx.rules.some((r) => r.grade !== "S")) return fail(admin, u, "判定基準が未登録のため、自動では判定できません");
   let cols = guessColumns(header);
   // 見出しから決まらなかった列があるときだけ、AIに見出しと値の例を見せて補う(氏名の列の中身は送らない)
   const legalCount = Object.values(cols.colModes).filter((m) => m.kind === "legal").length;
@@ -284,7 +287,7 @@ async function runPdf(admin: SupabaseClient, u: Upload, actor: Actor): Promise<R
   const reads = [...A, ...cmp.onlySecond];
   const readDiffs = [...cmp.diffs, ...cmp.onlySecond.map(() => [{ field: "読み取り", a: "", b: "2回目だけに出てきました" }])];
   const ctx = await loadContext(admin, u);
-  if (ctx.rules.length === 0) return fail(admin, u, "判定基準が未登録のため、自動では判定できません");
+  if (!ctx.rules.some((r) => r.grade !== "S")) return fail(admin, u, "判定基準が未登録のため、自動では判定できません");
   const rows = tableRows(reads, ctx, u.checkup_type!);
   // 氏名のない人は personsToTable の時点でいないので、rows と reads は同じ並び
   return finalize(admin, u, actor, "pdf", rows, ctx, { reads, readDiffs });
@@ -388,8 +391,8 @@ export async function approveHeld(admin: SupabaseClient, uploadId: string, actor
     const items = against.mode === "add" ? against.items : row.items;
     const all = existing ? [...existing.items.map((it) => ({ name: it.item_name, value: it.value, judgment: it.judgment })), ...items] : row.items;
     const mayJudge = !existing || !existing.work_judgment || existing.work_judgment_auto;
-    const wj = mayJudge ? decideWorkJudgment(row.overall_judgment, all, sex, u.checkup_type!) : null;
-    people.push(toApply(row, existing ? "add" : "new", existing?.id ?? null, items, wj, p.page));
+    const wj = mayJudge ? decideWorkJudgment(row.overall_judgment, all, sex, u.checkup_type!, ctx.rules) : null;
+    people.push(toApply(row, existing ? "add" : "new", existing?.id ?? null, items, wj, p.page, needsFollowup(row.overall_judgment, all, sex, ctx.rules)));
     result.people[i] = { ...p, name: row.target_name, birth: row.birth_date, overall: row.overall_judgment, status: existing ? "added" : "imported", judgment: wj, reasons: [], row: undefined, read: undefined };
   }
   // 要約を作り直す

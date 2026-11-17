@@ -22,7 +22,8 @@ import {
   parseOpinionNote,
 } from "@/lib/checkups";
 
-export type FindingItem = { item_name: string; judgment: string | null; computed?: boolean; value?: string | null };
+// referral = false: 要医療(D)だが、受診勧奨の基準(事務所の基準)には届いていない項目
+export type FindingItem = { item_name: string; judgment: string | null; computed?: boolean; value?: string | null; referral?: boolean };
 
 export type CheckupRow = {
   id: string;

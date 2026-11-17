@@ -6,7 +6,8 @@
 import { LEGAL_ITEMS, findLegalItemByHeader, parseNumber } from "@/lib/judgment";
 import { isRestrictionJudgment, isSevereJudgment, normalizeDate } from "@/lib/checkups";
 import { getFiscalYear } from "@/lib/fiscal";
-import { referralNote } from "@/lib/referral";
+import { markReferral, needsReferral, referralNote } from "@/lib/referral";
+import type { JudgmentRule } from "@/lib/judgment";
 import type { BaseCols, ColumnMode, ImportItem, ImportRow } from "@/lib/importRows";
 
 // ---- AIが読んだ内容(PDF) ----
@@ -200,24 +201,28 @@ export function classifyAgainstExisting(row: ImportRow, existing: ExistingChecku
 }
 
 // ---- 就業判定(事務所があらかじめ決めた基準) ----
-//   就業制限の検討水準(R)の項目がある → 判定保留(産業医が確認して確定する)
-//   総合判定D(要医療)              → 通常勤務可・受診が条件(医師の意見に受診勧奨の文)
-//   それ以外                        → 通常勤務可
+//   就業制限の検討水準(R)の項目がある            → 判定保留(産業医が確認して確定する)
+//   総合判定D(要医療)で、受診勧奨の基準に届く    → 通常勤務可・受診が条件(医師の意見に受診勧奨の文)
+//   総合判定D(要医療)だが、受診勧奨の基準には届かない → 通常勤務可(条件なし)
+//   それ以外                                      → 通常勤務可
 //   特殊健診は、自動では判定しない(産業医が判定する)
+// 受診勧奨の基準は、要医療(D)の基準より緩い事務所の基準(lib/referral.ts。例: γ-GTP は 201 以上)
 export type AutoJudgment = { judgment: "normal" | "pending"; condition: "consult" | null; note: string | null };
 
-export function decideWorkJudgment(
-  overall: string | null | undefined,
-  items: { name: string; value?: string | null; judgment?: string | null }[],
-  sex: "male" | "female" | null,
-  checkupType: string
-): AutoJudgment | null {
+type JItem = { name: string; value?: string | null; judgment?: string | null };
+const marked = (items: JItem[], sex: "male" | "female" | null, rules: JudgmentRule[]) =>
+  markReferral(items.map((it) => ({ item_name: it.name, judgment: it.judgment ?? null, value: it.value ?? null })), sex, rules);
+
+// その方が受診勧奨の対象か(事後措置を「受診勧奨」にするか)
+export function needsFollowup(overall: string | null | undefined, items: JItem[], sex: "male" | "female" | null, rules: JudgmentRule[]): boolean {
+  return needsReferral(overall, marked(items, sex, rules));
+}
+
+export function decideWorkJudgment(overall: string | null | undefined, items: JItem[], sex: "male" | "female" | null, checkupType: string, rules: JudgmentRule[] = []): AutoJudgment | null {
   if (checkupType === "special") return null;
   if (items.some((it) => isRestrictionJudgment(it.judgment))) return { judgment: "pending", condition: null, note: null };
-  if (isSevereJudgment(overall)) {
-    const note = referralNote(items.map((it) => ({ item_name: it.name, judgment: it.judgment ?? null, value: it.value ?? null })), sex);
-    return { judgment: "normal", condition: "consult", note: note || null };
-  }
+  const m = marked(items, sex, rules);
+  if (needsReferral(overall, m)) return { judgment: "normal", condition: "consult", note: referralNote(m, sex) || null };
   return { judgment: "normal", condition: null, note: null };
 }
 
@@ -233,6 +238,7 @@ export type PlannedPerson = {
   diffKind: "read" | "existing" | null;
   clean: boolean; // 確認待ちだが、問題は見つかっていない(PDFの確認運用のため)
   judgment: AutoJudgment | null; // 取り込むときに付ける就業判定(null は付けない)
+  needsFollowup: boolean; // 受診勧奨の対象か
 };
 
 export function planPeople(opts: {
@@ -245,7 +251,9 @@ export function planPeople(opts: {
   kind: "csv" | "pdf";
   rosterSize: number; // 個人カルテ(名簿)の人数
   pdfAuto: boolean; // PDFも、問題のない方は確認なしで取り込む
+  rules?: JudgmentRule[]; // 判定基準(受診勧奨の基準 S を含む)
 }): PlannedPerson[] {
+  const rules = opts.rules ?? [];
   const seen = new Set<string>();
   return opts.rows.map((row, i) => {
     const sex = row.sex === "male" || row.sex === "female" ? row.sex : null;
@@ -284,19 +292,20 @@ export function planPeople(opts: {
     const base = { row, page: opts.pages?.[i] ?? null, existingId: existing?.id ?? null, diffs, diffKind };
 
     if (against.mode === "same" && reasons.length === 0) {
-      return { ...base, action: "same" as const, addItems: [], reasons, clean: true, judgment: null };
+      return { ...base, action: "same" as const, addItems: [], reasons, clean: true, judgment: null, needsFollowup: false };
     }
     // 取り込むときに付ける就業判定。すでに医師が判定している方は変えない
     const addItems = against.mode === "add" ? against.items : [];
     const allItems = existing ? [...existing.items.map((it) => ({ name: it.item_name, value: it.value, judgment: it.judgment })), ...addItems] : row.items;
     const mayJudge = !existing || !existing.work_judgment || existing.work_judgment_auto;
-    const judgment = mayJudge ? decideWorkJudgment(row.overall_judgment, allItems, sex, opts.checkupType) : null;
+    const judgment = mayJudge ? decideWorkJudgment(row.overall_judgment, allItems, sex, opts.checkupType, rules) : null;
+    const rest = { addItems, judgment, needsFollowup: needsFollowup(row.overall_judgment, allItems, sex, rules) };
 
-    if (reasons.length > 0) return { ...base, action: "hold" as const, addItems, reasons, clean: false, judgment };
+    if (reasons.length > 0) return { ...base, ...rest, action: "hold" as const, reasons, clean: false };
     if (opts.kind === "pdf" && !opts.pdfAuto) {
-      return { ...base, action: "hold" as const, addItems, reasons: ["PDFから読み取った結果です(内容を確かめてから取り込みます)"], clean: true, judgment };
+      return { ...base, ...rest, action: "hold" as const, reasons: ["PDFから読み取った結果です(内容を確かめてから取り込みます)"], clean: true };
     }
-    return { ...base, action: against.mode === "add" ? ("add" as const) : ("import" as const), addItems, reasons, clean: true, judgment };
+    return { ...base, ...rest, action: against.mode === "add" ? ("add" as const) : ("import" as const), reasons, clean: true };
   });
 }
 

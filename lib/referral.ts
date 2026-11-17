@@ -4,7 +4,7 @@
 //   例: 「肝機能異常あり内科（消化器内科）受診」
 //       「高血圧・脂質異常あり内科受診、肝機能異常あり内科（消化器内科）受診」
 
-import { findLegalItemByHeader } from "@/lib/judgment";
+import { findLegalItemByHeader, judgeItem, splitBloodPressure, type JudgmentRule } from "@/lib/judgment";
 import { isRestrictionJudgment, isSevereJudgment } from "@/lib/checkups";
 
 type Category = { label: string; dept: string | ((sex: "male" | "female" | null) => string) };
@@ -58,7 +58,54 @@ function categoryOf(itemName: string): Category | null {
   return null;
 }
 
-export type ReferralItem = { item_name: string; judgment: string | null; value?: string | null };
+// referral = false: 要医療(D)だが、受診勧奨の基準(事務所の基準 S)には届いていない項目(受診勧奨の文章・受診が条件の対象にしない)
+export type ReferralItem = { item_name: string; judgment: string | null; value?: string | null; referral?: boolean };
+
+// ---- 受診勧奨の基準(事務所の基準) ----
+// 要医療(D)の判定はそのままにして、受診勧奨と「受診が条件」だけを、より緩い事務所の基準(S)で決める。
+//   例: γ-GTP は 101 以上で要医療(D)だが、受診勧奨は 201 以上から
+// S の基準を登録していない項目は、要医療(D)であれば受診勧奨の対象(今までどおり)
+
+// その項目の値が、受診勧奨の基準に届いているか
+export function reachesReferral(itemName: string, value: string | null | undefined, sex: "male" | "female" | null, rules: JudgmentRule[]): boolean {
+  const key = findLegalItemByHeader(itemName);
+  if (!key || value == null || value === "") return true;
+  const tier = (k: string) => rules.filter((r) => r.grade === "S" && r.item_key === k && (r.sex === "all" || (sex != null && r.sex === sex)));
+  // S の基準を D に読み替えて、判定と同じ手順(数値の範囲・定性の一致)で当てはめる
+  const hit = (k: string, v: string): boolean => {
+    const s = tier(k);
+    if (s.length === 0) return true;
+    return judgeItem(k, v, sex, s.map((r) => ({ ...r, grade: "D" as const }))) === "D";
+  };
+  if (key === "sbp" || key === "dbp") {
+    const bp = splitBloodPressure(value);
+    if (bp.sbp != null && bp.dbp != null) {
+      // 「142/90」形式: 基準のある側だけで決める。どちらにも基準が無ければ対象
+      const hasS = tier("sbp").length > 0 || tier("dbp").length > 0;
+      if (!hasS) return true;
+      return (tier("sbp").length > 0 && hit("sbp", String(bp.sbp))) || (tier("dbp").length > 0 && hit("dbp", String(bp.dbp)));
+    }
+  }
+  return hit(key, value);
+}
+
+// 項目ごとに、受診勧奨の対象かどうかの印(referral)を付ける。就業制限の検討水準(R)は常に対象
+export function markReferral<T extends ReferralItem>(items: T[], sex: "male" | "female" | null, rules: JudgmentRule[]): T[] {
+  return items.map((it) => {
+    if (isRestrictionJudgment(it.judgment) || !isSevereJudgment(it.judgment)) return it;
+    return { ...it, referral: reachesReferral(it.item_name, it.value, sex, rules) };
+  });
+}
+
+// その方が受診勧奨(と「受診が条件」)の対象か。総合判定が要医療(D)以上で、
+// 要医療・就業制限の項目のうち少なくとも1つが受診勧奨の基準に届いていること
+// (項目ごとの判定が無い記録は、総合判定だけで決める)
+export function needsReferral(overall: string | null | undefined, items: ReferralItem[]): boolean {
+  if (!isSevereJudgment(overall)) return false;
+  const severe = items.filter((it) => isSevereJudgment(it.judgment) || isRestrictionJudgment(it.judgment));
+  if (severe.length === 0) return true;
+  return severe.some((it) => it.referral !== false);
+}
 
 // 血色素量・赤血球数の異常が「高い側(多血)」かどうか。
 // 要医療(D)の高値側の基準そのものを使う:
@@ -89,6 +136,7 @@ export function referralNote(items: ReferralItem[], sex: "male" | "female" | nul
   };
   for (const it of items) {
     if (!(isSevereJudgment(it.judgment) || isRestrictionJudgment(it.judgment))) continue;
+    if (it.referral === false) continue; // 要医療(D)だが、受診勧奨の基準には届いていない
     let cat = categoryOf(it.item_name);
     // 貧血の区分でも、値が高い側(多血)なら「多血あり内科受診」にする
     if (cat && cat.label === "貧血" && isHighBloodCount(it.item_name, it.value, sex)) cat = POLYCYTHEMIA_CATEGORY;

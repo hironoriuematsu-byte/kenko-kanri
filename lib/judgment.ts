@@ -11,7 +11,10 @@ export type JudgmentRule = {
   item_label: string;
   unit: string | null;
   sex: "all" | "male" | "female";
-  grade: "B" | "C" | "D" | "R";
+  // S = 受診勧奨・「受診が条件」の基準(事務所の基準)。A〜D・R の判定には使わない。
+  //     要医療(D)と判定された項目のうち、この基準に届いたものだけを受診勧奨の対象にする(lib/referral.ts)。
+  //     S の基準を登録していない項目は、要医療(D)であれば受診勧奨の対象になる
+  grade: "B" | "C" | "D" | "R" | "S";
   min_value: number | null;
   max_value: number | null;
   match_text: string | null;
@@ -192,9 +195,10 @@ export function judgeItem(
   if (itemKey === "ecg") return judgeEcgText(rawValue);
   if (itemKey === "chest_xray") return judgeChestXrayText(rawValue);
 
-  const applicable = rules.filter(
-    (r) => r.item_key === itemKey && (r.sex === "all" || (sex != null && r.sex === sex))
-  );
+  // 受診勧奨の基準(S)は、A〜D・R の判定には使わない
+  const applicable = rules
+    .filter((r) => r.grade !== "S" && r.item_key === itemKey && (r.sex === "all" || (sex != null && r.sex === sex)))
+    .map((r) => ({ ...r, grade: r.grade as Exclude<JudgmentRule["grade"], "S"> }));
   if (applicable.length === 0) return null; // 基準未設定の項目は判定しない
 
   // 聴力が「1(所見なし)/2(所見あり)」の区分番号、または「所見なし」「所見あり」の文字で記載されている場合

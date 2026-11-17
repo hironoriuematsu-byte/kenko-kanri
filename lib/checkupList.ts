@@ -2,7 +2,8 @@ import { createClient } from "@/lib/supabase/server";
 import type { CheckupRow } from "@/components/CheckupsTable";
 import { getOfficeInfo, type OfficeInfo } from "@/lib/officeInfo";
 import { summarizeByCategory, type CategorySummary, type ReportItem } from "@/lib/checkupReport";
-import { CHECKUP_TYPES, isFindingJudgment, isRestrictionJudgment, needsAttention } from "@/lib/checkups";
+import { CHECKUP_TYPES, isFindingJudgment, isRestrictionJudgment, isSevereJudgment, needsAttention } from "@/lib/checkups";
+import { reachesReferral } from "@/lib/referral";
 import { getJudgmentRules } from "@/lib/judgmentRules";
 import type { JudgmentRule } from "@/lib/judgment";
 import { fetchCheckupItems } from "@/lib/checkupItems";
@@ -218,7 +219,10 @@ export async function loadCheckupList(
     }
     const arr = findingsByCheckup.get(it.checkup_id) ?? [];
     // 値も持たせる(受診勧奨の文章で「貧血」か「多血」かを値で見分けるため)
-    arr.push({ item_name: it.item_name, judgment, computed, value: it.value });
+    // 要医療(D)の項目には、受診勧奨の基準(事務所の基準)に届いているかの印を付ける
+    const sexOf = sexById.get(it.checkup_id) ?? null;
+    const referral = isSevereJudgment(judgment) && !isRestrictionJudgment(judgment) ? reachesReferral(it.item_name, it.value, sexOf, rules) : undefined;
+    arr.push({ item_name: it.item_name, judgment, computed, value: it.value, ...(referral === false ? { referral } : {}) });
     findingsByCheckup.set(it.checkup_id, arr);
   }
   // 本人がQRコードから送った受診報告(最新1件)。0142 未適用の環境では表が無いので無視する

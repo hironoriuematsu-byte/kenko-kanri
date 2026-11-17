@@ -6,7 +6,7 @@ import { createClient } from "@/lib/supabase/browser";
 import { gradeFromValue } from "@/lib/gradeFromValue";
 import { isFindingJudgment, isRestrictionJudgment } from "@/lib/checkups";
 import { findLegalItemByHeader, overallGrade, worstGrade, type Grade, type JudgmentRule } from "@/lib/judgment";
-import { referralNote } from "@/lib/referral";
+import { markReferral, needsReferral, referralNote } from "@/lib/referral";
 
 // 医師の意見のうち、一括判定で自動で入れた受診勧奨の文章(例: 「肝機能異常あり内科（消化器内科）受診、脂質異常あり内科受診」)
 // を見分ける。定型文・自由記入とは " / " で区切られている
@@ -56,6 +56,7 @@ export default function RecomputeJudgments({
         `・対象は測定値がある法定項目です（健診機関の判定は上書きされます）\n` +
         `・法定項目以外の判定はそのまま残ります\n` +
         `・総合判定と有所見も計算し直します\n` +
+        `・受診勧奨と「受診が条件」は、受診勧奨の基準（事務所基準）に合わせます（勧奨済・受診済の方は変えません）\n` +
         `・就業判定は変更しません（総合判定がDに上がった方の「通常勤務可」は判定保留に戻します）\n` +
         `・医師の意見のうち自動で入れた受診勧奨の文章（例: 肝機能異常あり内科（消化器内科）受診）は新しい判定に合わせます\n\n` +
         `よろしいですか？`
@@ -70,7 +71,7 @@ export default function RecomputeJudgments({
     // 対象の健診結果(性別は判定に使う)
     const { data: checkups, error: cErr } = await supabase
       .from("hm_checkups")
-      .select("id, sex, work_judgment_note, checkup_type, overall_judgment")
+      .select("id, sex, work_judgment_note, checkup_type, overall_judgment, followup_status")
       .eq("company_id", companyId)
       .eq("fiscal_year", fiscalYear);
     if (cErr || !checkups || checkups.length === 0) {
@@ -136,15 +137,12 @@ export default function RecomputeJudgments({
       const its = items
         .filter((it) => it.checkup_id === c.id)
         .map((it) => ({ item_name: it.item_name, value: it.value, judgment: newJudgmentById.get(it.id) ?? it.judgment }));
-      const next = reconcileReferralNote(c.work_judgment_note, referralNote(its, sexById.get(c.id) ?? null));
+      // 要医療(D)でも受診勧奨の基準(事務所の基準)に届かない項目は、受診勧奨の文章に入れない
+      const sexOf = sexById.get(c.id) ?? null;
+      const next = reconcileReferralNote(c.work_judgment_note, referralNote(markReferral(its, sexOf, rules), sexOf));
       if (next !== null) noteUpdates.push({ id: c.id, note: next });
     }
 
-    if (changed === 0 && noteUpdates.length === 0) {
-      setMessage("判定基準どおりでした（変更はありません）。");
-      setBusy(false);
-      return;
-    }
 
     // 保存する形に組み立てる(総合判定・有所見も入れ直す)
     const typeById = new Map<string, { type: string; overall: string | null }>(
@@ -153,7 +151,30 @@ export default function RecomputeJudgments({
         { type: c.checkup_type ?? "regular", overall: c.overall_judgment ?? null },
       ])
     );
-    const payload = Array.from(byCheckup.keys()).map((checkupId) => {
+    // 受診勧奨の対象か(事務所の基準)。要医療(D)の判定はそのままで、受診勧奨と「受診が条件」だけをこの基準で決める。
+    // 判定が変わらなくても、受診勧奨の状態が基準と合っていない方は直す(特殊健診は対象外)
+    const followupById = new Map<string, boolean>();
+    for (const c of checkups as { id: string; checkup_type?: string; overall_judgment?: string | null; followup_status?: string | null }[]) {
+      if ((c.checkup_type ?? "regular") === "special") continue;
+      const grades = gradesByCheckup.get(c.id) ?? [];
+      const overall = byCheckup.has(c.id) ? overallGrade(worstGrade(grades)) ?? "" : c.overall_judgment ?? "";
+      const sexOf = sexById.get(c.id) ?? null;
+      const its = items
+        .filter((it) => it.checkup_id === c.id)
+        .map((it) => ({ item_name: it.item_name, value: it.value, judgment: newJudgmentById.get(it.id) ?? it.judgment }));
+      const needs = needsReferral(overall, markReferral(its, sexOf, rules));
+      const misaligned = (needs && c.followup_status === "none") || (!needs && c.followup_status === "pending");
+      if (byCheckup.has(c.id) || misaligned) followupById.set(c.id, needs);
+    }
+    const followOnly = Array.from(followupById.keys()).filter((id) => !byCheckup.has(id));
+
+    if (changed === 0 && noteUpdates.length === 0 && followOnly.length === 0) {
+      setMessage("判定基準どおりでした（変更はありません）。");
+      setBusy(false);
+      return;
+    }
+
+    const payload: Record<string, unknown>[] = Array.from(byCheckup.keys()).map((checkupId) => {
       const grades = gradesByCheckup.get(checkupId) ?? [];
       const worst = overallGrade(worstGrade(grades));
       const hasFindings = grades.some((g) => isFindingJudgment(g) || isRestrictionJudgment(g));
@@ -165,12 +186,17 @@ export default function RecomputeJudgments({
         overall_judgment: keepOverall ? meta!.overall! : worst ?? "",
         has_findings: hasFindings,
         items: byCheckup.get(checkupId) ?? [],
+        ...(followupById.has(checkupId) ? { needs_followup: followupById.get(checkupId) } : {}),
       };
     });
+    // 判定は変わらないが、受診勧奨の状態だけを基準に合わせる方
+    for (const id of followOnly) payload.push({ checkup_id: id, overall_judgment: "", items: [], needs_followup: followupById.get(id) });
 
     // 1回の送信が大きくなりすぎないよう分けて送る
     let saved = 0;
     let resetPending = 0; // 再計算で D に上がり、就業判定を「判定保留」に戻した方(0144)
+    let followupCleared = 0; // 受診勧奨の対象から外れた方(0156)
+    let followupAdded = 0; // 受診勧奨の対象になった方(0156)
     for (let i = 0; i < payload.length; i += 50) {
       const { data, error: sErr } = await supabase.rpc("hm_apply_judgments", {
         p_rows: payload.slice(i, i + 50),
@@ -182,9 +208,11 @@ export default function RecomputeJudgments({
       }
       // 0144 以降は {count, reset_pending}、それ以前は人数だけが返る
       if (data && typeof data === "object") {
-        const r = data as { count?: number; reset_pending?: number };
+        const r = data as { count?: number; reset_pending?: number; followup_cleared?: number; followup_added?: number };
         saved += Number(r.count ?? 0);
         resetPending += Number(r.reset_pending ?? 0);
+        followupCleared += Number(r.followup_cleared ?? 0);
+        followupAdded += Number(r.followup_added ?? 0);
       } else {
         saved += Number(data ?? 0);
       }
@@ -200,6 +228,8 @@ export default function RecomputeJudgments({
     setMessage(
       `${saved}名分の判定を計算し直しました（項目 ${changed}件を更新）。` +
         (notesUpdated > 0 ? ` 医師の意見の受診勧奨の文章を ${notesUpdated}名分、新しい判定に合わせました。` : "") +
+        (followupCleared > 0 ? ` 受診勧奨の基準に届かない ${followupCleared}名を、受診勧奨の対象から外しました（「受診が条件」も外れます）。` : "") +
+        (followupAdded > 0 ? ` ${followupAdded}名を受診勧奨の対象にしました。` : "") +
         (resetPending > 0
           ? ` 総合判定がDに上がった ${resetPending}名の就業判定を「判定保留」に戻しました。一覧の「要対応」からご確認のうえ、再判定と医師の意見の入力をお願いします。`
           : "")
