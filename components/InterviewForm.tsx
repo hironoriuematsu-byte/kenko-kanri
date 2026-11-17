@@ -20,6 +20,10 @@ export type InterviewInput = {
   scheduled_local: string; // datetime-local形式
   method: string;
   location: string;
+  // ストレスチェックWebの面接指導の申出から登録された面談(その申出のID)
+  interview_request_id?: string | null;
+  // 本人から面接指導の申出があった(会社への結果の提供に同意している)ことを、産業医事務所が確かめた印(0159)
+  request_confirmed?: boolean;
 };
 
 type Person = {
@@ -45,11 +49,13 @@ export default function InterviewForm({
   persons,
   backHref,
   mode,
+  confirmReady = false,
 }: {
   initial: InterviewInput;
   persons: Person[];
   backHref: string;
   mode: "office" | "company";
+  confirmReady?: boolean; // 申出の確認の印が使えるか(SQL 0159 の実行後)
 }) {
   const router = useRouter();
   const [v, setV] = useState<InterviewInput>(initial);
@@ -71,10 +77,27 @@ export default function InterviewForm({
   const set = <K extends keyof InterviewInput>(k: K, val: InterviewInput[K]) =>
     setV((p) => ({ ...p, [k]: val }));
 
+  // 手で登録する高ストレス面接指導(ストレスチェックWebの申出から登録されたものではない)は、申出の確認が要る
+  const needsConfirm = v.interview_type === "high_stress" && !v.interview_request_id;
+  // 保存する申出の確認の印(SQL 0159 の実行前は送らない)
+  const confirmPayload = confirmReady ? { request_confirmed: needsConfirm && Boolean(v.request_confirmed) } : {};
+
   const onSubmit = async (e: FormEvent) => {
     e.preventDefault();
     if (!v.target_name.trim()) {
       setError("対象者氏名を入力してください。");
+      return;
+    }
+    if (mode === "office" && !v.interview_type) {
+      setError("面談種別を選んでください。");
+      return;
+    }
+    // 高ストレス面接指導は、本人の申出(=会社への結果の提供に同意)がある方だけを登録する。
+    // 申出のない方を高ストレス面接指導として登録すると、高ストレスであることが会社に伝わってしまうため
+    if (mode === "office" && confirmReady && needsConfirm && !v.request_confirmed) {
+      setError(
+        "高ストレス面接指導は、本人から面接指導の申出があった方だけ登録できます。申出があった場合はチェックを入れてください。申出のない方の相談は「その他・健康相談等」で登録してください。"
+      );
       return;
     }
     // 生年月日の必須/任意は lib/personPolicy.ts で切り替える(同姓同名がいる場合は下で別途求める)
@@ -159,6 +182,7 @@ export default function InterviewForm({
               target_user_id: targetUserId,
               target_name: v.target_name.trim(),
               interview_type: v.interview_type,
+              ...confirmPayload,
             }
           : schedulePayload;
       const { error } = await supabase.from("hm_interviews").update(payload).eq("id", id);
@@ -181,6 +205,7 @@ export default function InterviewForm({
           target_user_id: targetUserId,
           target_name: v.target_name.trim(),
           interview_type: v.interview_type,
+          ...confirmPayload,
           ...schedulePayload,
           created_by: userId,
         })
@@ -279,13 +304,38 @@ export default function InterviewForm({
             <select
               value={v.interview_type}
               onChange={(e) => set("interview_type", e.target.value)}
+              required
             >
+              <option value="">（選んでください）</option>
               {Object.entries(INTERVIEW_TYPES).map(([k, label]) => (
                 <option key={k} value={k}>
                   {label}
                 </option>
               ))}
             </select>
+            {v.interview_type === "high_stress" && v.interview_request_id && (
+              <p className="muted" style={{ margin: "6px 0 0" }}>
+                ストレスチェックWebで本人が面接指導を申し出た面談です(会社への結果の提供に同意済み)。
+              </p>
+            )}
+            {confirmReady && needsConfirm && (
+              <div style={{ marginTop: 8, background: "var(--orange-light)", border: "1px solid var(--orange)", borderRadius: 8, padding: "10px 12px" }}>
+                <label style={{ display: "flex", gap: 8, alignItems: "flex-start", margin: 0, fontWeight: 700, cursor: "pointer" }}>
+                  <input
+                    type="checkbox"
+                    checked={Boolean(v.request_confirmed)}
+                    onChange={(e) => set("request_confirmed", e.target.checked)}
+                    style={{ width: "auto", marginTop: 4 }}
+                  />
+                  <span>本人から面接指導の申出があった（会社への結果の提供に同意している）</span>
+                </label>
+                <p className="muted" style={{ margin: "6px 0 0", fontSize: 13 }}>
+                  「高ストレス面接指導」の予定は、会社の担当者にも見えます。ストレスチェックの結果は本人の同意なく会社に伝えられないため、
+                  申出のあった方だけを登録してください（紙で受検した方の申出など）。
+                  申出のない方の相談は、「その他・健康相談等」で登録してください。
+                </p>
+              </div>
+            )}
           </div>
         </>
       )}

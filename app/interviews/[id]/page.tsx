@@ -45,6 +45,14 @@ export default async function InterviewDetailPage({ params }: { params: { id: st
   ]);
   if (!iv) notFound();
 
+  // 手で登録した「高ストレス面接指導」で、本人の申出を確かめていないものは、会社の担当者に表示しない(SQL 0159)。
+  // 実施者には、その状態を知らせる(列がまだ無ければ何も出さない)
+  let hiddenFromCompany = false;
+  if (iv.interview_type === "high_stress" && !iv.interview_request_id) {
+    const { data: c, error: cErr } = await supabase.from("hm_interviews").select("request_confirmed").eq("id", params.id).maybeSingle();
+    hiddenFromCompany = !cErr && c != null && !c.request_confirmed;
+  }
+
   // ストレスチェックWebの面接指導の申出から登録された面談: 申出のもとになったストレスチェック結果(0148。未適用なら出さない)
   let stressRows: RequestedStressResult[] = [];
   if (iv.interview_request_id && iv.target_user_id) {
@@ -127,6 +135,17 @@ export default async function InterviewDetailPage({ params }: { params: { id: st
             )}
           </div>
         </div>
+
+        {isOffice && hiddenFromCompany && (
+          <div className="card" style={{ borderColor: "var(--orange)", background: "var(--orange-light)" }}>
+            <strong>この面談は、会社の担当者には表示されていません。</strong>
+            <p style={{ margin: "6px 0 0", fontSize: 14 }}>
+              「高ストレス面接指導」は、本人から面接指導の申出があった(会社への結果の提供に同意している)方の予定だけを会社に見せます。
+              申出があった方は「予定を編集」で「本人から面接指導の申出があった」にチェックを入れてください。
+              申出のない方の相談であれば、種別を「その他・健康相談等」に変えてください。
+            </p>
+          </div>
+        )}
 
         {(isOffice || isCompany) && <StressResultsCard rows={stressRows} showReportLink={isOffice} />}
 

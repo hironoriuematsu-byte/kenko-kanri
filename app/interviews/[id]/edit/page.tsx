@@ -29,6 +29,14 @@ export default async function EditInterviewPage({ params }: { params: { id: stri
     redirect(`/interviews/${iv.id}`);
   }
 
+  // 申出との結びつきと、申出の確認の印(SQL 0159。列がまだ無ければ使わない)
+  const { data: link, error: linkErr } = await supabase
+    .from("hm_interviews")
+    .select("interview_request_id, request_confirmed")
+    .eq("id", params.id)
+    .maybeSingle();
+  const confirmReady = !linkErr;
+
   const { data: persons } = isOffice
     ? await supabase
         .from("hm_persons")
@@ -55,6 +63,7 @@ export default async function EditInterviewPage({ params }: { params: { id: stri
             mode={isOffice ? "office" : "company"}
             persons={persons ?? []}
             backHref={`/interviews/${iv.id}`}
+            confirmReady={confirmReady}
             initial={{
               id: iv.id,
               company_id: iv.company_id,
@@ -66,6 +75,8 @@ export default async function EditInterviewPage({ params }: { params: { id: stri
               scheduled_local: toDatetimeLocal(iv.scheduled_at),
               method: iv.method ?? "",
               location: iv.location ?? "",
+              interview_request_id: (link?.interview_request_id as string | null | undefined) ?? null,
+              request_confirmed: Boolean(link?.request_confirmed),
             }}
           />
         </div>

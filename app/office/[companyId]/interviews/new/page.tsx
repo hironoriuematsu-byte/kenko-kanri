@@ -29,6 +29,10 @@ export default async function NewInterviewPage({
     .order("employee_no", { ascending: true, nullsFirst: false })
     .order("full_name");
 
+  // 申出の確認の印(SQL 0159)が使えるか。列がまだ無ければ、チェック欄を出さない
+  const { error: confirmErr } = await supabase.from("hm_interviews").select("request_confirmed").limit(1);
+  const confirmReady = !confirmErr;
+
   return (
     <>
       <Header profile={profile} />
@@ -39,13 +43,15 @@ export default async function NewInterviewPage({
             mode="office"
             persons={persons ?? []}
             backHref={`/office/${company.id}/interviews`}
+            confirmReady={confirmReady}
             initial={{
               company_id: company.id,
               person_id: null,
               target_user_id: null,
               target_name: "",
               birth_date: "",
-              interview_type: "high_stress",
+              // 種類は必ず選んでもらう(「高ストレス面接指導」のまま登録してしまう誤りを防ぐ)
+              interview_type: "",
               scheduled_local: "",
               method: "",
               location: "",
