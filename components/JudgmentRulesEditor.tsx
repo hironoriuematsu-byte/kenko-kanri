@@ -7,10 +7,14 @@ import { LEGAL_ITEMS, type JudgmentRule } from "@/lib/judgment";
 
 const SEX_LABEL: Record<string, string> = { all: "共通", male: "男性", female: "女性" };
 
-// 事務所の自動判定基準の編集(officeのみ)
-export default function JudgmentRulesEditor({ initial }: { initial: JudgmentRule[] }) {
+// 事務所の自動判定基準の編集(officeのみ)。
+//   tier="judgment": A〜D・R の判定基準(要医療(D)はここで決まる)
+//   tier="referral": 受診勧奨の基準(事務所基準)。要医療(D)と判定された項目のうち、この基準に届いたものだけを
+//                    受診勧奨・「受診が条件」の対象にする(判定基準の区分 S の行)
+export default function JudgmentRulesEditor({ initial, tier = "judgment" }: { initial: JudgmentRule[]; tier?: "judgment" | "referral" }) {
   const router = useRouter();
-  const [rules, setRules] = useState<JudgmentRule[]>(initial);
+  const referral = tier === "referral";
+  const [rules, setRules] = useState<JudgmentRule[]>(initial.filter((r) => (r.grade === "S") === referral));
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
@@ -78,7 +82,7 @@ export default function JudgmentRulesEditor({ initial }: { initial: JudgmentRule
         item_key: itemKey,
         item_label: itemLabel,
         sex,
-        grade: "C",
+        grade: referral ? "S" : "C",
         sort_order: 99,
       })
       .select("id, item_key, item_label, unit, sex, grade, min_value, max_value, match_text, sort_order")
@@ -106,10 +110,18 @@ export default function JudgmentRulesEditor({ initial }: { initial: JudgmentRule
     setBusy(false);
   };
 
-  const byItem = LEGAL_ITEMS.map((it) => ({
+  // 受診勧奨の基準では、要医療(D)になりうる項目だけを並べる(Dの基準がある項目と、所見の文言でDになる心電図・胸部エックス線)
+  const canBeSevere = (key: string) => key === "ecg" || key === "chest_xray" || initial.some((r) => r.item_key === key && r.grade === "D");
+  const byItem = LEGAL_ITEMS.filter((it) => !referral || canBeSevere(it.key) || rules.some((r) => r.item_key === it.key)).map((it) => ({
     ...it,
     rules: rules.filter((r) => r.item_key === it.key),
   }));
+  // 要医療(D)の基準(受診勧奨の基準と見比べられるように、項目名の横に出す)
+  const dText = (key: string) =>
+    initial
+      .filter((r) => r.item_key === key && r.grade === "D")
+      .map((r) => `${r.sex === "all" ? "" : SEX_LABEL[r.sex]}${r.match_text ? r.match_text : `${r.min_value != null ? `${r.min_value}以上` : ""}${r.max_value != null ? `${r.max_value}以下` : ""}`}`)
+      .join("・");
 
   return (
     <div>
@@ -127,8 +139,17 @@ export default function JudgmentRulesEditor({ initial }: { initial: JudgmentRule
             {item.label}
             {item.unit && <span className="muted">（{item.unit}）</span>}
             {item.sexSpecific && <span className="badge" style={{ marginLeft: 8 }}>性別あり</span>}
+            {referral && dText(item.key) && (
+              <span className="muted" style={{ marginLeft: 10, fontSize: 12.5, fontWeight: 400 }}>
+                要医療（D）: {dText(item.key)}
+              </span>
+            )}
           </h3>
-          {item.textJudged ? (
+          {referral && item.textJudged ? (
+            <p className="muted">所見の文言で要医療（D）と判定されたら、受診勧奨の対象にします（数値の基準はありません）。</p>
+          ) : referral && item.rules.length === 0 ? (
+            <p className="muted">受診勧奨の基準は未登録です。要医療（D）と判定されたら、そのまま受診勧奨の対象になります。</p>
+          ) : item.textJudged ? (
             <p className="muted">
               所見の文言から判定します（数値の基準はありません）。
               {item.key === "ecg" &&
@@ -143,7 +164,7 @@ export default function JudgmentRulesEditor({ initial }: { initial: JudgmentRule
               <thead>
                 <tr>
                   <th style={{ width: 70 }}>対象</th>
-                  <th style={{ width: 80 }}>判定</th>
+                  <th style={{ width: referral ? 110 : 80 }}>{referral ? "区分" : "判定"}</th>
                   <th>下限（以上）</th>
                   <th>上限（以下）</th>
                   <th>定性一致</th>
@@ -155,19 +176,22 @@ export default function JudgmentRulesEditor({ initial }: { initial: JudgmentRule
                   <tr key={r.id}>
                     <td>{SEX_LABEL[r.sex]}</td>
                     <td>
-                      <select
-                        value={r.grade}
-                        onChange={(e) =>
-                          setField(r.id!, { grade: e.target.value as JudgmentRule["grade"] })
-                        }
-                        onBlur={() => save(r)}
-                      >
-                        <option value="B">B</option>
-                        <option value="C">C</option>
-                        <option value="D">D</option>
-                        <option value="R">R（就業制限の検討）</option>
-                        <option value="S">受診勧奨（受診勧奨・受診が条件の基準）</option>
-                      </select>
+                      {referral ? (
+                        <span className="badge orange">受診勧奨</span>
+                      ) : (
+                        <select
+                          value={r.grade}
+                          onChange={(e) =>
+                            setField(r.id!, { grade: e.target.value as JudgmentRule["grade"] })
+                          }
+                          onBlur={() => save(r)}
+                        >
+                          <option value="B">B</option>
+                          <option value="C">C</option>
+                          <option value="D">D</option>
+                          <option value="R">R（就業制限の検討）</option>
+                        </select>
+                      )}
                     </td>
                     <td>
                       <input
@@ -216,7 +240,7 @@ export default function JudgmentRulesEditor({ initial }: { initial: JudgmentRule
               </tbody>
             </table>
           )}
-          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          <div style={{ display: referral && item.textJudged ? "none" : "flex", gap: 8, flexWrap: "wrap" }}>
             {(item.sexSpecific ? ["male", "female"] : ["all"]).map((sex) => (
               <button
                 key={sex}
@@ -225,7 +249,7 @@ export default function JudgmentRulesEditor({ initial }: { initial: JudgmentRule
                 onClick={() => addRule(item.key, item.label, sex)}
                 disabled={busy}
               >
-                ＋ ルールを追加（{SEX_LABEL[sex]}）
+                ＋ {referral ? "受診勧奨の基準" : "ルール"}を追加（{SEX_LABEL[sex]}）
               </button>
             ))}
           </div>

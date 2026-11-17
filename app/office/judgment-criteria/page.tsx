@@ -22,6 +22,10 @@ export default async function JudgmentCriteriaPage() {
           <Link href="/office?tab=settings">← 事務所の設定</Link>
         </p>
         <h1 className="page-title">健診結果の判定基準（事務所基準）</h1>
+        <p style={{ margin: "0 0 12px", fontSize: 14 }}>
+          このページには2つの基準があります。① <strong>判定（A〜D）</strong>: 要医療（D）かどうかを決めます（学会の判定区分）。
+          ② <a href="#referral"><strong>受診勧奨の基準（事務所基準）</strong></a>: 受診勧奨をするかどうかを決めます。
+        </p>
 
         <div className="notice">
           日本人間ドック・予防医療学会「<strong>判定区分（2026年4月1日改定）</strong>」の数値を、
@@ -57,20 +61,6 @@ export default async function JudgmentCriteriaPage() {
         </div>
 
         <div className="card">
-          <h2>受診勧奨の基準（事務所基準）</h2>
-          <p style={{ margin: 0, fontSize: 14, lineHeight: 1.8 }}>
-            要医療（D）の判定とは別に、<strong>受診勧奨と、就業判定の「受診が条件」</strong>を付ける基準を、項目ごとに決められます
-            （判定の欄で「受診勧奨」を選んだ行）。要医療（D）と判定された項目のうち、この基準に届いたものだけが、
-            受診勧奨・受診が条件・医師の意見の受診勧奨の文章の対象になります。
-            <br />
-            例: γ-GTP は 101 以上で要医療（D）と表示しますが、受診勧奨は 201 以上から。
-            <br />
-            「受診勧奨」の行がない項目は、これまでどおり、要医療（D）であれば受診勧奨の対象です。
-            基準を変えたあとは、健康診断管理の「判定を再計算（事務所基準）」を押すと、取り込み済みの結果にも反映されます。
-          </p>
-        </div>
-
-        <div className="card">
           <h2>判定ルール</h2>
           <p className="muted">
             数値項目は「下限（以上）」「上限（以下）」で範囲を指定します（空欄は制限なし）。
@@ -79,6 +69,23 @@ export default async function JudgmentCriteriaPage() {
             最も重い判定が総合判定になります。
           </p>
           <JudgmentRulesEditor initial={rules} />
+        </div>
+
+        <div className="card" id="referral">
+          <h2>受診勧奨の基準（事務所基準）</h2>
+          <p style={{ margin: "0 0 10px", fontSize: 14, lineHeight: 1.8 }}>
+            <strong>受診勧奨をするかどうか</strong>と、就業判定の<strong>「受診が条件」</strong>、医師の意見に入る受診勧奨の文章は、
+            上の判定（A〜D）とは別に、ここに登録した事務所の基準で決めます。
+            要医療（D）と判定された項目のうち、ここの基準に届いたものがある方だけが、受診勧奨の対象になります。
+            <br />
+            例: γ-GTP は 101 以上で要医療（D）と表示しますが、受診勧奨は 201 以上から。
+            <br />
+            <span className="muted">
+              就業制限の検討水準（R）の項目がある方は、ここの基準にかかわらず受診勧奨の対象です。
+              基準を変えたあとは、健康診断管理の「判定を再計算（事務所基準）」を押すと、取り込み済みの結果にも反映されます。
+            </span>
+          </p>
+          <JudgmentRulesEditor initial={rules} tier="referral" />
         </div>
       </main>
     </>
