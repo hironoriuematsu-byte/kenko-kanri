@@ -311,3 +311,18 @@ CSV取込による対応から始め、需要に応じてAPI連携へ進める�
 - 0147: ファイル保管(Storage hm-files)の閲覧を、実施者=全社、事業者担当者=自社、従業員=自社の「従業員に公開」された
   議事録の添付だけに限定(従来はロールを見ておらず、従業員・実施事務従事者が自社フォルダのファイルを取得できた)。
   受診報告(hm_consult_reports)の閲覧を実施者と自社の事業者担当者に限定(従来は同じ企業の従業員も読めた)
+
+## 二段階認証(メールの確認コード + この端末を30日間覚える)
+
+ストレスチェックWebと共通のしくみ(同じデータベース・同じアカウントのため)。詳しくはストレスチェックWebの
+`docs/production-checklist.md` と SQL(ストレスチェックWeb `0035_second_step.sql` = このリポジトリの `0160_second_step.sql`。同じ内容)。
+
+- 対象: 事務所 / 会社の担当者・実施事務従事者(`hm_company_access` の方を含む)。従業員は対象外
+- 有効・無効の切り替えは、ストレスチェックWebの事務所ダッシュボード「🔒 二段階認証」で行う(このアプリには設定画面を置かない)
+- 確認が済んでいないログインでは、すべての表の制限ポリシー(`second_step`)と `hm_my_role` / `hm_my_company` / `hm_is_office` が
+  権限を返さない。**これらの関数をあとから作り直すときは、`and public.second_step_ok()` の条件を必ず残す**
+- 画面の誘導: `middleware.ts` → `/api/second-step/gate` → `/verify`(`components/VerifyForm.tsx`)。
+  `/api/second-step` の GET は、準備状況(メール送信の設定・SQLの適用)だけをログインなしで返す(ストレスチェックWebの設定画面が確かめる)
+- 必要な環境変数: `SUPABASE_SERVICE_ROLE_KEY` / `RESEND_API_KEY` / `SENDER_EMAIL`(未設定のまま有効にすると、対象の方はこのアプリに入れない)
+- 新しい表を追加したら、SQL の最後に `select public.second_step_apply_policies();` を実行する
+

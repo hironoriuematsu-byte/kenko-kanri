@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { stepBlocked } from "@/lib/secondStepState";
 import { adminClient } from "@/lib/supabase/admin";
 import { aiReady } from "@/lib/autoReadServer";
 import { approveHeld, changeRound, loadUpload, pdfAutoSetting, purgeOldUploads, runStep, stateOf, type Actor, type ReadResult } from "@/lib/autoReadRun";
@@ -28,6 +29,8 @@ async function getActor(): Promise<Actor | null> {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) return null;
+  // 二段階認証の対象の方は、確認コードの入力が済んでから
+  if (await stepBlocked(supabase)) return null;
   let { data: p } = await supabase.from("profiles").select("id, role, company_id, hm_company_access, hm_view_only").eq("id", user.id).maybeSingle();
   if (!p) ({ data: p } = (await supabase.from("profiles").select("id, role, company_id").eq("id", user.id).maybeSingle()) as { data: typeof p });
   if (!p) return null;

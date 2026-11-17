@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { stepBlocked, STEP_BLOCKED_MESSAGE } from "@/lib/secondStepState";
 import { mailConfigured, sendMail, sleep } from "@/lib/mail";
 
 export const dynamic = "force-dynamic";
@@ -14,6 +15,8 @@ export async function POST(req: Request) {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "ログインの有効期限が切れました。ページを再読み込みしてください。" }, { status: 401 });
+  // 二段階認証の対象の方は、確認コードの入力が済んでから
+  if (await stepBlocked(supabase)) return NextResponse.json({ error: STEP_BLOCKED_MESSAGE }, { status: 401 });
 
   let body: { interviewId?: unknown; preview?: unknown };
   try {
