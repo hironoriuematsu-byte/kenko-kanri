@@ -50,7 +50,9 @@ export default async function CompanyCheckupReportPage({ searchParams }: { searc
         </p>
         <div className="card">
           <ReportTabs
-            basePath={`/company/checkups/report?year=${data.year}`}
+            path="/company/checkups/report"
+            year={data.year}
+            years={data.years}
             current={form}
             counts={{
               regular: data.form6.regularCount,

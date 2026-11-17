@@ -56,7 +56,9 @@ export default async function OfficeCheckupReportPage({
         </p>
         <div className="card">
           <ReportTabs
-            basePath={`/office/${company.id}/checkups/report?year=${data.year}`}
+            path={`/office/${company.id}/checkups/report`}
+            year={data.year}
+            years={data.years}
             current={form}
             counts={{
               regular: data.form6.regularCount,
