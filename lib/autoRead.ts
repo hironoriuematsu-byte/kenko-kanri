@@ -104,6 +104,31 @@ export function keysWithData(dataRows: string[][], colModes: Record<number, Colu
 }
 const squash = (s: string | null | undefined) => (s ?? "").normalize("NFKC").replace(/[\s　]/g, "");
 
+// 特殊健診の項目名から、取り込み方を決める(手作業の取込の既定と同じ考え方。ただし法定項目以外も値として取り込む)
+export function specialModeOf(label: string): ColumnMode {
+  const head = label.normalize("NFKC").trim();
+  if (/分布/.test(head)) return { kind: "distribution" };
+  if (head === "判定" || /判定|区分|コード|番号/.test(head)) return { kind: "value" };
+  const key = findLegalItemByHeader(label);
+  return key ? { kind: "legal", itemKey: key } : { kind: "value" };
+}
+
+// 特殊健診のCSV: 見出しから決まらなかった列のうち、検査項目・作業条件・所見などの列を「値として取り込む」にする。
+//   aiCols: AIが「特殊健診の項目」と見分けた列。AIが使えないときは、事務的な列(会社名・住所など)以外を取り込む
+const ADMIN_HEADER = /会社|事業所|事業場|団体|コース|受診番号|受付|整理番号|カルテ|保険|記号|住所|電話|郵便|〒|請求|料金|金額|備考欄|連絡先|メール|年齢|所属コード|ID$/i;
+export function applySpecialColumns(header: string[], dataRows: string[][], cols: { base: BaseCols; colModes: Record<number, ColumnMode> }, aiCols: number[] | null): Record<number, ColumnMode> {
+  const colModes = { ...cols.colModes };
+  const baseCols = Object.values(cols.base).filter((c) => c >= 0);
+  header.forEach((h, i) => {
+    const head = h.normalize("NFKC").trim();
+    if (!head || baseCols.includes(i) || (colModes[i]?.kind ?? "off") !== "off") return;
+    if (!dataRows.some((r) => (r[i] ?? "").trim() !== "")) return;
+    if (/判定/.test(head) && head !== "判定") return; // 項目ごとの判定の列は取り込まない(手作業の取込と同じ)
+    if (aiCols ? aiCols.includes(i) : !ADMIN_HEADER.test(head)) colModes[i] = { kind: "value" };
+  });
+  return colModes;
+}
+
 // AIが読んだ人ごとの内容を、CSVと同じ「見出し+行」の表にする(以後は手作業の取込と同じ処理で判定する)
 export function personsToTable(persons: ReadPerson[]): { header: string[]; rows: string[][]; base: BaseCols; colModes: Record<number, ColumnMode> } {
   const header = ["氏名", "フリガナ", "所属", "社員番号", "性別", "生年月日", "健診日", "総合判定"];
@@ -113,7 +138,18 @@ export function personsToTable(persons: ReadPerson[]): { header: string[]; rows:
   const colId = (it: ReadItem) => `${it.k}|${squash(it.l) || legalLabel(it.k)}`;
   for (const p of persons) {
     for (const it of p.items) {
-      if (!LEGAL_KEYS.includes(it.k) || !String(it.v ?? "").trim()) continue;
+      if (!String(it.v ?? "").trim()) continue;
+      if (!LEGAL_KEYS.includes(it.k)) {
+        // 特殊健診の項目(用紙の項目名のまま): 法定項目・分布区分・それ以外(値として取り込む)に振り分ける
+        const label = (it.l ?? "").trim();
+        if (!label) continue;
+        const id = colId(it);
+        if (colOf.has(id)) continue;
+        colOf.set(id, header.length);
+        colModes[header.length] = specialModeOf(label);
+        header.push(label);
+        continue;
+      }
       const id = colId(it);
       if (colOf.has(id)) continue;
       colOf.set(id, header.length);
@@ -167,10 +203,12 @@ function diffPerson(a: ReadPerson, b: ReadPerson): Diff[] {
   cmp("健診日", a.date, b.date);
   const key = (it: ReadItem) => `${it.k}|${squash(it.l)}`;
   const name = (it: ReadItem) => (it.l ?? "").trim() || legalLabel(it.k);
-  const bMap = new Map(b.items.filter((it) => LEGAL_KEYS.includes(it.k)).map((it) => [key(it), it]));
+  // 法定項目と、特殊健診の項目(用紙の項目名つき)を比べる
+  const usable = (it: ReadItem) => LEGAL_KEYS.includes(it.k) || !!(it.l ?? "").trim();
+  const bMap = new Map(b.items.filter(usable).map((it) => [key(it), it]));
   const seen = new Set<string>();
   for (const it of a.items) {
-    if (!LEGAL_KEYS.includes(it.k)) continue;
+    if (!usable(it)) continue;
     const k = key(it);
     seen.add(k);
     cmp(name(it), it.v, bMap.get(k)?.v ?? "");
@@ -432,7 +470,7 @@ export function summarize(people: PlannedPerson[]): ReadSummary {
 
 // ---- CSV: AIによる列の割り当ての補助 ----
 //   見出しから自動で決まらなかった列だけを、AIの答えで補う(自動で決まった列は変えない)
-export type AiMapping = { name: number; kana: number; dept: number; emp_no: number; sex: number; birth: number; date: number; overall: number; items: { col: number; key: string }[] };
+export type AiMapping = { name: number; kana: number; dept: number; emp_no: number; sex: number; birth: number; date: number; overall: number; items: { col: number; key: string }[]; special?: number[] };
 
 export function applyAiMapping(header: string[], guess: { base: BaseCols; colModes: Record<number, ColumnMode> }, ai: AiMapping): { base: BaseCols; colModes: Record<number, ColumnMode> } {
   const base = { ...guess.base };

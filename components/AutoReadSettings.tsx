@@ -46,7 +46,11 @@ export default function AutoReadSettings() {
               <strong>PDF</strong>: AIが2回読み取って突き合わせます。
               {state.aiReady ? "" : "(AIの設定がまだのため、いまはPDFを読み取れません)"}
             </li>
-            <li>就業判定: 就業制限の検討水準(R)がある方は「判定保留」、総合判定Dの方は「通常勤務可・受診が条件」、それ以外は「通常勤務可」。特殊健診は自動では判定しません。</li>
+            <li>就業判定: 就業制限の検討水準(R)がある方は「判定保留」、要医療(D)で受診勧奨の基準に届く方は「通常勤務可・受診が条件」、それ以外は「通常勤務可」。</li>
+            <li>
+              <strong>特殊健診</strong>: 作業条件・代謝物・物質ごとの判定なども読み取って取り込みます(総合判定・管理区分は健診機関のものを使います)。
+              就業判定は自動では付けません。PDFは、下の設定にかかわらず、事務所が確認してから取り込みます。
+            </li>
           </ul>
           <div style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap", background: "var(--teal-light)", borderRadius: 8, padding: "10px 14px" }}>
             <div style={{ flex: "1 1 300px", fontSize: 14 }}>

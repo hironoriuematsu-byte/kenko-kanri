@@ -6,6 +6,7 @@ import type { JudgmentRule } from "@/lib/judgment";
 import type { PersonCandidate } from "@/lib/personMatch";
 import {
   applyAiMapping,
+  applySpecialColumns,
   canonicalHeaders,
   coverageOf,
   findHeaderRow,
@@ -201,7 +202,8 @@ async function finalize(admin: SupabaseClient, u: Upload, actor: Actor, kind: "c
     fiscalYear: u.fiscal_year!,
     kind,
     rosterSize: ctx.persons.length,
-    pdfAuto: ctx.pdfAuto,
+    // 特殊健診のPDFは、健診の種類ごとに書式が大きく違うため、設定にかかわらず事務所が確認してから取り込む
+    pdfAuto: ctx.pdfAuto && u.checkup_type !== "special",
     rules: ctx.rules,
   });
   const people = plan
@@ -232,22 +234,29 @@ async function runCsv(admin: SupabaseClient, u: Upload, actor: Actor): Promise<R
   const baseCols = Object.values(cols.base).filter((c) => c >= 0);
   const undecided = header.some((h, i) => h.trim() !== "" && !baseCols.includes(i) && (cols.colModes[i]?.kind ?? "off") === "off" && !/判定/.test(h.normalize("NFKC")) && dataRows.some((r) => (r[i] ?? "").trim() !== ""));
   const gaps = cols.base.nameCol < 0 || cols.base.dateCol < 0 || cols.base.birthCol < 0 || cols.base.sexCol < 0;
+  const special = u.checkup_type === "special";
+  let specialCols: number[] | null = null; // AIが「特殊健診の項目」と見分けた列
   if ((gaps || undecided) && aiReady()) {
     try {
-      const ai = await mapCsvColumns(header, dataRows.slice(0, 3), [cols.base.nameCol, cols.base.kanaCol].filter((c) => c >= 0));
+      const ai = await mapCsvColumns(header, dataRows.slice(0, 3), [cols.base.nameCol, cols.base.kanaCol].filter((c) => c >= 0), special);
       cols = applyAiMapping(header, cols, ai);
+      if (special && Array.isArray(ai.special)) specialCols = ai.special.filter((c) => Number.isInteger(c));
     } catch (e) {
       console.error("csv mapping by AI failed", e);
     }
   }
+  // 特殊健診は、法定項目のほかに、作業条件・代謝物・物質ごとの判定なども取り込む(労基署報告の集計に使う)
+  if (special) cols = { base: cols.base, colModes: applySpecialColumns(header, dataRows, cols, specialCols) };
   if (cols.base.nameCol < 0) return fail(admin, u, "氏名の列が見つかりませんでした。手作業の取込(列を指定する画面)をお使いください");
-  if (!Object.values(cols.colModes).some((m) => m.kind === "legal")) return fail(admin, u, "検査項目の列が見つかりませんでした。手作業の取込(列を指定する画面)をお使いください");
+  if (!Object.values(cols.colModes).some((m) => m.kind !== "off")) return fail(admin, u, "検査項目の列が見つかりませんでした。手作業の取込(列を指定する画面)をお使いください");
   // AIが見分けた列は、あとの判定・集計で同じ法定項目として扱える名前にそろえる
   const canon = canonicalHeaders(header, cols.colModes);
   header = canon.header;
   const rows = buildImportRows({ header, dataRows, base: cols.base, colModes: cols.colModes, autoJudge: true, rules: ctx.rules, checkupType: u.checkup_type!, commonDate: "", persons: ctx.persons });
   if (rows.length === 0) return fail(admin, u, "氏名のある行がありませんでした");
   const coverage = coverageOf(keysWithData(dataRows, cols.colModes), u.checkup_type!, canon.renamed);
+  // 特殊健診は、取り込んだ項目名をそのまま知らせる
+  if (special) coverage.found = header.filter((h, i) => (cols.colModes[i]?.kind ?? "off") !== "off" && dataRows.some((r) => (r[i] ?? "").trim() !== "")).map((h) => h.trim());
   return finalize(admin, u, actor, "csv", rows, ctx, coverage);
 }
 
@@ -276,7 +285,8 @@ async function runPdf(admin: SupabaseClient, u: Upload, actor: Actor): Promise<R
     const c = work.chunks[i];
     const part = await pdfSlice(bytes, c.from, c.to);
     // 同じページを2回読ませて、あとで突き合わせる
-    const [a, b] = await Promise.all([readPdfPart(part, c.from - 1), readPdfPart(part, c.from - 1)]);
+    const specialKind = u.checkup_type === "special" ? (u.special_kind ?? "").trim() : null;
+    const [a, b] = await Promise.all([readPdfPart(part, c.from - 1, specialKind), readPdfPart(part, c.from - 1, specialKind)]);
     if (a.truncated || b.truncated) {
       // 1ページに人数が多くて書き出しきれなかった: 1ページずつに分けて読み直す
       if (c.to === c.from) return fail(admin, u, `${c.from}ページ目に載っている人数が多く、読み取りきれませんでした。手作業の取込をお使いください`);
@@ -304,6 +314,7 @@ async function runPdf(admin: SupabaseClient, u: Upload, actor: Actor): Promise<R
   const rows = tableRows(reads, ctx, u.checkup_type!);
   // 氏名のない人は personsToTable の時点でいないので、rows と reads は同じ並び
   const coverage = coverageOf(reads.flatMap((p) => p.items.map((it) => it.k)), u.checkup_type!);
+  if (u.checkup_type === "special") coverage.found = Array.from(new Set(reads.flatMap((p) => p.items.map((it) => (it.l ?? "").trim()).filter(Boolean))));
   return finalize(admin, u, actor, "pdf", rows, ctx, coverage, { reads, readDiffs });
 }
 

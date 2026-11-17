@@ -50,6 +50,11 @@ const MAP_SCHEMA = {
     birth: { type: "integer", description: "生年月日の列。なければ -1" },
     date: { type: "integer", description: "健診を受けた日の列。なければ -1" },
     overall: { type: "integer", description: "総合判定の列。なければ -1" },
+    special: {
+      type: "array",
+      description: "特殊健康診断のときだけ: 上の検査項目に当たらないが、特殊健診の結果として取り込むべき列の番号。特殊健診でなければ空",
+      items: { type: "integer" },
+    },
     items: {
       type: "array",
       description: "検査値・所見が入っている列と、対応する検査項目",
@@ -61,12 +66,12 @@ const MAP_SCHEMA = {
       },
     },
   },
-  required: ["name", "kana", "dept", "emp_no", "sex", "birth", "date", "overall", "items"],
+  required: ["name", "kana", "dept", "emp_no", "sex", "birth", "date", "overall", "items", "special"],
   additionalProperties: false,
 } as const;
 
 // 氏名の列と分かっているものは、中身をAIに送らない
-export async function mapCsvColumns(header: string[], samples: string[][], maskCols: number[]): Promise<AiMapping> {
+export async function mapCsvColumns(header: string[], samples: string[][], maskCols: number[], special = false): Promise<AiMapping> {
   const lines = header.map((h, i) => {
     const vals = maskCols.includes(i) ? ["(氏名)"] : samples.map((r) => (r[i] ?? "").trim().slice(0, 24)).filter(Boolean).slice(0, 3);
     return `${i}: 「${h.trim()}」 例: ${vals.join(" / ") || "(空)"}`;
@@ -82,6 +87,17 @@ export async function mapCsvColumns(header: string[], samples: string[][], maskC
     "- 検査値や所見の文言が入っている列だけを挙げる。「判定」「指導区分」だけが入っている列は挙げない。",
     "- non-HDL、LDL/HDL比、尿沈渣、肝炎ウイルス検査など、上の一覧にない項目は挙げない。",
     "- 自信がない列は挙げない(-1 にする・一覧に入れない)。推測で埋めない。",
+    ...(special
+      ? [
+          "",
+          "これは特殊健康診断(有機溶剤・特定化学物質・鉛・じん肺・電離放射線 など)の結果です。",
+          "special には、上の検査項目に当たらない列のうち、特殊健診の結果として取り込むべき列を挙げてください:",
+          "  作業条件の簡易な調査(作業時間・作業日数・保護具・換気装置・取扱量 など)、業務名・業務名番号、有機溶剤名・物質名・物質コード、",
+          "  生物学的モニタリングの検査値とその分布区分(尿中馬尿酸、血中鉛 など)、既往歴・業務歴、自覚症状・他覚所見、眼底検査・神経学的検査、",
+          "  じん肺の健診の区分・エックス線写真の像(型)・肺機能検査・合併症、物質ごとの判定(見出しがちょうど「判定」の列)、医師の診断。",
+          "  会社名・事業所名・コース名・受診番号・住所・電話番号・年齢・保険の記号番号などの事務的な列は挙げない。",
+        ]
+      : ["- special は空にする。"]),
   ].join("\n");
   const { json } = await askJson(system, [{ type: "text", text: lines.join("\n") }], MAP_SCHEMA as unknown as Json, 4000);
   return json as unknown as AiMapping;
@@ -147,15 +163,76 @@ const READ_SYSTEM = [
   "- 表紙・案内文・白紙など、検査結果のないページからは何も書き出さない。",
 ].join("\n");
 
-// PDFの一部(base64)を読む。pageOffset は、元のPDFでの先頭ページ番号-1(ページ番号を元のPDFに合わせる)
-export async function readPdfPart(pdfBase64: string, pageOffset: number): Promise<{ persons: ReadPerson[]; truncated: boolean }> {
+// ---- 特殊健康診断のPDF: 用紙に載っている項目を、項目名のまま書き出させる ----
+const SPECIAL_READ_SCHEMA = {
+  type: "object",
+  properties: {
+    persons: {
+      type: "array",
+      items: {
+        type: "object",
+        properties: {
+          ...READ_SCHEMA.properties.persons.items.properties,
+          overall: { type: "string", description: "総合判定・管理区分(A・B1・B2・C・R・T、または 管理1〜4 など。用紙の表記のまま)。なければ空" },
+          items: {
+            type: "array",
+            items: {
+              type: "object",
+              properties: {
+                l: { type: "string", description: "項目名" },
+                v: { type: "string", description: "値、または所見の文言(用紙の表記のまま)" },
+              },
+              required: ["l", "v"],
+              additionalProperties: false,
+            },
+          },
+        },
+        required: ["name", "kana", "birth", "sex", "emp_no", "dept", "date", "overall", "page", "items"],
+        additionalProperties: false,
+      },
+    },
+  },
+  required: ["persons"],
+  additionalProperties: false,
+} as const;
+
+const specialSystem = (kind: string) =>
+  [
+    `あなたは、特殊健康診断${kind ? `(${kind})` : ""}の結果(個人票、または何人分かが並んだ一覧表)のPDFを読み取り、人ごとに項目を書き出す係です。`,
+    "判定はしません。用紙に書いてある値と所見の文言を、そのまま写します。",
+    "",
+    "書き出す項目(用紙に載っているものすべて):",
+    "- 作業条件の簡易な調査: 「作業時間(時間/日)」「作業日数」「保護具」「換気装置」「取扱量」など(項目ごとに1行)",
+    "- 業務: 「業務名番号」(番号で書かれているとき)、「業務内容」、「業務歴」",
+    "- 物質: 「有機溶剤名」(名前や番号)、「物質コード」、「特定化学物質」(物質名)。1人に複数あるときは「;」で区切って1行にまとめる",
+    "- 生物学的モニタリング: 検査値は検査名を項目名にする(例: 「尿中馬尿酸」「尿中メチル馬尿酸」「血中鉛」「尿中デルタアミノレブリン酸」)。",
+    "  分布の区分(1・2・3)は、別の行にして項目名を「(検査名)分布」とする(例: 「尿中馬尿酸分布」に「2」)",
+    "- 既往歴、自覚症状、他覚所見、眼底検査、神経学的検査、皮膚所見 など",
+    "- 血液・尿・肝機能などの検査値(「赤血球数」「血色素量」「AST(GOT)」「ALT(GPT)」「γ-GTP」「尿蛋白」など、用紙の項目名で)",
+    "- じん肺健康診断: 「健診の区分」、「エックス線写真の像」(型: PR0/1、1/0、4A など)、「肺機能検査」(F(+)・F(++) など)、「合併症」、「肺がん検査」",
+    "- 物質ごとの判定があるときは、項目名を「判定」として、物質の順に「;」で区切って1行にまとめる",
+    "- 医師の診断・意見があれば「医師の診断」として",
+    "",
+    "決まり:",
+    "- 項目名は、上の「」の書き方に当たるものはその書き方にそろえ、それ以外は用紙の項目名のままにする。",
+    "- 総合判定・管理区分は overall に入れる(項目としては書き出さない)。",
+    "- 読めない・書かれていない項目は、書き出さない。推測で埋めない。前回の値や基準値の欄を、今回の値と取り違えない。",
+    "- 1人の結果が2ページにまたがるときは、1人にまとめる。同じ人を2回書き出さない。",
+    "- 氏名・生年月日・健診日は、用紙の表記のまま写す(和暦もそのまま)。",
+    "- 表紙・案内文・白紙など、結果のないページからは何も書き出さない。",
+  ].join("\n");
+
+// PDFの一部(base64)を読む。pageOffset は、元のPDFでの先頭ページ番号-1(ページ番号を元のPDFに合わせる)。
+// specialKind を渡すと、特殊健康診断として読む(法定項目に限らず、用紙の項目を項目名のまま書き出す)
+export async function readPdfPart(pdfBase64: string, pageOffset: number, specialKind: string | null = null): Promise<{ persons: ReadPerson[]; truncated: boolean }> {
+  const special = specialKind !== null;
   const { json, truncated } = await askJson(
-    READ_SYSTEM,
+    special ? specialSystem(specialKind ?? "") : READ_SYSTEM,
     [
       { type: "document", source: { type: "base64", media_type: "application/pdf", data: pdfBase64 } },
       { type: "text", text: "このPDFに載っている方の健康診断の結果を、人ごとに書き出してください。" },
     ],
-    READ_SCHEMA as unknown as Json,
+    (special ? SPECIAL_READ_SCHEMA : READ_SCHEMA) as unknown as Json,
     30000
   );
   if (truncated) return { persons: [], truncated: true };
@@ -174,7 +251,7 @@ export async function readPdfPart(pdfBase64: string, pageOffset: number): Promis
       page: (Number.isInteger(p.page) ? (p.page as number) : 1) + pageOffset,
       items: (Array.isArray(p.items) ? (p.items as Json[]) : [])
         .map((it) => ({ k: s(it.k), v: s(it.v), l: s(it.l) || undefined }))
-        .filter((it) => LEGAL_KEYS.includes(it.k) && it.v !== ""),
+        .filter((it) => it.v !== "" && (special ? !!it.l : LEGAL_KEYS.includes(it.k))),
     }))
     .filter((p) => p.name !== "");
   return { persons, truncated: false };
