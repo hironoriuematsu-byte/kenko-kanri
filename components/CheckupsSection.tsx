@@ -47,56 +47,42 @@ export default async function CheckupsSection({
     <div>
       {/* 事業者担当者が送ったCSVで、産業医事務所の取込待ちのもの */}
       <CsvUploadsStatus companyId={companyId} />
-      {/* ボタンは「取込」「出力」「通知」の3段に分け、各段の左端に見出しを付ける */}
+      {/* ボタンは横一列に並べる(取込 → 就業判定 → 労基署報告 → 受診勧奨 → 産業医面談)。幅が足りない画面では折り返す */}
       {(canEdit || year) && (
-        <div style={{ display: "grid", gridTemplateColumns: "auto 1fr", rowGap: 10, columnGap: 14, alignItems: "center", marginBottom: 14 }}>
+        <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center", marginBottom: 14 }}>
           {canEdit && (
-            <>
-              <span className="muted" style={{ fontWeight: 700, whiteSpace: "nowrap" }}>取込</span>
-              <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-                <Link className="btn orange" href={`${basePath}/import`}>
-                  {canDelete ? "健康診断結果取込" : "健康診断結果を送る（CSV・PDF）"}
-                </Link>
-                <Link className="btn secondary" href={`${basePath}/new`}>
-                  ＋ 個別入力
-                </Link>
-              </div>
-            </>
+            <Link className="btn orange" href={`${basePath}/import`}>
+              {canDelete ? "健康診断結果取込" : "健康診断結果を送る（CSV・PDF）"}
+            </Link>
           )}
           {year && (
             <>
-              <span className="muted" style={{ fontWeight: 700, whiteSpace: "nowrap" }}>結果</span>
-              <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
-                {/* 就業判定・事後措置報告書(産業医事務所として作成)。1つの枠に PDF(印刷画面)と CSV のボタンを並べる */}
-                <span className="format-group">
-                  <span className="label">就業判定</span>
-                  <Link className="pill" href={`${basePath}/work-judgment?year=${year}${roundQuery}${groupQuery}`} title="就業判定・事後措置報告書を印刷・PDF保存">
-                    PDF
-                  </Link>
-                  <WorkJudgmentReportButton
-                    companyName={companyName}
-                    fiscalYear={year}
-                    round={rounds.length > 1 ? round : undefined}
-                    groupLabel={groupLabel}
-                    rows={list}
-                    officeInfo={officeInfo}
-                  />
-                </span>
-                {/* 労働基準監督署への報告(様式第6号)に転記する数値を印刷・PDF保存できる画面 */}
-                <Link className="btn secondary" href={`${basePath}/report?year=${year}${roundQuery}${reportForm}`}>
-                  労基署報告
+              {/* 就業判定・事後措置報告書(産業医事務所として作成)。1つの枠に PDF(印刷画面)と CSV のボタンを並べる */}
+              <span className="format-group">
+                <span className="label">就業判定</span>
+                <Link className="pill" href={`${basePath}/work-judgment?year=${year}${roundQuery}${groupQuery}`} title="就業判定・事後措置報告書を印刷・PDF保存">
+                  PDF
                 </Link>
-              </div>
-              <span className="muted" style={{ fontWeight: 700, whiteSpace: "nowrap" }}>通知</span>
-              <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-                {/* 受診勧奨・産業医面談となった従業員へ渡す通知文書(1人1ページ・まとめて印刷/PDF)。種類ごとに別の画面 */}
-                <Link className="btn" href={`${basePath}/notices?year=${year}${roundQuery}${groupQuery}`}>
-                  受診勧奨通知書
-                </Link>
-                <Link className="btn secondary" href={`${basePath}/interview-notices?year=${year}${roundQuery}${groupQuery}`}>
-                  産業医面談通知書
-                </Link>
-              </div>
+                <WorkJudgmentReportButton
+                  companyName={companyName}
+                  fiscalYear={year}
+                  round={rounds.length > 1 ? round : undefined}
+                  groupLabel={groupLabel}
+                  rows={list}
+                  officeInfo={officeInfo}
+                />
+              </span>
+              {/* 労働基準監督署への報告(様式第6号)に転記する数値を印刷・PDF保存できる画面 */}
+              <Link className="btn secondary" href={`${basePath}/report?year=${year}${roundQuery}${reportForm}`}>
+                労基署報告
+              </Link>
+              {/* 受診勧奨・産業医面談となった従業員へ渡す通知文書(1人1ページ・まとめて印刷/PDF)。種類ごとに別の画面 */}
+              <Link className="btn" href={`${basePath}/notices?year=${year}${roundQuery}${groupQuery}`} title="受診勧奨通知書を作る">
+                受診勧奨
+              </Link>
+              <Link className="btn secondary" href={`${basePath}/interview-notices?year=${year}${roundQuery}${groupQuery}`} title="産業医面談通知書を作る">
+                産業医面談
+              </Link>
             </>
           )}
         </div>
