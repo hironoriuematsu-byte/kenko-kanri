@@ -26,7 +26,82 @@ export type ReadPerson = {
 };
 
 export const LEGAL_KEYS = LEGAL_ITEMS.map((it) => it.key);
-const legalLabel = (key: string) => (LEGAL_ITEMS.find((it) => it.key === key)?.label ?? key).replace(/[（(].*$/, "").trim();
+// 法定項目の呼び名(説明の括弧を除く)。ただし「AST(GOT)」のように括弧までが名前のものは、そのまま使う
+const legalLabel = (key: string) => {
+  const label = LEGAL_ITEMS.find((it) => it.key === key)?.label ?? key;
+  return label.replace(/（.*$/, "").trim();
+};
+
+// ---- どの健診機関の書き方でも、法定項目がそろって並ぶようにする ----
+
+// 見出しの行を探す(表題や発行日の行が先頭にあるCSVに対応)。氏名の見出しがある最初の行
+export function findHeaderRow(table: string[][], guessName: (header: string[]) => number): number {
+  for (let i = 0; i < Math.min(table.length - 1, 15); i++) {
+    if (table[i].filter((c) => (c ?? "").trim() !== "").length >= 3 && guessName(table[i]) >= 0) return i;
+  }
+  return 0;
+}
+
+// 法定項目として取り込む列の見出しを、あとの判定・集計で同じ項目として扱える名前にそろえる。
+//   見出しがそのままで法定項目と分かる列(「GOT」「γ-GTP」など)は、健診機関の表記のまま残す。
+//   AIが割り当てた、見出しからは分からない列だけを、法定項目の名前(元の見出しを括弧で添える)に変える
+export function canonicalHeaders(header: string[], colModes: Record<number, ColumnMode>): { header: string[]; renamed: { from: string; to: string }[] } {
+  const out = [...header];
+  const renamed: { from: string; to: string }[] = [];
+  header.forEach((h, i) => {
+    const m = colModes[i];
+    if (m?.kind !== "legal" || findLegalItemByHeader(h) === m.itemKey) return;
+    const base = legalLabel(m.itemKey);
+    const withOriginal = `${base}（${h.trim()}）`;
+    let name = h.trim() && findLegalItemByHeader(withOriginal) === m.itemKey ? withOriginal : base;
+    for (let n = 2; out.some((x, k) => k !== i && squash(x) === squash(name)); n++) name = `${base} ${n}`;
+    out[i] = name;
+    renamed.push({ from: h.trim(), to: name });
+  });
+  return { header: out, renamed };
+}
+
+// 定期健診で、ふつうは載っている項目(見当たらないときに知らせる。年齢により省略されることがある)
+const EXPECTED: { label: string; any: string[] }[] = [
+  { label: "視力", any: ["vision"] },
+  { label: "聴力 1000Hz", any: ["hearing1000"] },
+  { label: "聴力 4000Hz", any: ["hearing4000"] },
+  { label: "血圧", any: ["sbp"] },
+  { label: "血色素量", any: ["hb"] },
+  { label: "赤血球数", any: ["rbc"] },
+  { label: "AST(GOT)", any: ["ast"] },
+  { label: "ALT(GPT)", any: ["alt"] },
+  { label: "γ-GTP", any: ["ggt"] },
+  { label: "中性脂肪", any: ["tg"] },
+  { label: "HDLコレステロール", any: ["hdl"] },
+  { label: "LDLコレステロール", any: ["ldl"] },
+  { label: "血糖(空腹時血糖・随時血糖・HbA1c のいずれか)", any: ["glucose", "casual_glucose", "hba1c"] },
+  { label: "尿糖", any: ["urine_glucose"] },
+  { label: "尿蛋白", any: ["urine_protein"] },
+  { label: "心電図", any: ["ecg"] },
+  { label: "胸部エックス線", any: ["chest_xray"] },
+];
+export type Coverage = {
+  found: string[]; // 取り込んだ法定項目
+  missing: string[]; // 見当たらなかった項目(定期健診・雇入時健診のみ)
+  renamed: { from: string; to: string }[]; // 見出しを法定項目の名前に読み替えた列
+};
+export function coverageOf(keys: Iterable<string>, checkupType: string, renamed: { from: string; to: string }[] = []): Coverage {
+  const have = new Set(keys);
+  return {
+    found: LEGAL_ITEMS.filter((it) => have.has(it.key)).map((it) => legalLabel(it.key)),
+    missing: checkupType === "special" ? [] : EXPECTED.filter((e) => !e.any.some((k) => have.has(k))).map((e) => e.label),
+    renamed,
+  };
+}
+// 表の中で、値が1つでも入っている法定項目
+export function keysWithData(dataRows: string[][], colModes: Record<number, ColumnMode>): string[] {
+  const keys = new Set<string>();
+  for (const [i, m] of Object.entries(colModes)) {
+    if (m.kind === "legal" && dataRows.some((r) => (r[Number(i)] ?? "").trim() !== "")) keys.add(m.itemKey);
+  }
+  return Array.from(keys);
+}
 const squash = (s: string | null | undefined) => (s ?? "").normalize("NFKC").replace(/[\s　]/g, "");
 
 // AIが読んだ人ごとの内容を、CSVと同じ「見出し+行」の表にする(以後は手作業の取込と同じ処理で判定する)
@@ -43,7 +118,9 @@ export function personsToTable(persons: ReadPerson[]): { header: string[]; rows:
       if (colOf.has(id)) continue;
       colOf.set(id, header.length);
       colModes[header.length] = { kind: "legal", itemKey: it.k };
-      header.push((it.l ?? "").trim() || legalLabel(it.k));
+      // 用紙の項目名で法定項目と分かればそのまま、分からなければ法定項目の名前にする
+      const l = (it.l ?? "").trim();
+      header.push(l && findLegalItemByHeader(l) === it.k ? l : l && findLegalItemByHeader(`${legalLabel(it.k)}（${l}）`) === it.k ? `${legalLabel(it.k)}（${l}）` : legalLabel(it.k));
     }
   }
   const rows = persons.map((p) => {
@@ -188,11 +265,28 @@ export function findExisting(row: ImportRow, existing: ExistingCheckup[]): Exist
 export function classifyAgainstExisting(row: ImportRow, existing: ExistingCheckup[]): Against {
   const e = findExisting(row, existing);
   if (!e) return { mode: "new" };
-  const have = new Map(e.items.map((it) => [squash(it.item_name), it.value ?? ""]));
+  // 同じ検査項目か。健診機関ごとに項目名の書き方が違っても、同じ法定項目なら同じとみなす。
+  // 血圧の1回目・2回目、視力・聴力の右・左のように、同じ法定項目が複数あるときだけ、項目名で区別する
+  const keyOf = (name: string) => findLegalItemByHeader(name);
+  const countBy = (names: string[]) => {
+    const m = new Map<string, number>();
+    for (const n of names) {
+      const k = keyOf(n);
+      if (k) m.set(k, (m.get(k) ?? 0) + 1);
+    }
+    return m;
+  };
+  const oldCount = countBy(e.items.map((it) => it.item_name));
+  const newCount = countBy(row.items.map((it) => it.name));
+  const itemId = (name: string) => {
+    const key = keyOf(name);
+    return key && (oldCount.get(key) ?? 0) <= 1 && (newCount.get(key) ?? 0) <= 1 ? `k:${key}` : squash(name);
+  };
+  const have = new Map(e.items.map((it) => [itemId(it.item_name), it.value ?? ""]));
   const diffs: Diff[] = [];
   const add: ImportItem[] = [];
   for (const it of row.items) {
-    const k = squash(it.name);
+    const k = itemId(it.name);
     if (!have.has(k)) add.push(it);
     else if (!sameValue(have.get(k), it.value ?? "")) diffs.push({ field: it.name, a: have.get(k) ?? "", b: it.value ?? "" });
   }
@@ -356,8 +450,13 @@ export function applyAiMapping(header: string[], guess: { base: BaseCols; colMod
   fill("birthCol", ai.birth);
   fill("dateCol", ai.date);
   fill("judgmentCol", ai.overall);
+  // 見出しから決まった法定項目は、AIの答えで別の列を足さない(non-HDL を HDL に、のような取り違えを防ぐ)。
+  // 血圧・視力・聴力は、2回測定や右・左で複数の列があるので足してよい
+  const multi = ["sbp", "dbp", "vision", "hearing1000", "hearing4000"];
+  const decided = new Set(Object.values(guess.colModes).flatMap((m) => (m.kind === "legal" ? [m.itemKey] : [])));
   for (const it of ai.items ?? []) {
     if (!valid(it.col) || !LEGAL_KEYS.includes(it.key) || usedBase().includes(it.col)) continue;
+    if (decided.has(it.key) && !multi.includes(it.key)) continue;
     const head = header[it.col].normalize("NFKC").trim();
     // 「判定」の列は検査値ではないので、法定項目にしない(手作業の取込と同じ決まり)
     if (/判定/.test(head) || /^判/.test(head)) continue;

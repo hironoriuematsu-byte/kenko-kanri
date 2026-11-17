@@ -6,6 +6,10 @@ import type { JudgmentRule } from "@/lib/judgment";
 import type { PersonCandidate } from "@/lib/personMatch";
 import {
   applyAiMapping,
+  canonicalHeaders,
+  coverageOf,
+  findHeaderRow,
+  keysWithData,
   classifyAgainstExisting,
   compareReads,
   decideWorkJudgment,
@@ -14,6 +18,7 @@ import {
   planPeople,
   summarize,
   type AutoJudgment,
+  type Coverage,
   type Diff,
   type ExistingCheckup,
   type PlannedPerson,
@@ -68,7 +73,7 @@ export type StoredPerson = {
   row?: ImportRow;
   read?: ReadPerson; // PDFから読んだ内容(食い違いのどちらを採るか選べるように)
 };
-export type ReadResult = { kind: "csv" | "pdf"; summary: ReadSummary; people: StoredPerson[]; at: string };
+export type ReadResult = { kind: "csv" | "pdf"; summary: ReadSummary; people: StoredPerson[]; at: string; coverage?: Coverage };
 
 export type RunState = {
   status: string; // none / reading / review / done / failed
@@ -186,7 +191,7 @@ async function apply(admin: SupabaseClient, u: Upload, actor: Actor, people: Ret
 }
 
 // 読み取った行から、一人ずつの扱いを決めて取り込む
-async function finalize(admin: SupabaseClient, u: Upload, actor: Actor, kind: "csv" | "pdf", rows: ImportRow[], ctx: Awaited<ReturnType<typeof loadContext>>, extra?: { reads: ReadPerson[]; readDiffs: Diff[][] }): Promise<RunState> {
+async function finalize(admin: SupabaseClient, u: Upload, actor: Actor, kind: "csv" | "pdf", rows: ImportRow[], ctx: Awaited<ReturnType<typeof loadContext>>, coverage: Coverage, extra?: { reads: ReadPerson[]; readDiffs: Diff[][] }): Promise<RunState> {
   const plan = planPeople({
     rows,
     pages: extra?.reads.map((r) => r.page),
@@ -202,7 +207,7 @@ async function finalize(admin: SupabaseClient, u: Upload, actor: Actor, kind: "c
   const people = plan
     .filter((p) => p.action === "import" || p.action === "add")
     .map((p) => toApply(p.row, p.action === "add" ? "add" : "new", p.existingId, p.action === "add" ? p.addItems : p.row.items, p.judgment, p.page, p.needsFollowup));
-  const result: ReadResult = { kind, summary: summarize(plan), people: plan.map((p, i) => toStored(p, extra?.reads[i])), at: new Date().toISOString() };
+  const result: ReadResult = { kind, summary: summarize(plan), people: plan.map((p, i) => toStored(p, extra?.reads[i])), at: new Date().toISOString(), coverage };
   return apply(admin, u, actor, people, result);
 }
 
@@ -215,15 +220,19 @@ async function runCsv(admin: SupabaseClient, u: Upload, actor: Actor): Promise<R
   if (!u.content) return fail(admin, u, "CSVの中身が残っていません(破棄されたファイルです)");
   const table = parseCsv(u.content);
   if (table.length < 2) return fail(admin, u, "データ行がありません(1行目に見出し、2行目以降にデータ)");
-  const header = table[0];
-  const dataRows = table.slice(1);
+  // 表題などの行が先頭にあるCSVでは、氏名の見出しがある行を見出しとして使う
+  const headerRow = findHeaderRow(table, (h) => guessColumns(h).base.nameCol);
+  let header = table[headerRow];
+  const dataRows = table.slice(headerRow + 1).filter((r) => r.some((c) => (c ?? "").trim() !== ""));
   const ctx = await loadContext(admin, u);
   if (!ctx.rules.some((r) => r.grade !== "S")) return fail(admin, u, "判定基準が未登録のため、自動では判定できません");
   let cols = guessColumns(header);
-  // 見出しから決まらなかった列があるときだけ、AIに見出しと値の例を見せて補う(氏名の列の中身は送らない)
-  const legalCount = Object.values(cols.colModes).filter((m) => m.kind === "legal").length;
-  const gaps = cols.base.nameCol < 0 || cols.base.dateCol < 0 || cols.base.birthCol < 0 || cols.base.sexCol < 0 || legalCount < 6;
-  if (gaps && aiReady()) {
+  // 見出しから決まらなかった列があれば、AIに見出しと値の例を見せて、法定項目に当たる列を見分けてもらう
+  // (氏名の列の中身は送らない)。健診機関ごとの書き方の違いを、ここで吸収する
+  const baseCols = Object.values(cols.base).filter((c) => c >= 0);
+  const undecided = header.some((h, i) => h.trim() !== "" && !baseCols.includes(i) && (cols.colModes[i]?.kind ?? "off") === "off" && !/判定/.test(h.normalize("NFKC")) && dataRows.some((r) => (r[i] ?? "").trim() !== ""));
+  const gaps = cols.base.nameCol < 0 || cols.base.dateCol < 0 || cols.base.birthCol < 0 || cols.base.sexCol < 0;
+  if ((gaps || undecided) && aiReady()) {
     try {
       const ai = await mapCsvColumns(header, dataRows.slice(0, 3), [cols.base.nameCol, cols.base.kanaCol].filter((c) => c >= 0));
       cols = applyAiMapping(header, cols, ai);
@@ -233,9 +242,13 @@ async function runCsv(admin: SupabaseClient, u: Upload, actor: Actor): Promise<R
   }
   if (cols.base.nameCol < 0) return fail(admin, u, "氏名の列が見つかりませんでした。手作業の取込(列を指定する画面)をお使いください");
   if (!Object.values(cols.colModes).some((m) => m.kind === "legal")) return fail(admin, u, "検査項目の列が見つかりませんでした。手作業の取込(列を指定する画面)をお使いください");
+  // AIが見分けた列は、あとの判定・集計で同じ法定項目として扱える名前にそろえる
+  const canon = canonicalHeaders(header, cols.colModes);
+  header = canon.header;
   const rows = buildImportRows({ header, dataRows, base: cols.base, colModes: cols.colModes, autoJudge: true, rules: ctx.rules, checkupType: u.checkup_type!, commonDate: "", persons: ctx.persons });
   if (rows.length === 0) return fail(admin, u, "氏名のある行がありませんでした");
-  return finalize(admin, u, actor, "csv", rows, ctx);
+  const coverage = coverageOf(keysWithData(dataRows, cols.colModes), u.checkup_type!, canon.renamed);
+  return finalize(admin, u, actor, "csv", rows, ctx, coverage);
 }
 
 async function runPdf(admin: SupabaseClient, u: Upload, actor: Actor): Promise<RunState> {
@@ -290,7 +303,8 @@ async function runPdf(admin: SupabaseClient, u: Upload, actor: Actor): Promise<R
   if (!ctx.rules.some((r) => r.grade !== "S")) return fail(admin, u, "判定基準が未登録のため、自動では判定できません");
   const rows = tableRows(reads, ctx, u.checkup_type!);
   // 氏名のない人は personsToTable の時点でいないので、rows と reads は同じ並び
-  return finalize(admin, u, actor, "pdf", rows, ctx, { reads, readDiffs });
+  const coverage = coverageOf(reads.flatMap((p) => p.items.map((it) => it.k)), u.checkup_type!);
+  return finalize(admin, u, actor, "pdf", rows, ctx, coverage, { reads, readDiffs });
 }
 
 // 区切りをまたいで同じ方が出てきたら、1人にまとめる(氏名と生年月日が同じ)

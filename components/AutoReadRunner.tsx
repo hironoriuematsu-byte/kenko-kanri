@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
-import type { ReadSummary } from "@/lib/autoRead";
+import type { Coverage, ReadSummary } from "@/lib/autoRead";
 
 // 送ったファイルを、その場でAIに読み取らせて、結果(就業判定)を表示する。
 // 読み取りはサーバー側で少しずつ進むので、終わるまでこの部品が続けて呼ぶ(途中で閉じても、あとで続きから進められる)
@@ -11,7 +11,7 @@ export type ReadTarget = { id: string; name: string; kind: "csv" | "pdf"; hash?:
 type ApiState = {
   status?: string;
   progress?: { done: number; total: number } | null;
-  result?: { summary: ReadSummary } | null;
+  result?: { summary: ReadSummary; coverage?: Coverage } | null;
   error?: string | null;
   busy?: boolean;
 };
@@ -20,7 +20,7 @@ type FileState = ApiState & { phase: "wait" | "run" | "end" | "manual" | "stoppe
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 // 読み取り結果の要約(会社・事務所の画面で共通)
-export function ReadSummaryView({ summary, role }: { summary: ReadSummary; role: "office" | "company" }) {
+export function ReadSummaryView({ summary, role, coverage }: { summary: ReadSummary; role: "office" | "company"; coverage?: Coverage }) {
   const returned = summary.normal + summary.consult + summary.pending;
   const li = { margin: "2px 0" } as const;
   return (
@@ -56,6 +56,30 @@ export function ReadSummaryView({ summary, role }: { summary: ReadSummary; role:
           </li>
         )}
       </ul>
+      {coverage && (
+        <details style={{ marginTop: 6, fontSize: 13 }}>
+          <summary style={{ cursor: "pointer", color: "var(--teal-dark)" }}>
+            取り込んだ検査項目({coverage.found.length}項目)
+            {coverage.missing.length > 0 && <span style={{ color: "#b45415" }}>・見当たらなかった項目 {coverage.missing.length}</span>}
+          </summary>
+          <div style={{ margin: "4px 0 0 4px", lineHeight: 1.8 }}>
+            <div>
+              <strong>取り込んだ項目:</strong> {coverage.found.join("、") || "なし"}
+            </div>
+            {coverage.missing.length > 0 && (
+              <div style={{ color: "#b45415" }}>
+                <strong>このファイルに見当たらなかった項目:</strong> {coverage.missing.join("、")}
+                <span className="muted">(年齢などにより省略されている場合があります)</span>
+              </div>
+            )}
+            {coverage.renamed.length > 0 && (
+              <div className="muted">
+                見出しを読み替えた列: {coverage.renamed.map((r) => `「${r.from}」→ ${r.to}`).join("、")}
+              </div>
+            )}
+          </div>
+        </details>
+      )}
     </div>
   );
 }
@@ -145,7 +169,7 @@ export default function AutoReadRunner({
                 </div>
               </div>
             )}
-            {s.phase === "end" && s.result && (s.status === "done" || s.status === "review") && <ReadSummaryView summary={s.result.summary} role={role} />}
+            {s.phase === "end" && s.result && (s.status === "done" || s.status === "review") && <ReadSummaryView summary={s.result.summary} role={role} coverage={s.result.coverage} />}
             {s.phase === "end" && s.status === "failed" && (
               <div>
                 <p className="error-message" style={{ margin: "0 0 8px" }}>

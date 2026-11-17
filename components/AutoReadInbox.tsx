@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/browser";
 import { CHECKUP_TYPES, CHECKUP_WORK_JUDGMENTS, roundLabel } from "@/lib/checkups";
-import type { Diff, ReadSummary, AutoJudgment } from "@/lib/autoRead";
+import type { Coverage, Diff, ReadSummary, AutoJudgment } from "@/lib/autoRead";
 import { ReadSummaryView } from "@/components/AutoReadRunner";
 
 // 産業医事務所ダッシュボード: 自動の読み取り(AI)で「確認待ち」になった方を、内容を確かめて取り込む。
@@ -37,7 +37,7 @@ type Item = {
   created_at: string;
   read_status: string;
   read_error: string | null;
-  read_result: { summary: ReadSummary; people: Person[] } | null;
+  read_result: { summary: ReadSummary; people: Person[]; coverage?: Coverage } | null;
   progress: { done: number; total: number } | null;
 };
 
@@ -182,7 +182,7 @@ export default function AutoReadInbox() {
             {it.read_status === "failed" && <p className="error-message" style={{ margin: "8px 0 0" }}>自動では読み取れませんでした: {it.read_error}</p>}
             {it.read_status === "review" && isOpen && it.read_result && (
               <div style={{ marginTop: 12 }}>
-                <ReadSummaryView summary={it.read_result.summary} role="office" />
+                <ReadSummaryView summary={it.read_result.summary} role="office" coverage={it.read_result.coverage} />
                 <div style={{ display: "flex", gap: 8, flexWrap: "wrap", margin: "12px 0 6px", alignItems: "center" }}>
                   <button className="btn" disabled={busy === it.id || sel.size === 0} onClick={() => act(it, "approve", Array.from(sel))} style={{ padding: "6px 14px", fontSize: 13 }}>
                     選んだ{sel.size}名を取り込む
