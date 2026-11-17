@@ -83,28 +83,30 @@ create policy hm_interviews_update on public.hm_interviews
     or (public.hm_my_role() = 'company' and company_id = public.hm_my_company())
   );
 
--- 適用状況と、会社の担当者から見えなくなる面談の件数
-select * from (
-  values
-    ('申出の確認の印(hm_interviews.request_confirmed)',
-     (select case when count(*) = 1 then '✅OK' else '❌未適用' end from information_schema.columns
-       where table_schema = 'public' and table_name = 'hm_interviews' and column_name = 'request_confirmed')),
-    ('会社に見せる条件(高ストレス面接指導は申出のあるものだけ)',
-     (select case when count(*) = 2 then '✅OK' else '❌未適用' end from pg_policies
-       where schemaname = 'public' and tablename = 'hm_interviews'
-         and policyname in ('hm_interviews_select', 'hm_interviews_update') and qual like '%request_confirmed%')),
-    ('ストレスチェックWebの申出から登録された高ストレス面接指導(今までどおり会社に見える)',
-     (select count(*)::text || ' 件' from public.hm_interviews where interview_type = 'high_stress' and interview_request_id is not null)),
-    ('手で登録された高ストレス面接指導(会社から見えなくなる。申出のあった方は「予定を編集」でチェックを入れる)',
-     (select count(*)::text || ' 件' from public.hm_interviews
-       where interview_type = 'high_stress' and interview_request_id is null and not request_confirmed))
-) as t(項目, 状態);
-
--- 会社から見えなくなる面談の内訳(企業ごと)
-select c.name as 企業, count(*) as 件数,
-       count(*) filter (where i.status = 'scheduled') as うち予定中
-  from public.hm_interviews i
-  join public.companies c on c.id = i.company_id
- where i.interview_type = 'high_stress' and i.interview_request_id is null and not i.request_confirmed
- group by c.name
- order by c.name;
+-- 適用状況と、会社の担当者から見えなくなる面談の件数(企業ごとの内訳つき。結果は1つの表にまとめて表示する)
+select 項目, 状態 from (
+  select 1 as ord, '申出の確認の印(hm_interviews.request_confirmed)' as 項目,
+         (select case when count(*) = 1 then '✅OK' else '❌未適用' end from information_schema.columns
+           where table_schema = 'public' and table_name = 'hm_interviews' and column_name = 'request_confirmed') as 状態
+  union all
+  select 2, '会社に見せる条件(高ストレス面接指導は申出のあるものだけ)',
+         (select case when count(*) = 2 then '✅OK' else '❌未適用' end from pg_policies
+           where schemaname = 'public' and tablename = 'hm_interviews'
+             and policyname in ('hm_interviews_select', 'hm_interviews_update') and qual like '%request_confirmed%')
+  union all
+  select 3, 'ストレスチェックWebの申出から登録された高ストレス面接指導(今までどおり会社に見える)',
+         (select count(*)::text || ' 件' from public.hm_interviews
+           where interview_type = 'high_stress' and interview_request_id is not null)
+  union all
+  select 4, '手で登録された高ストレス面接指導(会社から見えなくなる。申出のあった方は「予定を編集」でチェックを入れる)',
+         (select count(*)::text || ' 件' from public.hm_interviews
+           where interview_type = 'high_stress' and interview_request_id is null and not request_confirmed)
+  union all
+  select 5, '　└ 内訳: ' || c.name,
+         count(*)::text || ' 件(うち予定中 ' || (count(*) filter (where i.status = 'scheduled'))::text || ' 件)'
+    from public.hm_interviews i
+    join public.companies c on c.id = i.company_id
+   where i.interview_type = 'high_stress' and i.interview_request_id is null and not i.request_confirmed
+   group by c.name
+) t
+order by ord, 項目;
