@@ -828,7 +828,7 @@ export default function CheckupsTable({
               )}
               <th style={{ minWidth: 112, ...nowrap }}>就業判定</th>
               <th style={{ minWidth: 150, ...nowrap }}>医師の意見</th>
-              <th style={{ minWidth: 92, ...nowrap }}>受診勧奨</th>
+              <th style={{ minWidth: 112, ...nowrap }}>受診勧奨</th>
             </tr>
           </thead>
           <tbody>
@@ -1068,6 +1068,9 @@ export default function CheckupsTable({
                         style={{
                           fontSize: 13,
                           padding: "4px 6px",
+                          // 「措置不要」「受診勧奨」の4文字と▼が切れない幅を確保する(列が狭くても縮めない)
+                          width: "auto",
+                          minWidth: "7.6em",
                           ...(c.followup_status === "pending"
                             ? { color: "var(--orange)", fontWeight: 700 }
                             : {}),
