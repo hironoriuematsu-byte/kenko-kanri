@@ -1,11 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/browser";
 import { CHECKUP_TYPES, CHECKUP_WORK_JUDGMENTS, roundLabel } from "@/lib/checkups";
 import type { Coverage, Diff, ReadSummary, AutoJudgment } from "@/lib/autoRead";
-import { ReadSummaryView } from "@/components/AutoReadRunner";
+import { AUTO_RETRIES, ReadSummaryView, retryWait } from "@/components/AutoReadRunner";
 
 // 産業医事務所ダッシュボード: 自動の読み取り(AI)で「確認待ち」になった方を、内容を確かめて取り込む。
 // 読み取りが途中で止まったファイル・読み取れなかったファイルも、ここから続き・読み直しができる
@@ -21,6 +21,7 @@ type Person = {
   diffKind: "read" | "existing" | null;
   judgment: AutoJudgment | null;
   overall: string;
+  cautions?: string[];
   row?: { items: { name: string; value?: string; judgment?: string }[]; sex: string; checkup_date: string | null };
 };
 type Item = {
@@ -37,7 +38,7 @@ type Item = {
   created_at: string;
   read_status: string;
   read_error: string | null;
-  read_result: { summary: ReadSummary; people: Person[]; coverage?: Coverage; otherRound?: boolean } | null;
+  read_result: { summary: ReadSummary; people: Person[]; coverage?: Coverage; otherRound?: boolean; notes?: string[] } | null;
   progress: { done: number; total: number } | null;
 };
 
@@ -68,8 +69,8 @@ export default function AutoReadInbox() {
 
   const post = async (body: Record<string, unknown>) => {
     const res = await fetch("/api/checkup-read", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
-    const j = (await res.json().catch(() => ({}))) as { error?: string; status?: string; busy?: boolean };
-    return { ok: res.ok, ...j };
+    const j = (await res.json().catch(() => ({}))) as { error?: string; status?: string; busy?: boolean; retry?: boolean };
+    return { ok: res.ok, http: res.status, ...j };
   };
 
   const act = async (it: Item, action: "approve" | "skip", indexes: number[]) => {
@@ -89,25 +90,59 @@ export default function AutoReadInbox() {
   };
 
   // 読み取りの続き・読み直し(終わるまで続けて呼ぶ)
-  const resume = async (it: Item, action: "run" | "retry" | "reround", extra: Record<string, unknown> = {}) => {
+  const resume = async (it: Item, action: "run" | "retry" | "reround" | "reread", extra: Record<string, unknown> = {}) => {
     setBusy(it.id);
     setErr(null);
     setMsg(null);
     let a: string = action;
+    let first = true;
+    let failures = 0; // 続けて起きた一時的な失敗の数(少し待ってから自動で続きを呼ぶ)
+    const wait = (ms: number) => new Promise((res) => setTimeout(res, ms));
     for (let n = 0; n < 600; n++) {
-      const r = await post({ action: a, uploadId: it.id, ...(a === action ? extra : {}) });
+      const r = await post({ action: a, uploadId: it.id, ...(first ? extra : {}) }).catch(() => ({ ok: false, http: 0 }) as Awaited<ReturnType<typeof post>>);
+      const temporary = (!r.ok && (r.http === 0 || r.http >= 500) && r.http !== 503) || (r.ok && r.retry === true);
+      if (temporary) {
+        // 最初の操作(読み直しなど)がサーバーに届いたか分からないときは、同じ操作をもう一度送る
+        if (r.ok) {
+          a = "run";
+          first = false;
+        }
+        failures++;
+        if (failures > AUTO_RETRIES) {
+          setErr(r.error ?? "読み取りの途中で止まりました。もう一度お試しください");
+          break;
+        }
+        await wait(retryWait(failures));
+        continue;
+      }
       a = "run";
+      first = false;
       if (!r.ok) {
         setErr(r.error ?? "処理できませんでした");
         break;
       }
-      if (r.busy) await new Promise((res) => setTimeout(res, 6000));
-      if (r.status === "done" || r.status === "review" || r.status === "failed" || (r.error && !r.busy)) break;
+      if (r.busy) await wait(6000);
+      else failures = 0;
+      if (r.status === "done" || r.status === "review" || r.status === "failed" || (r.error && !r.busy)) {
+        if (r.error && r.status !== "failed") setErr(r.error);
+        break;
+      }
       load();
     }
     setBusy(null);
     load();
   };
+
+  // 読み取りの途中で止まっているファイルは、この画面を開いたときに自動で続きを読み取る(ボタンを押さなくてよい)
+  const autoStarted = useRef(new Set<string>());
+  useEffect(() => {
+    if (!items || busy) return;
+    const next = items.find((it) => it.read_status === "reading" && !autoStarted.current.has(it.id));
+    if (!next) return;
+    autoStarted.current.add(next.id);
+    resume(next, "run");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [items, busy]);
 
   const openPdf = async (it: Item, page: number | null) => {
     if (!it.storage_path) return;
@@ -158,6 +193,11 @@ export default function AutoReadInbox() {
                   <button className="btn secondary" onClick={() => setOpen(isOpen ? null : it.id)} style={{ padding: "6px 14px", fontSize: 13 }}>
                     {isOpen ? "閉じる" : "内容を見る"}
                   </button>
+                  {!people.some((p) => p.status === "imported" || p.status === "added") && (
+                    <button className="btn secondary" disabled={busy === it.id} onClick={() => resume(it, "reread")} style={{ padding: "6px 14px", fontSize: 13 }}>
+                      {busy === it.id ? "読み直しています…" : "読み直す"}
+                    </button>
+                  )}
                 </>
               )}
               {it.read_status === "reading" && (
@@ -218,7 +258,7 @@ export default function AutoReadInbox() {
             )}
             {it.read_status === "review" && isOpen && it.read_result && (
               <div style={{ marginTop: 12 }}>
-                <ReadSummaryView summary={it.read_result.summary} role="office" coverage={it.read_result.coverage} />
+                <ReadSummaryView summary={it.read_result.summary} role="office" coverage={it.read_result.coverage} notes={it.read_result.notes} />
                 <div style={{ display: "flex", gap: 8, flexWrap: "wrap", margin: "12px 0 6px", alignItems: "center" }}>
                   <button className="btn" disabled={busy === it.id || sel.size === 0} onClick={() => act(it, "approve", Array.from(sel))} style={{ padding: "6px 14px", fontSize: 13 }}>
                     選んだ{sel.size}名を取り込む
@@ -263,6 +303,9 @@ export default function AutoReadInbox() {
                             {p.reasons.map((r) => (
                               <li key={r}>{r}</li>
                             ))}
+                            {(p.cautions ?? []).map((r) => (
+                              <li key={r}>{r}</li>
+                            ))}
                           </ul>
                         </span>
                       </label>
@@ -272,8 +315,8 @@ export default function AutoReadInbox() {
                             <thead>
                               <tr>
                                 <th>項目</th>
-                                <th>{conflict ? "登録済みの値" : "1回目の読み取り"}</th>
-                                <th>{conflict ? "今回のファイル" : "2回目の読み取り"}</th>
+                                <th>{conflict ? "登録済みの値" : "読み取り①"}</th>
+                                <th>{conflict ? "今回のファイル" : "読み取り②"}</th>
                               </tr>
                             </thead>
                             <tbody>

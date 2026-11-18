@@ -11,16 +11,20 @@ export type ReadTarget = { id: string; name: string; kind: "csv" | "pdf"; hash?:
 type ApiState = {
   status?: string;
   progress?: { done: number; total: number } | null;
-  result?: { summary: ReadSummary; coverage?: Coverage; otherRound?: boolean } | null;
+  result?: { summary: ReadSummary; coverage?: Coverage; otherRound?: boolean; notes?: string[] } | null;
   error?: string | null;
   busy?: boolean;
+  retry?: boolean;
 };
+// 一時的な失敗(通信・AIの混雑・時間切れ)のとき、自動でやり直す回数と待ち時間
+export const AUTO_RETRIES = 6;
+export const retryWait = (n: number) => Math.min(60_000, 5000 * 2 ** (n - 1));
 type FileState = ApiState & { phase: "wait" | "run" | "end" | "manual" | "stopped" };
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 // 読み取り結果の要約(会社・事務所の画面で共通)
-export function ReadSummaryView({ summary, role, coverage }: { summary: ReadSummary; role: "office" | "company"; coverage?: Coverage }) {
+export function ReadSummaryView({ summary, role, coverage, notes }: { summary: ReadSummary; role: "office" | "company"; coverage?: Coverage; notes?: string[] }) {
   const returned = summary.normal + summary.consult + summary.pending;
   const li = { margin: "2px 0" } as const;
   return (
@@ -56,6 +60,13 @@ export function ReadSummaryView({ summary, role, coverage }: { summary: ReadSumm
           </li>
         )}
       </ul>
+      {notes && notes.length > 0 && (
+        <ul style={{ margin: "6px 0 0", paddingLeft: 20, fontSize: 13, color: "#b45415" }}>
+          {notes.map((n) => (
+            <li key={n}>{n}</li>
+          ))}
+        </ul>
+      )}
       {coverage && (
         <details style={{ marginTop: 6, fontSize: 13 }}>
           <summary style={{ cursor: "pointer", color: "var(--teal-dark)" }}>
@@ -104,25 +115,52 @@ export default function AutoReadRunner({
   const drive = async (t: ReadTarget, action: "run" | "retry" = "run") => {
     set(t.id, { phase: "run", error: null });
     let act = action;
+    let failures = 0; // 続けて起きた一時的な失敗の数
+    // 一時的な失敗は、少し待ってから自動で続きを呼ぶ(何度か続いたときだけ止める)
+    const again = async (message: string): Promise<boolean> => {
+      failures++;
+      if (failures > AUTO_RETRIES) {
+        set(t.id, { phase: "stopped", error: message });
+        return false;
+      }
+      await sleep(retryWait(failures));
+      return true;
+    };
     for (let n = 0; n < 600; n++) {
       let res: Response;
       try {
         res = await fetch("/api/checkup-read", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: act, uploadId: t.id, hash: t.hash }) });
       } catch {
-        return set(t.id, { phase: "stopped", error: "通信が切れました。「続ける」を押すと、続きから進みます" });
+        if (await again("通信が切れました。「続ける」を押すと、続きから進みます")) continue;
+        return;
       }
-      act = "run";
       // 自動の読み取りが使えない環境(設定前)では、今までどおり事務所が手で取り込む
       if (res.status === 503 || res.status === 404) return set(t.id, { phase: "manual" });
       const j = (await res.json().catch(() => ({}))) as ApiState;
-      if (!res.ok) return set(t.id, { phase: "stopped", error: j.error ?? `エラー(${res.status})` });
-      set(t.id, j);
+      if (!res.ok) {
+        // サーバー側の時間切れなど(5xx)は、続きから進められる
+        if (res.status >= 500 && (await again(j.error ?? `エラー(${res.status})。「続ける」を押すと、続きから進みます`))) {
+          act = "run";
+          continue;
+        }
+        if (res.status >= 500) return;
+        return set(t.id, { phase: "stopped", error: j.error ?? `エラー(${res.status})` });
+      }
+      act = "run";
       if (j.busy) {
+        set(t.id, { ...j, error: null });
         await sleep(6000);
         continue;
       }
       if (j.status === "done" || j.status === "review" || j.status === "failed") return set(t.id, { ...j, phase: "end" });
-      if (j.error) return set(t.id, { ...j, phase: "stopped" });
+      if (j.error) {
+        set(t.id, { progress: j.progress });
+        if (j.retry && (await again(j.error))) continue;
+        if (j.retry) return;
+        return set(t.id, { ...j, phase: "stopped" });
+      }
+      failures = 0;
+      set(t.id, j);
     }
     set(t.id, { phase: "stopped", error: "時間がかかりすぎています。「続ける」を押してください" });
   };
@@ -169,7 +207,7 @@ export default function AutoReadRunner({
                 </div>
               </div>
             )}
-            {s.phase === "end" && s.result && (s.status === "done" || s.status === "review") && <ReadSummaryView summary={s.result.summary} role={role} coverage={s.result.coverage} />}
+            {s.phase === "end" && s.result && (s.status === "done" || s.status === "review") && <ReadSummaryView summary={s.result.summary} role={role} coverage={s.result.coverage} notes={s.result.notes} />}
             {/* 別の回(2回目など)の健診を、違う回として送ったとみられるとき */}
             {s.phase === "end" && s.status === "review" && s.result?.otherRound && (
               <p style={{ margin: "8px 0 0", background: "var(--orange-light)", border: "1px solid var(--orange)", borderRadius: 8, padding: "8px 12px", fontSize: 14 }}>

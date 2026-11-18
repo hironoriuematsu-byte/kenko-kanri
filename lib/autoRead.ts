@@ -3,7 +3,7 @@
 //   ありえない値や、すでに登録されている結果との違いを見つける / 就業判定(事務所の基準)を決める
 // 判定そのものは lib/importRows.ts・lib/judgment.ts(手作業の取込と同じ処理)が行う
 
-import { LEGAL_ITEMS, findLegalItemByHeader, parseNumber } from "@/lib/judgment";
+import { LEGAL_ITEMS, findLegalItemByHeader, parseNumber, splitBloodPressure } from "@/lib/judgment";
 import { isRestrictionJudgment, isSevereJudgment, normalizeDate } from "@/lib/checkups";
 import { getFiscalYear } from "@/lib/fiscal";
 import { markReferral, needsReferral, referralNote } from "@/lib/referral";
@@ -181,10 +181,20 @@ export function personsToTable(persons: ReadPerson[]): { header: string[]; rows:
 // ---- 2回の読み取りの突き合わせ ----
 export type Diff = { field: string; a: string; b: string };
 
-// 値が同じとみなせるか(数値どうしは数として、文字は空白・全角半角の違いを無視して比べる)
+// 比べるために、値の書き方をそろえる。
+//   マイナスの記号の違い(- − － ‐ など)、尿糖・尿蛋白の括弧の有無((-) と - 、(±) と ± など)は同じとみなす
+export function canonValue(v: string | null | undefined): string {
+  let x = squash(v).replace(/[‐‑‒–—―−－]/g, "-");
+  if (/^\(?[-ー]\)?$/.test(x)) return "-";
+  const m = x.match(/^\((.+)\)$/);
+  if (m && /^(±|\+-|-\+|\d?\+{1,4})$/.test(m[1])) x = m[1];
+  return x;
+}
+
+// 値が同じとみなせるか(数値どうしは数として、文字は空白・全角半角・記号の書き方の違いを無視して比べる)
 export function sameValue(a: string | null | undefined, b: string | null | undefined): boolean {
-  const x = squash(a);
-  const y = squash(b);
+  const x = canonValue(a);
+  const y = canonValue(b);
   if (x === y) return true;
   const numeric = /^-?[\d,]+(\.\d+)?$/;
   if (numeric.test(x) && numeric.test(y)) return parseNumber(x) === parseNumber(y);
@@ -192,49 +202,197 @@ export function sameValue(a: string | null | undefined, b: string | null | undef
   return dx != null && dx === normalizeDate(y);
 }
 
+// 同じ法定項目が複数あるとき(右・左、1回目・2回目、平均、裸眼・矯正)の見分け。
+// 項目名の書き方が読み取りごとに違っても(「聴力 右1000Hz」と「右1000Hz」)、同じ項目として比べる
+function subKey(label: string | null | undefined): string {
+  const n = (label ?? "").normalize("NFKC");
+  const t: string[] = [];
+  if (/右/.test(n)) t.push("R");
+  if (/左/.test(n)) t.push("L");
+  const round = n.match(/([1-4])\s*回|第\s*([1-4])|([①②③④])/);
+  if (round) t.push(`n${round[1] ?? round[2] ?? "①②③④".indexOf(round[3]) + 1}`);
+  if (/平均/.test(n)) t.push("avg");
+  if (/矯正/.test(n)) t.push("c");
+  if (/裸眼/.test(n)) t.push("n");
+  return t.join("");
+}
+
+// 人ごとの項目を、比べやすい形(項目の見分け → 値)に直す。
+//   「111/62」のように1つの欄に書かれた血圧は、収縮期と拡張期に分けて比べる(分けて書き出した読み取りと同じになる)
+type CanonEntry = { key: string; k: string; l: string; name: string; v: string; src: ReadItem; part: "sbp" | "dbp" | null };
+const itemName = (it: ReadItem) => (it.l ?? "").trim() || legalLabel(it.k);
+const usableItem = (it: ReadItem) => (LEGAL_KEYS.includes(it.k) || !!(it.l ?? "").trim()) && String(it.v ?? "").trim() !== "";
+function canonItems(p: ReadPerson): CanonEntry[] {
+  const out: CanonEntry[] = [];
+  const used = new Set<string>();
+  const uniq = (base: string) => {
+    let key = base;
+    for (let n = 2; used.has(key); n++) key = `${base}#${n}`;
+    used.add(key);
+    return key;
+  };
+  const legal = (it: ReadItem) => LEGAL_KEYS.includes(it.k);
+  // 分けて書かれた拡張期血圧があるか(あるときは、収縮期の欄の「/」の右側は使わない)
+  const hasDbp = (sub: string) => p.items.some((x) => x.k === "dbp" && usableItem(x) && subKey(x.l) === sub);
+  for (const it of p.items) {
+    if (!usableItem(it)) continue;
+    if (!legal(it)) {
+      out.push({ key: uniq(`|${squash(it.l)}`), k: it.k, l: (it.l ?? "").trim(), name: itemName(it), v: it.v, src: it, part: null });
+      continue;
+    }
+    const sub = subKey(it.l);
+    const bp = it.k === "sbp" || it.k === "dbp" ? splitBloodPressure(String(it.v).normalize("NFKC")) : {};
+    if (it.k === "sbp" && bp.sbp != null && bp.dbp != null) {
+      out.push({ key: uniq(`sbp|${sub}`), k: "sbp", l: (it.l ?? "").trim(), name: itemName(it), v: String(bp.sbp), src: it, part: "sbp" });
+      if (!hasDbp(sub)) out.push({ key: uniq(`dbp|${sub}`), k: "dbp", l: (it.l ?? "").trim(), name: sub ? `拡張期血圧（${(it.l ?? "").trim()}）` : "拡張期血圧", v: String(bp.dbp), src: it, part: "dbp" });
+      continue;
+    }
+    out.push({ key: uniq(`${it.k}|${sub}`), k: it.k, l: (it.l ?? "").trim(), name: itemName(it), v: it.v, src: it, part: null });
+  }
+  return out;
+}
+
+const PERSON_FIELDS = [
+  ["氏名", "name"],
+  ["生年月日", "birth"],
+  ["性別", "sex"],
+  ["健診日", "date"],
+] as const;
+
 function diffPerson(a: ReadPerson, b: ReadPerson): Diff[] {
   const out: Diff[] = [];
-  const cmp = (field: string, x: string, y: string) => {
-    if (!sameValue(x, y)) out.push({ field, a: x ?? "", b: y ?? "" });
-  };
-  cmp("氏名", a.name, b.name);
-  cmp("生年月日", a.birth, b.birth);
-  cmp("性別", a.sex, b.sex);
-  cmp("健診日", a.date, b.date);
-  const key = (it: ReadItem) => `${it.k}|${squash(it.l)}`;
-  const name = (it: ReadItem) => (it.l ?? "").trim() || legalLabel(it.k);
-  // 法定項目と、特殊健診の項目(用紙の項目名つき)を比べる
-  const usable = (it: ReadItem) => LEGAL_KEYS.includes(it.k) || !!(it.l ?? "").trim();
-  const bMap = new Map(b.items.filter(usable).map((it) => [key(it), it]));
+  for (const [field, f] of PERSON_FIELDS) if (!sameValue(a[f], b[f])) out.push({ field, a: a[f] ?? "", b: b[f] ?? "" });
+  const ca = canonItems(a);
+  const bMap = new Map(canonItems(b).map((e) => [e.key, e]));
   const seen = new Set<string>();
-  for (const it of a.items) {
-    if (!usable(it)) continue;
-    const k = key(it);
-    seen.add(k);
-    cmp(name(it), it.v, bMap.get(k)?.v ?? "");
+  for (const e of ca) {
+    seen.add(e.key);
+    const other = bMap.get(e.key)?.v ?? "";
+    if (!sameValue(e.v, other)) out.push({ field: e.name, a: e.v, b: other });
   }
-  bMap.forEach((it, k) => {
-    if (!seen.has(k) && String(it.v ?? "").trim()) out.push({ field: name(it), a: "", b: it.v });
+  bMap.forEach((e, k) => {
+    if (!seen.has(k)) out.push({ field: e.name, a: "", b: e.v });
   });
   return out;
+}
+
+// 同じ人か(氏名が同じ。氏名の読みが食い違っていても、同じページ・同じ生年月日なら同じ人として比べる)
+function findSame(p: ReadPerson, list: ReadPerson[], used: Set<number>): number {
+  const byName = list.findIndex((q, i) => !used.has(i) && squash(q.name) === squash(p.name) && (!p.birth || !q.birth || sameValue(p.birth, q.birth)));
+  if (byName >= 0) return byName;
+  return list.findIndex((q, i) => !used.has(i) && q.page === p.page && !!p.birth && sameValue(p.birth, q.birth));
 }
 
 // 1回目を基準にして、2回目と食い違うところを人ごとに挙げる。片方にしか出てこない人も挙げる
 export function compareReads(a: ReadPerson[], b: ReadPerson[]): { diffs: Diff[][]; onlySecond: ReadPerson[] } {
   const used = new Set<number>();
-  const find = (p: ReadPerson): number => {
-    const byName = b.findIndex((q, i) => !used.has(i) && squash(q.name) === squash(p.name) && (!p.birth || !q.birth || sameValue(p.birth, q.birth)));
-    if (byName >= 0) return byName;
-    // 氏名の読みが食い違っていても、同じページ・同じ生年月日なら同じ人として比べる
-    return b.findIndex((q, i) => !used.has(i) && q.page === p.page && !!p.birth && sameValue(p.birth, q.birth));
-  };
   const diffs = a.map((p) => {
-    const i = find(p);
+    const i = findSame(p, b, used);
     if (i < 0) return [{ field: "読み取り", a: "1回目だけに出てきました", b: "" }];
     used.add(i);
     return diffPerson(p, b[i]);
   });
   return { diffs, onlySecond: b.filter((_, i) => !used.has(i)) };
+}
+
+// 3回の読み取りを突き合わせて、2回以上そろった値を採る(多数決)。
+//   2回の読み取りが食い違ったページだけ3回目を読む。3回目を読んでいないページは、c に1回目と同じものを渡す。
+//   3回とも違う値・1回しか出てこなかった方だけが、食い違い(確認待ち)として残る
+export function reconcileReads(a: ReadPerson[], b: ReadPerson[], c: ReadPerson[]): { reads: ReadPerson[]; diffs: Diff[][] } {
+  const usedB = new Set<number>();
+  const usedC = new Set<number>();
+  const groups: (ReadPerson | null)[][] = [];
+  for (const p of a) {
+    const i = findSame(p, b, usedB);
+    const j = findSame(p, c, usedC);
+    if (i >= 0) usedB.add(i);
+    if (j >= 0) usedC.add(j);
+    groups.push([p, i >= 0 ? b[i] : null, j >= 0 ? c[j] : null]);
+  }
+  b.forEach((p, i) => {
+    if (usedB.has(i)) return;
+    const j = findSame(p, c, usedC);
+    if (j >= 0) usedC.add(j);
+    groups.push([null, p, j >= 0 ? c[j] : null]);
+  });
+  c.forEach((p, j) => {
+    if (!usedC.has(j)) groups.push([null, null, p]);
+  });
+
+  const reads: ReadPerson[] = [];
+  const diffs: Diff[][] = [];
+  for (const g of groups) {
+    const present = g.filter((p): p is ReadPerson => p !== null);
+    const base = present[0];
+    if (present.length === 1) {
+      reads.push(base);
+      diffs.push([{ field: "読み取り", a: "3回のうち1回だけに出てきました", b: "" }]);
+      continue;
+    }
+    const d: Diff[] = [];
+    // 2つ以上そろった値。そろわなければ null
+    const majority = (vals: string[]): string | null => {
+      for (let i = 0; i < vals.length; i++) for (let j = i + 1; j < vals.length; j++) if (sameValue(vals[i], vals[j])) return vals[i];
+      return null;
+    };
+    const person: ReadPerson = { ...base, items: [] };
+    for (const [field, f] of PERSON_FIELDS) {
+      const vals = present.map((p) => p[f] ?? "");
+      const m = majority(vals);
+      if (m != null) person[f] = m;
+      else d.push({ field, a: vals[0], b: vals[1] });
+    }
+    for (const f of ["kana", "emp_no", "dept", "overall"] as const) {
+      const vals = present.map((p) => p[f] ?? "");
+      person[f] = majority(vals) ?? vals[0];
+    }
+    const maps = present.map((p) => new Map(canonItems(p).map((e) => [e.key, e])));
+    const keys: string[] = [];
+    maps.forEach((m) =>
+      m.forEach((_, k) => {
+        if (!keys.includes(k)) keys.push(k);
+      })
+    );
+    const open = new Set<CanonEntry>(); // そろわなかった項目
+    // 採る値を決める(どの読み取りの、どの項目か)
+    const chosen: CanonEntry[] = [];
+    for (const k of keys) {
+      const vals = maps.map((m) => m.get(k)?.v ?? "");
+      const m = majority(vals);
+      const first = maps.map((mm) => mm.get(k)).find((e): e is CanonEntry => !!e)!;
+      if (m == null) {
+        d.push({ field: first.name, a: vals[0], b: vals[1] });
+        const mine = maps[0].get(k);
+        if (mine) {
+          chosen.push(mine);
+          open.add(mine);
+        }
+        continue;
+      }
+      if (m === "") continue; // 2回以上「書かれていない」→ 取り込まない
+      chosen.push(maps.map((mm) => mm.get(k)).find((e): e is CanonEntry => !!e && sameValue(e.v, m))!);
+    }
+    // 1つの欄に書かれた血圧(111/62)は、収縮期・拡張期とも同じ読み取りから採ったときだけ、元の書き方のまま残す
+    const done = new Set<ReadItem>();
+    for (const e of chosen) {
+      if (!e.part) {
+        person.items.push(e.src);
+        continue;
+      }
+      if (done.has(e.src)) continue;
+      const parts = chosen.filter((x) => x.src === e.src);
+      const whole = canonItems({ ...base, items: [e.src] }).length;
+      if (parts.length === whole && !parts.some((x) => open.has(x))) {
+        done.add(e.src);
+        person.items.push(e.src);
+      } else {
+        person.items.push({ k: e.k, v: e.v, l: e.l || undefined });
+      }
+    }
+    reads.push(person);
+    diffs.push(d);
+  }
+  return { reads, diffs };
 }
 
 // ---- ありえない値 ----
@@ -381,6 +539,7 @@ export type PlannedPerson = {
   diffKind: "read" | "existing" | null;
   clean: boolean; // 確認待ちだが、問題は見つかっていない(PDFの確認運用のため)
   otherRound: boolean; // このファイルは、別の回(2回目など)の健診とみられる
+  cautions: string[]; // 止めずに取り込んだが、知らせておくこと
   judgment: AutoJudgment | null; // 取り込むときに付ける就業判定(null は付けない)
   needsFollowup: boolean; // 受診勧奨の対象か
 };
@@ -396,6 +555,7 @@ export function planPeople(opts: {
   rosterSize: number; // 個人カルテ(名簿)の人数
   pdfAuto: boolean; // PDFも、問題のない方は確認なしで取り込む
   rules?: JudgmentRule[]; // 判定基準(受診勧奨の基準 S を含む)
+  roster?: { full_name: string; birth_date: string | null }[]; // 個人カルテ(名簿)。氏名の読み違いの見分けに使う
 }): PlannedPerson[] {
   const rules = opts.rules ?? [];
   const seen = new Set<string>();
@@ -410,14 +570,22 @@ export function planPeople(opts: {
   const farCount = far.filter((f) => f.far).length;
   const matchedCount = far.filter((f) => f.matched).length;
   const otherRound = farCount >= 2 || (farCount >= 1 && farCount * 2 >= matchedCount);
+  // 健診日が指定の年度から外れている方。ファイルの半分以上が年度内で、外れが半年以内なら、止めずに取り込んで知らせる
+  // (年度の変わり目に受けた方など)。ファイルの大半が年度外なら、年度の指定違いとみて止める
+  const fyStart = `${opts.fiscalYear}-04-01`;
+  const fyEnd = `${opts.fiscalYear + 1}-03-31`;
+  const outside = (d: string | null) => (!d ? null : d < fyStart ? daysApart(d, fyStart) : d > fyEnd ? daysApart(d, fyEnd) : 0);
+  const dated = opts.rows.map((r) => outside(r.checkup_date)).filter((n): n is number => n != null);
+  const mostlyInYear = dated.filter((n) => n === 0).length * 2 >= dated.length;
   return opts.rows.map((row, i) => {
     const sex = row.sex === "male" || row.sex === "female" ? row.sex : null;
     const reasons: string[] = [];
+    const cautions: string[] = [];
     let diffs: Diff[] = [];
     let diffKind: PlannedPerson["diffKind"] = null;
     const readDiff = opts.readDiffs?.[i] ?? [];
     if (readDiff.length > 0) {
-      reasons.push("2回の読み取りで結果が食い違いました");
+      reasons.push("読み取りをくり返しても、結果がそろいませんでした");
       diffs = readDiff;
       diffKind = "read";
     }
@@ -425,14 +593,20 @@ export function planPeople(opts: {
     const odd = implausibleItems(row.items);
     if (odd.length > 0) reasons.push(`ありえない値があります(${odd.join("、")})`);
     if (row.checkup_date && getFiscalYear(new Date(`${row.checkup_date}T00:00:00`)) !== opts.fiscalYear) {
-      reasons.push(`健診日(${row.checkup_date})が、指定の年度(${opts.fiscalYear}年度)と違います`);
+      const off = outside(row.checkup_date);
+      if (mostlyInYear && off != null && off <= 183) cautions.push(`健診日(${row.checkup_date})が、指定の年度(${opts.fiscalYear}年度)の外です。${opts.fiscalYear}年度の結果として取り込みました`);
+      else reasons.push(`健診日(${row.checkup_date})が、指定の年度(${opts.fiscalYear}年度)と違います`);
     }
     // 同じファイルの中に同じ方が2回出てきた
     const who = `${squash(row.target_name)}|${row.birth_date}|${row.employee_no}`;
     if (seen.has(who)) reasons.push("同じファイルの中に、同じ方が2回出てきました");
     seen.add(who);
     if (opts.kind === "pdf" && opts.rosterSize > 0 && !row.person_id) {
-      reasons.push("名簿(個人カルテ)の方と結びつきませんでした(氏名の読み違い、または新しい方)");
+      // 名簿に、同じ生年月日で氏名の違う方がいるときだけ、氏名の読み違いとみて止める。いなければ新しい方として取り込む(CSVと同じ)
+      const near = row.birth_date ? (opts.roster ?? []).find((r) => r.birth_date === row.birth_date && squash(r.full_name) !== squash(row.target_name)) : undefined;
+      if (near) reasons.push(`名簿(個人カルテ)に、同じ生年月日の ${near.full_name} さんがいます。氏名の読み違いかもしれません`);
+      else if (!opts.roster) reasons.push("名簿(個人カルテ)の方と結びつきませんでした(氏名の読み違い、または新しい方)");
+      else cautions.push("名簿(個人カルテ)にいない方です。新しい方として取り込みました");
     }
     if (far[i].far) {
       reasons.push(`すでに登録されている結果(健診日 ${far[i].date})と、健診日(${row.checkup_date})が離れています。別の回(2回目など)の健診のようです`);
@@ -449,7 +623,7 @@ export function planPeople(opts: {
       reasons.push("すでに登録されている結果と、値が違います");
     }
     const existing = against.mode === "new" ? null : against.existing;
-    const base = { row, page: opts.pages?.[i] ?? null, existingId: existing?.id ?? null, diffs, diffKind, otherRound };
+    const base = { row, page: opts.pages?.[i] ?? null, existingId: existing?.id ?? null, diffs, diffKind, otherRound, cautions };
 
     if (against.mode === "same" && reasons.length === 0) {
       return { ...base, action: "same" as const, addItems: [], reasons, clean: true, judgment: null, needsFollowup: false };

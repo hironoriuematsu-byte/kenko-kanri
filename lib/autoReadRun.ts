@@ -13,6 +13,7 @@ import {
   keysWithData,
   classifyAgainstExisting,
   compareReads,
+  reconcileReads,
   decideWorkJudgment,
   needsFollowup,
   personsToTable,
@@ -55,7 +56,9 @@ export type Upload = {
   created_at: string;
 };
 
-type Chunk = { from: number; to: number; done: boolean; a?: ReadPerson[]; b?: ReadPerson[] };
+// c: 2回の読み取りが食い違ったときだけ読む3回目(多数決に使う)
+type Chunk = { from: number; to: number; done: boolean; a?: ReadPerson[]; b?: ReadPerson[]; c?: ReadPerson[] };
+const CHUNKS_PER_STEP = 2; // 1回の呼び出しで、同時に読む区切りの数
 type Work = { pages: number; chunks: Chunk[] };
 
 // 画面に出す・あとで承認するために残す、一人ずつの結果
@@ -70,12 +73,14 @@ export type StoredPerson = {
   diffKind: "read" | "existing" | null;
   judgment: AutoJudgment | null;
   overall: string;
+  cautions?: string[]; // 止めずに取り込んだが、知らせておくこと
   // 確認待ちの方だけ: 承認のときに使う
   row?: ImportRow;
   read?: ReadPerson; // PDFから読んだ内容(食い違いのどちらを採るか選べるように)
 };
 // otherRound: 別の回(2回目など)の健診とみられるため、ファイル全体を止めている(事務所が実施回を直して読み直せる)
-export type ReadResult = { kind: "csv" | "pdf"; summary: ReadSummary; people: StoredPerson[]; at: string; coverage?: Coverage; otherRound?: boolean };
+// notes: 止めずに取り込んだが、知らせておくこと(「○○さん: 健診日が年度の外」など)
+export type ReadResult = { kind: "csv" | "pdf"; summary: ReadSummary; people: StoredPerson[]; at: string; coverage?: Coverage; otherRound?: boolean; notes?: string[] };
 
 export type RunState = {
   status: string; // none / reading / review / done / failed
@@ -83,6 +88,7 @@ export type RunState = {
   result: ReadResult | null;
   error: string | null;
   busy?: boolean;
+  retry?: boolean; // 一時的な失敗。画面が少し待ってから、続きを自動で呼ぶ
 };
 
 const UPLOAD_COLS =
@@ -164,6 +170,7 @@ const toStored = (p: PlannedPerson, read?: ReadPerson): StoredPerson => ({
   diffKind: p.diffKind,
   judgment: p.judgment,
   overall: p.row.overall_judgment,
+  ...(p.cautions.length > 0 ? { cautions: p.cautions } : {}),
   ...(p.action === "hold" ? { row: p.row, read } : {}),
 });
 
@@ -206,11 +213,22 @@ async function finalize(admin: SupabaseClient, u: Upload, actor: Actor, kind: "c
     // 特殊健診のPDFは、健診の種類ごとに書式が大きく違うため、設定にかかわらず事務所が確認してから取り込む
     pdfAuto: ctx.pdfAuto && u.checkup_type !== "special",
     rules: ctx.rules,
+    roster: ctx.persons,
   });
   const people = plan
     .filter((p) => p.action === "import" || p.action === "add")
     .map((p) => toApply(p.row, p.action === "add" ? "add" : "new", p.existingId, p.action === "add" ? p.addItems : p.row.items, p.judgment, p.page, p.needsFollowup));
-  const result: ReadResult = { kind, summary: summarize(plan), people: plan.map((p, i) => toStored(p, extra?.reads[i])), at: new Date().toISOString(), coverage, otherRound: plan.some((p) => p.otherRound) };
+  // 取り込んだ方についての知らせ(確認待ちの方の分は、確認の画面に出る)
+  const notes = plan.filter((p) => p.action !== "hold").flatMap((p) => p.cautions.map((c) => `${p.row.target_name}さん: ${c}`));
+  const result: ReadResult = {
+    kind,
+    summary: summarize(plan),
+    people: plan.map((p, i) => toStored(p, extra?.reads[i])),
+    at: new Date().toISOString(),
+    coverage,
+    otherRound: plan.some((p) => p.otherRound),
+    ...(notes.length > 0 ? { notes } : {}),
+  };
   return apply(admin, u, actor, people, result);
 }
 
@@ -281,35 +299,61 @@ async function runPdf(admin: SupabaseClient, u: Upload, actor: Actor): Promise<R
     return { status: "reading", progress: { done: 0, total: chunks.length }, result: null, error: null };
   }
 
-  const i = work.chunks.findIndex((c) => !c.done);
-  if (i >= 0) {
-    const c = work.chunks[i];
-    const part = await pdfSlice(bytes, c.from, c.to);
-    // 同じページを2回読ませて、あとで突き合わせる
+  const todo = work.chunks.filter((c) => !c.done).slice(0, CHUNKS_PER_STEP);
+  if (todo.length > 0) {
     const specialKind = u.checkup_type === "special" ? (u.special_kind ?? "").trim() : null;
-    const [a, b] = await Promise.all([readPdfPart(part, c.from - 1, specialKind), readPdfPart(part, c.from - 1, specialKind)]);
-    if (a.truncated || b.truncated) {
-      // 1ページに人数が多くて書き出しきれなかった: 1ページずつに分けて読み直す
-      if (c.to === c.from) return fail(admin, u, `${c.from}ページ目に載っている人数が多く、読み取りきれませんでした。手作業の取込をお使いください`);
-      const singles: Chunk[] = Array.from({ length: c.to - c.from + 1 }, (_, k) => ({ from: c.from + k, to: c.from + k, done: false }));
-      work.chunks.splice(i, 1, ...singles);
-    } else {
-      work.chunks[i] = { ...c, done: true, a: a.persons, b: b.persons };
+    // 区切りごとに、同じページを2回読ませて突き合わせる。食い違ったら、その区切りだけ3回目を読んで多数決にする
+    const readChunk = async (c: Chunk): Promise<Chunk | "truncated"> => {
+      const part = await pdfSlice(bytes, c.from, c.to);
+      const [a, b] = await Promise.all([readPdfPart(part, c.from - 1, specialKind), readPdfPart(part, c.from - 1, specialKind)]);
+      if (a.truncated || b.truncated) return "truncated";
+      const cmp = compareReads(a.persons, b.persons);
+      let third: ReadPerson[] | undefined;
+      if (cmp.onlySecond.length > 0 || cmp.diffs.some((d) => d.length > 0)) {
+        try {
+          const r = await readPdfPart(part, c.from - 1, specialKind);
+          if (!r.truncated) third = r.persons;
+        } catch (e) {
+          console.error("third read failed", e); // 3回目が読めなければ、2回の突き合わせのまま進める
+        }
+      }
+      return { ...c, done: true, a: a.persons, b: b.persons, ...(third ? { c: third } : {}) };
+    };
+    const settled = await Promise.allSettled(todo.map(readChunk));
+    let progressed = false;
+    let firstError: unknown = null;
+    for (let n = 0; n < todo.length; n++) {
+      const c = todo[n];
+      const r = settled[n];
+      const at = work.chunks.indexOf(c);
+      if (r.status === "rejected") {
+        firstError = firstError ?? r.reason;
+        continue;
+      }
+      progressed = true;
+      if (r.value === "truncated") {
+        // 1ページに人数が多くて書き出しきれなかった: 1ページずつに分けて読み直す
+        if (c.to === c.from) return fail(admin, u, `${c.from}ページ目に載っている人数が多く、読み取りきれませんでした。手作業の取込をお使いください`);
+        const singles: Chunk[] = Array.from({ length: c.to - c.from + 1 }, (_, k) => ({ from: c.from + k, to: c.from + k, done: false }));
+        work.chunks.splice(at, 1, ...singles);
+      } else {
+        work.chunks[at] = r.value;
+      }
     }
-    await admin.from("hm_csv_uploads").update({ read_work: work, read_updated_at: null }).eq("id", u.id);
+    // 読めた区切りは残す(一時的な失敗があっても、次はその続きから)
+    if (progressed) await admin.from("hm_csv_uploads").update({ read_work: work, read_updated_at: null }).eq("id", u.id);
+    if (firstError) throw firstError;
     if (work.chunks.some((x) => !x.done)) {
       return { status: "reading", progress: { done: work.chunks.filter((x) => x.done).length, total: work.chunks.length }, result: null, error: null };
     }
   }
 
-  // 全部読み終えた: 2回の読み取りを突き合わせて、判定・取込へ
+  // 全部読み終えた: 読み取りを突き合わせて(2回以上そろった値を採る)、判定・取込へ
   const A = mergePeople(work.chunks.flatMap((c) => c.a ?? []));
   const B = mergePeople(work.chunks.flatMap((c) => c.b ?? []));
-  if (A.length === 0) return fail(admin, u, "健診結果を読み取れませんでした(検査結果の載っていないPDFの可能性があります)");
-  const cmp = compareReads(A, B);
-  // 2回目にしか出てこなかった方も、確認待ちとして残す
-  const reads = [...A, ...cmp.onlySecond];
-  const readDiffs = [...cmp.diffs, ...cmp.onlySecond.map(() => [{ field: "読み取り", a: "", b: "2回目だけに出てきました" }])];
+  const C = mergePeople(work.chunks.flatMap((c) => c.c ?? c.a ?? []));
+  if (A.length === 0 && B.length === 0) return fail(admin, u, "健診結果を読み取れませんでした(検査結果の載っていないPDFの可能性があります)");
+  const { reads, diffs: readDiffs } = reconcileReads(A, B, C);
   const ctx = await loadContext(admin, u);
   if (!ctx.rules.some((r) => r.grade !== "S")) return fail(admin, u, "判定基準が未登録のため、自動では判定できません");
   const rows = tableRows(reads, ctx, u.checkup_type!);
@@ -364,7 +408,7 @@ export async function runStep(admin: SupabaseClient, uploadId: string, actor: Ac
     // 一時的な失敗(通信・AIの混雑)は、もう一度押せば続きから進められるようにする
     await admin.from("hm_csv_uploads").update({ read_updated_at: null, read_error: "読み取りの途中で止まりました。もう一度お試しください" }).eq("id", u.id);
     const again = await loadUpload(admin, uploadId);
-    return { ...(again ? stateOf(again) : { status: "reading", progress: null, result: null }), error: "読み取りの途中で止まりました。「続ける」を押すと、続きから進みます" };
+    return { ...(again ? stateOf(again) : { status: "reading", progress: null, result: null }), error: "読み取りの途中で止まりました。「続ける」を押すと、続きから進みます", retry: true };
   }
 }
 
@@ -467,5 +511,20 @@ export async function changeRound(admin: SupabaseClient, uploadId: string, actor
     .eq("id", u.id);
   if (error) return { ...stateOf(u), error: "実施回を変えられませんでした" };
   await admin.from("hm_access_logs").insert({ user_id: actor.id, action: "update", target_table: "hm_csv_uploads", target_id: u.id, detail: { company_id: u.company_id, change: "round", from: u.round ?? 1, to: round } });
+  return runStep(admin, uploadId, actor);
+}
+
+// はじめから読み直す(事務所)。読み取りの仕組みを直したあとや、確認待ちが多すぎるときに使う。
+// このファイルからまだ誰も取り込んでいないときだけ使える
+export async function rereadUpload(admin: SupabaseClient, uploadId: string, actor: Actor): Promise<RunState> {
+  const u = await loadUpload(admin, uploadId);
+  if (!u) return { status: "failed", progress: null, result: null, error: "ファイルが見つかりません" };
+  if (u.status !== "pending" || (u.read_status !== "review" && u.read_status !== "failed")) return stateOf(u);
+  if (u.read_result?.people.some((p) => p.status === "imported" || p.status === "added")) {
+    return { ...stateOf(u), error: "このファイルからすでに取り込んだ方がいるため、読み直せません。残りの方は、内容を確かめて取り込んでください" };
+  }
+  const { error } = await admin.from("hm_csv_uploads").update({ read_status: "none", read_work: null, read_result: null, read_error: null, read_updated_at: null }).eq("id", u.id);
+  if (error) return { ...stateOf(u), error: "読み直せませんでした" };
+  await admin.from("hm_access_logs").insert({ user_id: actor.id, action: "update", target_table: "hm_csv_uploads", target_id: u.id, detail: { company_id: u.company_id, change: "reread" } });
   return runStep(admin, uploadId, actor);
 }

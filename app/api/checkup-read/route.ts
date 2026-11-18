@@ -3,7 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { stepBlocked } from "@/lib/secondStepState";
 import { adminClient } from "@/lib/supabase/admin";
 import { aiReady } from "@/lib/autoReadServer";
-import { approveHeld, changeRound, loadUpload, pdfAutoSetting, purgeOldUploads, runStep, stateOf, type Actor, type ReadResult } from "@/lib/autoReadRun";
+import { approveHeld, changeRound, loadUpload, pdfAutoSetting, purgeOldUploads, rereadUpload, runStep, stateOf, type Actor, type ReadResult } from "@/lib/autoReadRun";
 
 export const runtime = "nodejs";
 export const maxDuration = 300;
@@ -18,6 +18,7 @@ export const dynamic = "force-dynamic";
 //        { action: "retry", uploadId }                  失敗したファイルをはじめから読み直す
 //        { action: "approve" | "skip", uploadId, indexes, choices }  確認待ちの方を取り込む / 取り込まない(事務所)
 //        { action: "reround", uploadId, round }         実施回を直して読み直す(事務所。まだ誰も取り込んでいないファイルだけ)
+//        { action: "reread", uploadId }                 はじめから読み直す(事務所。まだ誰も取り込んでいないファイルだけ)
 //        { action: "settings", pdfAuto }                設定を変える(事務所)
 
 const fail = (status: number, error: string) => NextResponse.json({ error }, { status });
@@ -147,6 +148,10 @@ export async function POST(req: Request) {
   if (body.action === "reround") {
     if (actor.role !== "office") return fail(403, "実施回の変更は、産業医事務所が行います");
     return out(await changeRound(admin, uploadId, actor, Number(body.round)));
+  }
+  if (body.action === "reread") {
+    if (actor.role !== "office") return fail(403, "読み直しは、産業医事務所が行います");
+    return out(await rereadUpload(admin, uploadId, actor));
   }
   return fail(400, "操作の指定が不正です");
 }

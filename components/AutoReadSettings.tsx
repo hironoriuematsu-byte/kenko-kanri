@@ -17,7 +17,7 @@ export default function AutoReadSettings() {
 
   const toggle = async (pdfAuto: boolean) => {
     const text = pdfAuto
-      ? "PDFから読み取った結果を、事務所の確認なしで取り込み、就業判定まで返すようにします。\n(2回の読み取りが食い違った方・名簿と結びつかない方などは、これまでどおり確認待ちに入ります)\n\nよろしいですか？"
+      ? "PDFから読み取った結果を、事務所の確認なしで取り込み、就業判定まで返すようにします。\n(読み取りをくり返しても結果がそろわない方・ありえない値のある方などは、これまでどおり確認待ちに入ります)\n\nよろしいですか？"
       : "PDFから読み取った結果は、事務所が確認してから取り込む形に戻します。よろしいですか？";
     if (!window.confirm(text)) return;
     setBusy(true);
@@ -43,7 +43,7 @@ export default function AutoReadSettings() {
               <strong>CSV</strong>: 送られるとすぐに読み取り、事務所の判定基準で判定して、就業判定を返します。
             </li>
             <li>
-              <strong>PDF</strong>: AIが2回読み取って突き合わせます。
+              <strong>PDF</strong>: AIが2回読み取って突き合わせ、食い違ったページは3回目を読んで、そろった値を採ります。
               {state.aiReady ? "" : "(AIの設定がまだのため、いまはPDFを読み取れません)"}
             </li>
             <li>就業判定: 就業制限の検討水準(R)がある方は「判定保留」、要医療(D)で受診勧奨の基準に届く方は「通常勤務可・受診が条件」、それ以外は「通常勤務可」。</li>
