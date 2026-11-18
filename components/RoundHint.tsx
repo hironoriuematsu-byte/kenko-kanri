@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/browser";
-import { CHECKUP_TYPES, roundCaption, summarizeRounds, type RoundInfo } from "@/lib/checkups";
+import { CHECKUP_TYPES, parseKinds, roundCaption, summarizeRounds, type RoundInfo } from "@/lib/checkups";
 
 // 健診結果を送る・取り込む画面で、選んだ年度・種別にすでに登録されている実施回を知らせる。
 // 年に2回ある健診(特定業務従事者の定期健診、有機溶剤・特定化学物質などの特殊健診)で、
@@ -21,7 +21,8 @@ export default function RoundHint({
   round: number;
 }) {
   const [info, setInfo] = useState<RoundInfo[] | null>(null);
-  const kind = checkupType === "special" ? specialKind.trim() : "";
+  // 特殊健診は、選んだ種類の分だけを見る(いくつか選んだときはその全部。選んでいないときは、特殊健診の全部)
+  const kind = checkupType === "special" ? parseKinds(specialKind).join(",") : "";
 
   useEffect(() => {
     let alive = true;
@@ -44,7 +45,8 @@ export default function RoundHint({
         if (data.length < 1000) break;
       }
       if (!alive) return;
-      setInfo(summarizeRounds(checkupType === "special" ? rows.filter((r) => (r.special_kind ?? "").trim() === kind) : rows));
+      const kinds = parseKinds(kind);
+      setInfo(summarizeRounds(checkupType === "special" && kinds.length > 0 ? rows.filter((r) => kinds.includes((r.special_kind ?? "").trim())) : rows));
     }, 400);
     return () => {
       alive = false;
@@ -53,7 +55,7 @@ export default function RoundHint({
   }, [companyId, fiscalYear, checkupType, kind]);
 
   if (!info || info.length === 0) return null;
-  const label = `${fiscalYear}年度の${CHECKUP_TYPES[checkupType] ?? "健診"}${kind ? `（${kind}）` : ""}`;
+  const label = `${fiscalYear}年度の${CHECKUP_TYPES[checkupType] ?? "健診"}${kind ? `（${parseKinds(kind).join("・")}）` : ""}`;
   const registered = info.map(roundCaption).join("、");
   const taken = info.some((r) => r.round === round);
   const next = Math.min(4, Math.max(...info.map((r) => r.round)) + 1);

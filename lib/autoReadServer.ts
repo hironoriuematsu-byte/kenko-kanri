@@ -2,6 +2,8 @@ import Anthropic from "@anthropic-ai/sdk";
 import { PDFDocument } from "pdf-lib";
 import { LEGAL_ITEMS } from "@/lib/judgment";
 import { LEGAL_KEYS, type AiMapping, type ReadPerson } from "@/lib/autoRead";
+import { SPECIAL_KINDS } from "@/lib/checkups";
+import { COLUMN_KIND_TAGS, KIND_COMMON, KIND_GENERAL, KIND_TAGS, KIND_UNKNOWN } from "@/lib/checkupKinds";
 
 // 健診結果の自動読み取りのうち、AI(Claude)を呼ぶ部分。AIには「読み取り」だけをさせ、判定はさせない
 
@@ -55,6 +57,16 @@ const MAP_SCHEMA = {
       description: "特殊健康診断のときだけ: 上の検査項目に当たらないが、特殊健診の結果として取り込むべき列の番号。特殊健診でなければ空",
       items: { type: "integer" },
     },
+    kinds: {
+      type: "array",
+      description: "種類の見分けを求められたときだけ: 取り込む列(検査値・所見・作業条件など)ごとに、どの健康診断の項目か。求められていなければ空",
+      items: {
+        type: "object",
+        properties: { col: { type: "integer" }, kind: { type: "string", enum: COLUMN_KIND_TAGS } },
+        required: ["col", "kind"],
+        additionalProperties: false,
+      },
+    },
     items: {
       type: "array",
       description: "検査値・所見が入っている列と、対応する検査項目",
@@ -66,12 +78,13 @@ const MAP_SCHEMA = {
       },
     },
   },
-  required: ["name", "kana", "dept", "emp_no", "sex", "birth", "date", "overall", "items", "special"],
+  required: ["name", "kana", "dept", "emp_no", "sex", "birth", "date", "overall", "items", "special", "kinds"],
   additionalProperties: false,
 } as const;
 
 // 氏名の列と分かっているものは、中身をAIに送らない
-export async function mapCsvColumns(header: string[], samples: string[][], maskCols: number[], special = false): Promise<AiMapping> {
+// special: 特殊健診の項目の列も挙げさせる / kinds: 列ごとに、どの健診(定期・特殊健診の種類)の項目かも見分けさせる
+export async function mapCsvColumns(header: string[], samples: string[][], maskCols: number[], special = false, kinds: { declared: string[] } | null = null): Promise<AiMapping> {
   const lines = header.map((h, i) => {
     const vals = maskCols.includes(i) ? ["(氏名)"] : samples.map((r) => (r[i] ?? "").trim().slice(0, 24)).filter(Boolean).slice(0, 3);
     return `${i}: 「${h.trim()}」 例: ${vals.join(" / ") || "(空)"}`;
@@ -98,6 +111,19 @@ export async function mapCsvColumns(header: string[], samples: string[][], maskC
           "  会社名・事業所名・コース名・受診番号・住所・電話番号・年齢・保険の記号番号などの事務的な列は挙げない。",
         ]
       : ["- special は空にする。"]),
+    ...(kinds
+      ? [
+          "",
+          "このファイルには、いくつかの種類の健康診断(定期健康診断と特殊健康診断、有機溶剤と特定化学物質 など)の結果が、一緒に入っているかもしれません。",
+          "kinds には、items と special に挙げた列のすべてについて、どの健康診断の項目かを挙げてください:",
+          `  ${SPECIAL_KINDS.filter((k) => k !== "その他").join(" / ")} / その他(それ以外の特殊健康診断) / ${KIND_GENERAL}(定期健康診断・雇入時健康診断の項目)`,
+          `  ${KIND_COMMON}(既往歴・業務歴など、特殊健康診断のどの種類にも当たる項目) / ${KIND_UNKNOWN}(見分けられない)`,
+          "- 見出しの言葉(「有機」「特化」「鉛」など)、列の並び(同じ健診の項目は続けて並ぶことが多い)、検査の内容から判断する。",
+          "- 同じ検査(AST、赤血球数 など)が、定期健康診断の列と特殊健康診断の列の両方にあることがある。列の並びと見出しで見分ける。",
+          `- 自信がなければ「${KIND_UNKNOWN}」にする。推測で決めない。`,
+          kinds.declared.length > 0 ? `- 送った方は「${kinds.declared.join("・")}」が入っていると申告しています(参考。ほかの種類が入っていることもあります)。` : "- 送った方は、種類を申告していません。",
+        ]
+      : ["- kinds は空にする。"]),
   ].join("\n");
   const { json } = await askJson(system, [{ type: "text", text: lines.join("\n") }], MAP_SCHEMA as unknown as Json, 4000);
   return json as unknown as AiMapping;
@@ -139,8 +165,13 @@ const READ_SCHEMA = {
         additionalProperties: false,
       },
     },
+    special_kinds: {
+      type: "array",
+      description: "このPDFに、特殊健康診断(有機溶剤・じん肺 など)の結果が載っているときだけ、その種類。載っていなければ空",
+      items: { type: "string", enum: SPECIAL_KINDS },
+    },
   },
-  required: ["persons"],
+  required: ["persons", "special_kinds"],
   additionalProperties: false,
 } as const;
 
@@ -161,6 +192,8 @@ const READ_SYSTEM = [
   "- 1人の結果が2ページにまたがるときは、1人にまとめる。同じ人を2回書き出さない。",
   "- 氏名・生年月日・健診日は、用紙の表記のまま写す(和暦もそのまま)。",
   "- 表紙・案内文・白紙など、検査結果のないページからは何も書き出さない。",
+  "- 特殊健康診断(有機溶剤・特定化学物質・鉛・電離放射線・じん肺・石綿・騒音 など)の個人票や欄が載っているときは、その検査値は書き出さず、種類だけを special_kinds に挙げる。",
+  "  (定期健康診断の聴力検査や胸部エックス線だけでは、特殊健康診断とはみなさない。様式名や表題に特殊健康診断の名前があるときだけ挙げる)",
 ].join("\n");
 
 // ---- 特殊健康診断のPDF: 用紙に載っている項目を、項目名のまま書き出させる ----
@@ -174,6 +207,7 @@ const SPECIAL_READ_SCHEMA = {
         properties: {
           ...READ_SCHEMA.properties.persons.items.properties,
           overall: { type: "string", description: "総合判定・管理区分(A・B1・B2・C・R・T、または 管理1〜4 など。用紙の表記のまま)。なければ空" },
+          kind: { type: "string", enum: KIND_TAGS, description: "どの健康診断の結果か" },
           items: {
             type: "array",
             items: {
@@ -187,7 +221,7 @@ const SPECIAL_READ_SCHEMA = {
             },
           },
         },
-        required: ["name", "kana", "birth", "sex", "emp_no", "dept", "date", "overall", "page", "items"],
+        required: ["name", "kana", "birth", "sex", "emp_no", "dept", "date", "overall", "page", "kind", "items"],
         additionalProperties: false,
       },
     },
@@ -196,10 +230,22 @@ const SPECIAL_READ_SCHEMA = {
   additionalProperties: false,
 } as const;
 
-const specialSystem = (kind: string) =>
+// declared: 送った方が申告した種類(参考)。excludeGeneral: 定期健康診断の結果は書き出さない(定期健診として読んだあと、特殊健診の部分だけを読むとき)
+const specialSystem = (declared: string[], excludeGeneral: boolean) =>
   [
-    `あなたは、特殊健康診断${kind ? `(${kind})` : ""}の結果(個人票、または何人分かが並んだ一覧表)のPDFを読み取り、人ごとに項目を書き出す係です。`,
+    "あなたは、特殊健康診断の結果(個人票、または何人分かが並んだ一覧表)のPDFを読み取り、人ごと・健康診断の種類ごとに項目を書き出す係です。",
     "判定はしません。用紙に書いてある値と所見の文言を、そのまま写します。",
+    "",
+    "健康診断の種類(kind):",
+    `- ${SPECIAL_KINDS.filter((k) => k !== "その他").join(" / ")} / その他(それ以外の特殊健康診断。高気圧・四アルキル鉛・歯科 など)`,
+    `- ${KIND_GENERAL}(定期健康診断・雇入時健康診断) / ${KIND_UNKNOWN}(見分けられない)`,
+    "- 用紙の表題・様式名(「有機溶剤等健康診断個人票」など)や、載っている検査項目から判断する。自信がなければ「不明」にする。推測で決めない。",
+    "- 1人に、いくつかの種類の健康診断の結果が載っているときは、種類ごとに別の要素として書き出す(氏名・生年月日は同じにして、kind と items を変える)。",
+    "  ある種類の項目を、別の種類の要素に混ぜない。",
+    excludeGeneral
+      ? `- ${KIND_GENERAL}(定期健康診断・雇入時健康診断)の結果は、書き出さない(別に読み取ります)。特殊健康診断の結果だけを書き出す。`
+      : `- 定期健康診断・雇入時健康診断の結果が一緒に載っているときは、kind を「${KIND_GENERAL}」にした要素として書き出す。`,
+    declared.length > 0 ? `- 送った方は「${declared.join("・")}」の結果だと申告しています(参考。ほかの種類が入っていることもあります)。` : "- 送った方は、種類を申告していません。",
     "",
     "書き出す項目(用紙に載っているものすべて):",
     "- 作業条件の簡易な調査: 「作業時間(時間/日)」「作業日数」「保護具」「換気装置」「取扱量」など(項目ごとに1行)",
@@ -223,11 +269,13 @@ const specialSystem = (kind: string) =>
   ].join("\n");
 
 // PDFの一部(base64)を読む。pageOffset は、元のPDFでの先頭ページ番号-1(ページ番号を元のPDFに合わせる)。
-// specialKind を渡すと、特殊健康診断として読む(法定項目に限らず、用紙の項目を項目名のまま書き出す)
-export async function readPdfPart(pdfBase64: string, pageOffset: number, specialKind: string | null = null): Promise<{ persons: ReadPerson[]; truncated: boolean }> {
-  const special = specialKind !== null;
+// mode.special = true: 特殊健康診断として読む(法定項目に限らず、用紙の項目を項目名のまま書き出し、種類の札を付ける)
+// mode.special = false: 定期健康診断として読む。特殊健康診断の結果が載っていれば、その種類を specialKinds に返す
+export type ReadMode = { special: false } | { special: true; declared: string[]; excludeGeneral?: boolean };
+export async function readPdfPart(pdfBase64: string, pageOffset: number, mode: ReadMode = { special: false }): Promise<{ persons: ReadPerson[]; truncated: boolean; specialKinds: string[] }> {
+  const special = mode.special;
   const { json, truncated } = await askJson(
-    special ? specialSystem(specialKind ?? "") : READ_SYSTEM,
+    mode.special ? specialSystem(mode.declared, mode.excludeGeneral === true) : READ_SYSTEM,
     [
       { type: "document", source: { type: "base64", media_type: "application/pdf", data: pdfBase64 } },
       { type: "text", text: "このPDFに載っている方の健康診断の結果を、人ごとに書き出してください。" },
@@ -235,9 +283,10 @@ export async function readPdfPart(pdfBase64: string, pageOffset: number, special
     (special ? SPECIAL_READ_SCHEMA : READ_SCHEMA) as unknown as Json,
     30000
   );
-  if (truncated) return { persons: [], truncated: true };
+  if (truncated) return { persons: [], truncated: true, specialKinds: [] };
   const raw = Array.isArray((json as { persons?: unknown }).persons) ? ((json as { persons: unknown[] }).persons as Json[]) : [];
   const s = (v: unknown) => (typeof v === "string" ? v.trim() : "");
+  const tags: readonly string[] = KIND_TAGS;
   const persons: ReadPerson[] = raw
     .map((p) => ({
       name: s(p.name),
@@ -249,12 +298,17 @@ export async function readPdfPart(pdfBase64: string, pageOffset: number, special
       date: s(p.date),
       overall: s(p.overall),
       page: (Number.isInteger(p.page) ? (p.page as number) : 1) + pageOffset,
+      ...(special ? { kind: tags.includes(s(p.kind)) ? s(p.kind) : KIND_UNKNOWN } : {}),
       items: (Array.isArray(p.items) ? (p.items as Json[]) : [])
         .map((it) => ({ k: s(it.k), v: s(it.v), l: s(it.l) || undefined }))
         .filter((it) => it.v !== "" && (special ? !!it.l : LEGAL_KEYS.includes(it.k))),
     }))
-    .filter((p) => p.name !== "");
-  return { persons, truncated: false };
+    .filter((p) => p.name !== "")
+    // 定期健康診断を別に読むときは、一般の札が付いた要素は使わない
+    .filter((p) => !(mode.special && mode.excludeGeneral && p.kind === KIND_GENERAL));
+  const listed: readonly string[] = SPECIAL_KINDS;
+  const specialKinds = special ? [] : (Array.isArray(json.special_kinds) ? (json.special_kinds as unknown[]) : []).map(s).filter((k, i, arr) => listed.includes(k) && arr.indexOf(k) === i);
+  return { persons, truncated: false, specialKinds };
 }
 
 // ---- PDFの分割 ----

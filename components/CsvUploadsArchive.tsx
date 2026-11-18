@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/browser";
-import { CHECKUP_TYPES, roundLabel } from "@/lib/checkups";
+import { CHECKUP_TYPES, kindsLabel, roundLabel } from "@/lib/checkups";
 import { downloadCsv } from "@/lib/checkupReport";
 
 type Row = {
@@ -151,7 +151,7 @@ export default function CsvUploadsArchive({ companyId }: { companyId: string }) 
                     {r.fiscal_year ? `${r.fiscal_year}年度` : "—"}
                     {roundLabel(r.round) ? `・${roundLabel(r.round)}` : ""}
                     {r.checkup_type ? ` / ${CHECKUP_TYPES[r.checkup_type] ?? r.checkup_type}` : ""}
-                    {r.special_kind ? `（${r.special_kind}）` : ""}
+                    {r.checkup_type === "special" ? `（${r.special_kind ? kindsLabel(r.special_kind) : "種類おまかせ"}）` : ""}
                   </td>
                   <td style={{ whiteSpace: "nowrap" }}>{fmt(r.finished_at)}</td>
                   <td style={{ whiteSpace: "nowrap" }}>

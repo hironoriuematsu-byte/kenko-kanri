@@ -6,6 +6,27 @@ export const CHECKUP_TYPES: Record<string, string> = {
   special: "特殊健診",
 };
 
+// 特殊健診の種類(送るとき・取り込むときに一覧から選ぶ。書き方のゆれで区分が分かれないようにする)
+export const SPECIAL_KINDS = ["有機溶剤", "特定化学物質", "鉛", "電離放射線", "じん肺", "石綿", "騒音", "その他"] as const;
+export type SpecialKind = (typeof SPECIAL_KINDS)[number];
+
+// 送るときに選んだ種類は、1つならそのまま、複数なら「,」でつないで保存する。
+// 空 = おまかせ(読み取りのときに、どの種類の健診かを見分ける)
+export function parseKinds(s: string | null | undefined): string[] {
+  const out: string[] = [];
+  for (const part of (s ?? "").split(/[,、，]/)) {
+    const t = part.trim();
+    if (t && !out.includes(t)) out.push(t);
+  }
+  return out;
+}
+export const joinKinds = (list: string[]): string => parseKinds(list.join(",")).join(",");
+// 画面に出す書き方(例: 「有機溶剤・特定化学物質」。選んでいなければ「おまかせ」)
+export function kindsLabel(s: string | null | undefined): string {
+  const list = parseKinds(s);
+  return list.length > 0 ? list.join("・") : "おまかせ";
+}
+
 // 健診の就業判定(面談の意見書とは別に「判定保留」を持つ)
 export const CHECKUP_WORK_JUDGMENTS: Record<string, string> = {
   normal: "通常勤務可",

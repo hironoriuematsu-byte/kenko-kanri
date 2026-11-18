@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import JSZip from "jszip";
 import { createClient } from "@/lib/supabase/browser";
-import { CHECKUP_TYPES, roundLabel } from "@/lib/checkups";
+import { CHECKUP_TYPES, kindsLabel, roundLabel } from "@/lib/checkups";
 
 type Upload = {
   id: string;
@@ -376,7 +376,7 @@ export default function CsvUploadsPending() {
                   {u.fiscal_year ? `${u.fiscal_year}年度` : "—"}
                   {roundLabel(u.round) ? `・${roundLabel(u.round)}` : ""}
                   {u.checkup_type ? ` / ${CHECKUP_TYPES[u.checkup_type] ?? u.checkup_type}` : ""}
-                  {u.special_kind ? `（${u.special_kind}）` : ""}
+                  {u.checkup_type === "special" ? `（${u.special_kind ? kindsLabel(u.special_kind) : "種類おまかせ"}）` : ""}
                 </td>
                 <td style={{ fontSize: 13 }}>{u.note ?? <span className="muted">—</span>}</td>
                 <td>{u.uploaded_by_name ?? "—"}</td>

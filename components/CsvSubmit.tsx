@@ -4,10 +4,11 @@ import { ChangeEvent, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/browser";
 import { getFiscalYear } from "@/lib/fiscal";
-import { CHECKUP_TYPES, parseCsv, readCsvFile } from "@/lib/checkups";
+import { CHECKUP_TYPES, joinKinds, parseCsv, readCsvFile } from "@/lib/checkups";
 import { startNavigationProgress } from "@/lib/navigate";
 import AutoReadRunner, { type ReadTarget } from "@/components/AutoReadRunner";
 import RoundHint from "@/components/RoundHint";
+import SpecialKindPicker from "@/components/SpecialKindPicker";
 
 const MAX_PDF_BYTES = 20 * 1024 * 1024;
 
@@ -111,7 +112,7 @@ export default function CsvSubmit({
       p_fiscal_year: fiscalYear,
       p_checkup_type: checkupType,
       p_round: round,
-      p_special_kind: checkupType === "special" ? specialKind.trim() || null : null,
+      p_special_kind: checkupType === "special" ? joinKinds([specialKind]) || null : null, // 複数は「,」区切り。空 = おまかせ
       p_note: note.trim() || null,
     };
     const out: Result[] = [];
@@ -258,23 +259,14 @@ export default function CsvSubmit({
             <option value={4}>4回目</option>
           </select>
         </div>
-        {checkupType === "special" && (
-          <div>
-            <label>特殊健診の種類</label>
-            <input
-              type="text"
-              value={specialKind}
-              onChange={(e) => setSpecialKind(e.target.value)}
-              placeholder="例: 有機溶剤 / 鉛 / 電離放射線 / じん肺"
-              style={{ width: 220 }}
-            />
-          </div>
-        )}
+        {checkupType === "special" && <SpecialKindPicker value={specialKind} onChange={setSpecialKind} multiple />}
       </div>
       {/* 同じ年度・種別にすでに登録されている実施回を知らせる(2回目の健診を「1回目」のまま送らないように) */}
       <RoundHint companyId={companyId} fiscalYear={fiscalYear} checkupType={checkupType} specialKind={specialKind} round={round} />
       <p className="muted" style={{ fontSize: 12, marginTop: 0 }}>
         年度・種別・連絡事項は、ここで選んだファイルすべてに共通で付きます。年度や種別が違うファイルは分けて送ってください。
+        <br />
+        1つのファイルに、定期健診と特殊健診、または何種類かの特殊健診の結果が一緒に入っているときは、分けずにそのまま送ってください（自動で見分けて、種類ごとに登録します）。
       </p>
 
       <div className="form-row">

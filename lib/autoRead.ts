@@ -23,6 +23,8 @@ export type ReadPerson = {
   overall: string;
   page: number; // PDFのページ(1から)
   items: ReadItem[];
+  // どの健診の結果か(特殊健診の種類・一般・不明)。1人に複数の種類があるときは、種類ごとに別の要素になる
+  kind?: string;
 };
 
 export const LEGAL_KEYS = LEGAL_ITEMS.map((it) => it.key);
@@ -277,10 +279,12 @@ function diffPerson(a: ReadPerson, b: ReadPerson): Diff[] {
 }
 
 // 同じ人か(氏名が同じ。氏名の読みが食い違っていても、同じページ・同じ生年月日なら同じ人として比べる)
+// 1人に複数の種類の健診があるときは、同じ種類どうしを比べる
 function findSame(p: ReadPerson, list: ReadPerson[], used: Set<number>): number {
-  const byName = list.findIndex((q, i) => !used.has(i) && squash(q.name) === squash(p.name) && (!p.birth || !q.birth || sameValue(p.birth, q.birth)));
+  const sameKind = (q: ReadPerson) => (q.kind ?? "") === (p.kind ?? "");
+  const byName = list.findIndex((q, i) => !used.has(i) && sameKind(q) && squash(q.name) === squash(p.name) && (!p.birth || !q.birth || sameValue(p.birth, q.birth)));
   if (byName >= 0) return byName;
-  return list.findIndex((q, i) => !used.has(i) && q.page === p.page && !!p.birth && sameValue(p.birth, q.birth));
+  return list.findIndex((q, i) => !used.has(i) && sameKind(q) && q.page === p.page && !!p.birth && sameValue(p.birth, q.birth));
 }
 
 // 1回目を基準にして、2回目と食い違うところを人ごとに挙げる。片方にしか出てこない人も挙げる
@@ -672,7 +676,7 @@ export function summarize(people: PlannedPerson[]): ReadSummary {
 
 // ---- CSV: AIによる列の割り当ての補助 ----
 //   見出しから自動で決まらなかった列だけを、AIの答えで補う(自動で決まった列は変えない)
-export type AiMapping = { name: number; kana: number; dept: number; emp_no: number; sex: number; birth: number; date: number; overall: number; items: { col: number; key: string }[]; special?: number[] };
+export type AiMapping = { name: number; kana: number; dept: number; emp_no: number; sex: number; birth: number; date: number; overall: number; items: { col: number; key: string }[]; special?: number[]; kinds?: { col: number; kind: string }[] };
 
 export function applyAiMapping(header: string[], guess: { base: BaseCols; colModes: Record<number, ColumnMode> }, ai: AiMapping): { base: BaseCols; colModes: Record<number, ColumnMode> } {
   const base = { ...guess.base };

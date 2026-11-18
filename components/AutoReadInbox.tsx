@@ -3,9 +3,10 @@
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/browser";
-import { CHECKUP_TYPES, CHECKUP_WORK_JUDGMENTS, roundLabel } from "@/lib/checkups";
+import { CHECKUP_TYPES, CHECKUP_WORK_JUDGMENTS, SPECIAL_KINDS, kindsLabel, roundLabel } from "@/lib/checkups";
+import { KIND_GENERAL, sectionLabel, type Section } from "@/lib/checkupKinds";
 import type { Coverage, Diff, ReadSummary, AutoJudgment } from "@/lib/autoRead";
-import { AUTO_RETRIES, ReadSummaryView, retryWait } from "@/components/AutoReadRunner";
+import { AUTO_RETRIES, ReadSummaryView, retryWait, type ReadSection } from "@/components/AutoReadRunner";
 
 // 産業医事務所ダッシュボード: 自動の読み取り(AI)で「確認待ち」になった方を、内容を確かめて取り込む。
 // 読み取りが途中で止まったファイル・読み取れなかったファイルも、ここから続き・読み直しができる
@@ -22,6 +23,8 @@ type Person = {
   judgment: AutoJudgment | null;
   overall: string;
   cautions?: string[];
+  section?: Section; // どの健診の結果として登録するか(1つのファイルに複数の種類が入っていたとき)
+  needsKind?: boolean; // どの健診の結果か見分けられなかった(種類を選んで取り込む)
   row?: { items: { name: string; value?: string; judgment?: string }[]; sex: string; checkup_date: string | null };
 };
 type Item = {
@@ -38,7 +41,7 @@ type Item = {
   created_at: string;
   read_status: string;
   read_error: string | null;
-  read_result: { summary: ReadSummary; people: Person[]; coverage?: Coverage; otherRound?: boolean; notes?: string[] } | null;
+  read_result: { summary: ReadSummary; people: Person[]; coverage?: Coverage; otherRound?: boolean; notes?: string[]; sections?: ReadSection[] } | null;
   progress: { done: number; total: number } | null;
 };
 
@@ -47,6 +50,21 @@ const nextRound = (round: number | null) => ((round ?? 1) >= 4 ? 3 : (round ?? 1
 
 const judgmentLabel = (j: AutoJudgment | null) =>
   !j ? "産業医が判定" : j.judgment === "pending" ? "判定保留(産業医が確定)" : j.condition === "consult" ? "通常勤務可・受診が条件" : CHECKUP_WORK_JUDGMENTS.normal;
+
+// どの健診の結果か(特殊健診の種類。特殊健診ではなかったときは「定期健診の結果」)
+function KindSelect({ value, onChange, label }: { value: string; onChange: (v: string) => void; label: string }) {
+  return (
+    <select value={value} onChange={(e) => onChange(e.target.value)} aria-label={label} style={{ width: "auto", maxWidth: "100%" }}>
+      <option value="">（種類を選んでください）</option>
+      {SPECIAL_KINDS.map((k) => (
+        <option key={k} value={k}>
+          {k}
+        </option>
+      ))}
+      <option value={KIND_GENERAL}>特殊健診ではない（定期健診・雇入時健診の結果）</option>
+    </select>
+  );
+}
 
 export default function AutoReadInbox() {
   const [items, setItems] = useState<Item[] | null>(null);
@@ -57,6 +75,8 @@ export default function AutoReadInbox() {
   const [err, setErr] = useState<string | null>(null);
   const [checked, setChecked] = useState<Record<string, Set<number>>>({});
   const [useB, setUseB] = useState<Record<string, Record<number, Set<string>>>>({}); // 食い違いで「2回目」を採る項目
+  const [kindPick, setKindPick] = useState<Record<string, Record<number, string>>>({}); // 見分けられなかった方に付ける種類(ファイルごと・人ごと)
+  const [kindAll, setKindAll] = useState<Record<string, string>>({}); // まとめて付ける種類(ファイルごと)
 
   const load = useCallback(async () => {
     const res = await fetch("/api/checkup-read?list=1").catch(() => null);
@@ -76,11 +96,22 @@ export default function AutoReadInbox() {
   const act = async (it: Item, action: "approve" | "skip", indexes: number[]) => {
     if (indexes.length === 0) return;
     if (action === "skip" && !window.confirm(`選んだ${indexes.length}名を取り込みません。よろしいですか？\n(あとで取り込むときは、ファイルを送り直すか、個別に入力します)`)) return;
+    // どの健診の結果か見分けられなかった方は、種類を選んでから取り込む
+    const picks = kindPick[it.id] ?? {};
+    const people = it.read_result?.people ?? [];
+    if (action === "approve") {
+      const missing = indexes.filter((i) => people[i]?.needsKind && !picks[i]);
+      if (missing.length > 0) {
+        setMsg(null);
+        return setErr(`${missing.map((i) => `${people[i].name}さん`).slice(0, 5).join("、")}${missing.length > 5 ? ` ほか${missing.length - 5}名` : ""}: どの健診の結果か、種類を選んでから取り込んでください。`);
+      }
+    }
+    const kinds = Object.fromEntries(indexes.filter((i) => people[i]?.needsKind && picks[i]).map((i) => [String(i), picks[i]]));
     setBusy(it.id);
     setErr(null);
     setMsg(null);
     const choices = Object.fromEntries(Object.entries(useB[it.id] ?? {}).map(([i, set]) => [i, Array.from(set)]));
-    const r = await post({ action, uploadId: it.id, indexes, choices });
+    const r = await post({ action, uploadId: it.id, indexes, choices, kinds });
     setBusy(null);
     if (!r.ok) return setErr(r.error ?? "処理できませんでした");
     if (r.error) setErr(r.error);
@@ -166,7 +197,9 @@ export default function AutoReadInbox() {
         const clean = held.filter(({ p }) => p.clean);
         const sel = checked[it.id] ?? new Set<number>();
         const isOpen = open === it.id;
-        const meta = `${it.fiscal_year ?? "?"}年度 ${CHECKUP_TYPES[it.checkup_type ?? ""] ?? ""}${it.special_kind ? `(${it.special_kind})` : ""}${roundLabel(it.round) ? ` ${roundLabel(it.round)}` : ""}`;
+        const unknown = held.filter(({ p }) => p.needsKind);
+        const picks = kindPick[it.id] ?? {};
+        const meta = `${it.fiscal_year ?? "?"}年度 ${CHECKUP_TYPES[it.checkup_type ?? ""] ?? ""}${it.checkup_type === "special" ? `(${it.special_kind ? kindsLabel(it.special_kind) : "種類おまかせ"})` : ""}${roundLabel(it.round) ? ` ${roundLabel(it.round)}` : ""}`;
         return (
           <div key={it.id} style={{ border: "1px solid var(--line)", borderRadius: 8, padding: "12px 14px", marginBottom: 10, background: "#fff" }}>
             <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
@@ -258,7 +291,31 @@ export default function AutoReadInbox() {
             )}
             {it.read_status === "review" && isOpen && it.read_result && (
               <div style={{ marginTop: 12 }}>
-                <ReadSummaryView summary={it.read_result.summary} role="office" coverage={it.read_result.coverage} notes={it.read_result.notes} />
+                <ReadSummaryView summary={it.read_result.summary} role="office" coverage={it.read_result.coverage} notes={it.read_result.notes} sections={it.read_result.sections} />
+                {/* どの健診の結果か見分けられなかった方: 種類を選ぶ(まとめて付けることもできる) */}
+                {unknown.length > 0 && (
+                  <div style={{ marginTop: 10, background: "var(--orange-light)", border: "1px solid var(--orange)", borderRadius: 8, padding: "10px 14px", fontSize: 14 }}>
+                    <div>
+                      <strong>どの健診の結果か、見分けられなかった方が{unknown.length}名います。</strong>
+                      元のファイルを確かめて、種類を選んでから取り込んでください。
+                    </div>
+                    <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", marginTop: 8 }}>
+                      <KindSelect value={kindAll[it.id] ?? ""} onChange={(v) => setKindAll((m) => ({ ...m, [it.id]: v }))} label="まとめて付ける種類" />
+                      <button
+                        className="btn secondary"
+                        disabled={!kindAll[it.id]}
+                        onClick={() => {
+                          setKindPick((m) => ({ ...m, [it.id]: { ...(m[it.id] ?? {}), ...Object.fromEntries(unknown.map(({ i }) => [i, kindAll[it.id]])) } }));
+                          setChecked((c) => ({ ...c, [it.id]: new Set([...Array.from(c[it.id] ?? []), ...unknown.map(({ i }) => i)]) }));
+                        }}
+                        style={{ padding: "6px 14px", fontSize: 13 }}
+                      >
+                        {unknown.length}名全員にこの種類を付ける
+                      </button>
+                      <span className="muted" style={{ fontSize: 12.5 }}>一人ずつ違うときは、下の一覧で選べます。</span>
+                    </div>
+                  </div>
+                )}
                 <div style={{ display: "flex", gap: 8, flexWrap: "wrap", margin: "12px 0 6px", alignItems: "center" }}>
                   <button className="btn" disabled={busy === it.id || sel.size === 0} onClick={() => act(it, "approve", Array.from(sel))} style={{ padding: "6px 14px", fontSize: 13 }}>
                     選んだ{sel.size}名を取り込む
@@ -291,6 +348,11 @@ export default function AutoReadInbox() {
                         />
                         <span style={{ flex: 1 }}>
                           <strong>{p.name}</strong>
+                          {p.section && !p.needsKind && (
+                            <span className="badge" style={{ marginLeft: 8 }}>
+                              {sectionLabel(p.section)}
+                            </span>
+                          )}
                           <span className="muted" style={{ marginLeft: 8, fontSize: 13 }}>
                             {p.birth && `${p.birth}生`} {p.page ? `・${p.page}ページ` : ""} ・総合判定 {p.overall || "—"} → {judgmentLabel(p.judgment)}
                           </span>
@@ -309,6 +371,16 @@ export default function AutoReadInbox() {
                           </ul>
                         </span>
                       </label>
+                      {p.needsKind && (
+                        <div style={{ margin: "6px 0 0 26px", display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", fontSize: 13, minWidth: 0 }}>
+                          <span style={{ fontWeight: 700, color: "#b45415" }}>この方の健診の種類:</span>
+                          <KindSelect
+                            value={picks[i] ?? ""}
+                            onChange={(v) => setKindPick((m) => ({ ...m, [it.id]: { ...(m[it.id] ?? {}), [i]: v } }))}
+                            label={`${p.name}さんの健診の種類`}
+                          />
+                        </div>
+                      )}
                       {p.diffs.length > 0 && (
                         <div style={{ margin: "6px 0 0 26px", fontSize: 13 }}>
                           <table className="list dense" style={{ maxWidth: 560 }}>

@@ -8,6 +8,7 @@ import { getFiscalYear } from "@/lib/fiscal";
 import { CHECKUP_TYPES, DEFAULT_FINDINGS_JUDGMENTS } from "@/lib/checkups";
 import { matchPerson, type PersonCandidate } from "@/lib/personMatch";
 import DateTextInput from "@/components/DateTextInput";
+import SpecialKindPicker from "@/components/SpecialKindPicker";
 import {
   LEGAL_ITEMS,
   judgeItem,
@@ -224,26 +225,7 @@ export default function CheckupForm({
             <option value={4}>4回目</option>
           </select>
         </div>
-        {checkupType === "special" && (
-          <div>
-            <label>特殊健診の種類</label>
-            <input
-              type="text"
-              value={specialKind}
-              onChange={(e) => setSpecialKind(e.target.value)}
-              placeholder="例: 有機溶剤 / 鉛 / 電離放射線 / じん肺"
-              style={{ width: 200 }}
-              list="special-kinds"
-            />
-            <datalist id="special-kinds">
-              <option value="有機溶剤" />
-              <option value="特定化学物質" />
-              <option value="じん肺" />
-              <option value="鉛" />
-              <option value="電離放射線" />
-            </datalist>
-          </div>
-        )}
+        {checkupType === "special" && <SpecialKindPicker value={specialKind} onChange={setSpecialKind} />}
         <div>
           <label>健診日</label>
           <input

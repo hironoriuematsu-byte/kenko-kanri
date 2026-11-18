@@ -2,6 +2,7 @@
 
 import { ChangeEvent, useEffect, useMemo, useState } from "react";
 import RoundHint from "@/components/RoundHint";
+import SpecialKindPicker from "@/components/SpecialKindPicker";
 import { startNavigationProgress } from "@/lib/navigate";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/browser";
@@ -12,6 +13,7 @@ import {
   CHECKUP_TYPES,
   DEFAULT_FINDINGS_JUDGMENTS,
   parseCsv,
+  parseKinds,
   readCsvFile,
   normalizeDate,
 } from "@/lib/checkups";
@@ -66,7 +68,11 @@ export default function CheckupImport({
   const router = useRouter();
   const [fiscalYear, setFiscalYear] = useState(upload?.fiscalYear ?? getFiscalYear());
   const [checkupType, setCheckupType] = useState(upload?.checkupType ?? "regular");
-  const [specialKind, setSpecialKind] = useState(upload?.specialKind ?? ""); // 特殊健診の種類(有機溶剤・鉛 など)
+  const [specialKind, setSpecialKind] = useState(() => {
+    // 送るときに種類をいくつか選んだ・おまかせにしたファイルは、ここで1つ選ぶ(手作業の取込は、1回に1種類)
+    const declared = parseKinds(upload?.specialKind);
+    return declared.length === 1 ? declared[0] : "";
+  }); // 特殊健診の種類(有機溶剤・鉛 など)
   // 同じ方の記録が同年度・同種別にすでにあれば、検査項目を追加して1つの記録にまとめる
   // (健診機関ごとに項目の異なるCSVが複数ある場合のため)
   const [merge, setMerge] = useState(true);
@@ -433,18 +439,7 @@ export default function CheckupImport({
             <option value={4}>4回目</option>
           </select>
         </div>
-        {checkupType === "special" && (
-          <div>
-            <label>特殊健診の種類</label>
-            <input
-              type="text"
-              value={specialKind}
-              onChange={(e) => setSpecialKind(e.target.value)}
-              placeholder="例: 有機溶剤 / 鉛 / 電離放射線 / じん肺"
-              style={{ width: 220 }}
-            />
-          </div>
-        )}
+        {checkupType === "special" && <SpecialKindPicker value={specialKind} onChange={setSpecialKind} />}
         {!simple && (
           <div>
             <label>有所見とみなす判定（カンマ区切り）</label>

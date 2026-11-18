@@ -43,6 +43,10 @@ export type ImportRow = {
   // 受診勧奨の対象か(総合判定が要医療(D)以上で、受診勧奨の基準(事務所の基準)に届いている項目がある)
   needs_followup: boolean;
   items: ImportItem[];
+  // 1つのファイルに複数の種類の健診が入っているとき、この行をどの健診種別・特殊健診の種類として登録するか
+  // (無ければ、ファイルを送るときに選んだ種別・種類)
+  checkup_type?: string;
+  special_kind?: string | null;
 };
 
 // 見出しから列を自動で割り当てる

@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { parseCsv } from "@/lib/checkups";
+import { parseCsv, parseKinds } from "@/lib/checkups";
+import { canonKind, hintedKinds, kindOfLabel, resolveSection, sameSection, sectionKey, sectionLabel, splitColumns, KIND_GENERAL, type Section } from "@/lib/checkupKinds";
 import { buildImportRows, guessColumns, type ImportItem, type ImportRow } from "@/lib/importRows";
 import type { JudgmentRule } from "@/lib/judgment";
 import type { PersonCandidate } from "@/lib/personMatch";
@@ -27,7 +28,7 @@ import {
   type ReadPerson,
   type ReadSummary,
 } from "@/lib/autoRead";
-import { PDF_PAGES_PER_CHUNK, aiReady, mapCsvColumns, pdfPageCount, pdfSlice, readPdfPart } from "@/lib/autoReadServer";
+import { PDF_PAGES_PER_CHUNK, aiReady, mapCsvColumns, pdfPageCount, pdfSlice, readPdfPart, type ReadMode } from "@/lib/autoReadServer";
 
 // 健診結果の自動読み取りの進行(サーバー側)。
 //   CSV: 1回の呼び出しで、列の割り当て → 判定 → 取込 → 就業判定 まで行う
@@ -57,7 +58,9 @@ export type Upload = {
 };
 
 // c: 2回の読み取りが食い違ったときだけ読む3回目(多数決に使う)
-type Chunk = { from: number; to: number; done: boolean; a?: ReadPerson[]; b?: ReadPerson[]; c?: ReadPerson[] };
+// sk: 定期健診として読んだとき、この区切りに載っていた特殊健診の種類 / s: その特殊健診の部分を読んだ結果
+type Reads = { a?: ReadPerson[]; b?: ReadPerson[]; c?: ReadPerson[] };
+type Chunk = { from: number; to: number; done: boolean; sk?: string[]; s?: Reads & { done: boolean; failed?: boolean } } & Reads;
 const CHUNKS_PER_STEP = 2; // 1回の呼び出しで、同時に読む区切りの数
 type Work = { pages: number; chunks: Chunk[] };
 
@@ -74,13 +77,26 @@ export type StoredPerson = {
   judgment: AutoJudgment | null;
   overall: string;
   cautions?: string[]; // 止めずに取り込んだが、知らせておくこと
+  // どの健診の結果として登録するか(1つのファイルに複数の種類が入っているとき。無ければ、送るときに選んだ種別・種類)
+  section?: Section;
+  needsKind?: boolean; // どの健診の結果か見分けられなかった(事務所が種類を選んで取り込む)
   // 確認待ちの方だけ: 承認のときに使う
   row?: ImportRow;
   read?: ReadPerson; // PDFから読んだ内容(食い違いのどちらを採るか選べるように)
 };
 // otherRound: 別の回(2回目など)の健診とみられるため、ファイル全体を止めている(事務所が実施回を直して読み直せる)
 // notes: 止めずに取り込んだが、知らせておくこと(「○○さん: 健診日が年度の外」など)
-export type ReadResult = { kind: "csv" | "pdf"; summary: ReadSummary; people: StoredPerson[]; at: string; coverage?: Coverage; otherRound?: boolean; notes?: string[] };
+// sections: このファイルから見つかった健診の種類と人数(複数の種類が入っていたとき)
+export type ReadResult = {
+  kind: "csv" | "pdf";
+  summary: ReadSummary;
+  people: StoredPerson[];
+  at: string;
+  coverage?: Coverage;
+  otherRound?: boolean;
+  notes?: string[];
+  sections?: { label: string; type: string; kind: string | null; count: number }[];
+};
 
 export type RunState = {
   status: string; // none / reading / review / done / failed
@@ -159,7 +175,28 @@ async function loadContext(admin: SupabaseClient, u: Upload) {
   return { rules: (rules ?? []) as JudgmentRule[], persons: (persons ?? []) as PersonCandidate[], existing, pdfAuto };
 }
 
-const toStored = (p: PlannedPerson, read?: ReadPerson): StoredPerson => ({
+// このファイルを送るときに選んだ種別・種類(特殊健診で種類が1つのとき。おまかせ・複数のときは kind = null)
+export function ownSection(u: Upload): Section {
+  if (u.checkup_type !== "special") return { type: u.checkup_type ?? "regular", kind: null };
+  const declared = parseKinds(u.special_kind);
+  return { type: "special", kind: declared.length === 1 ? declared[0] : null };
+}
+// データベースの取込関数(SQL 0161 より前)は、ファイルの種別・種類をそのまま全員に付ける。
+// それと違う区分で登録する行があるかどうか
+const needsRowSection = (u: Upload, s: Section) => s.type !== u.checkup_type || (s.type === "special" && (s.kind ?? "") !== (u.special_kind ?? "").trim());
+// 区分ごとの、判定基準・名簿・すでに登録されている結果(同じ区分を何度も読まない)
+function contextCache(admin: SupabaseClient, u: Upload) {
+  const cache = new Map<string, ReturnType<typeof loadContext>>();
+  return (s: Section) => {
+    const key = sectionKey(s);
+    if (!cache.has(key)) cache.set(key, loadContext(admin, { ...u, checkup_type: s.type, special_kind: s.type === "special" ? s.kind : null }));
+    return cache.get(key)!;
+  };
+}
+const tagRow = (row: ImportRow, s: Section): ImportRow => ({ ...row, checkup_type: s.type, special_kind: s.type === "special" ? s.kind : null });
+const NEEDS_KIND_REASON = "どの健診の結果か、見分けられませんでした(種類を選んで取り込みます)";
+
+const toStored = (p: PlannedPerson, read?: ReadPerson, section?: Section, needsKind?: boolean): StoredPerson => ({
   name: p.row.target_name,
   birth: p.row.birth_date,
   page: p.page,
@@ -171,6 +208,8 @@ const toStored = (p: PlannedPerson, read?: ReadPerson): StoredPerson => ({
   judgment: p.judgment,
   overall: p.row.overall_judgment,
   ...(p.cautions.length > 0 ? { cautions: p.cautions } : {}),
+  ...(section ? { section } : {}),
+  ...(needsKind ? { needsKind: true } : {}),
   ...(p.action === "hold" ? { row: p.row, read } : {}),
 });
 
@@ -199,35 +238,70 @@ async function apply(admin: SupabaseClient, u: Upload, actor: Actor, people: Ret
   return { status, progress: null, result, error: null };
 }
 
-// 読み取った行から、一人ずつの扱いを決めて取り込む
-async function finalize(admin: SupabaseClient, u: Upload, actor: Actor, kind: "csv" | "pdf", rows: ImportRow[], ctx: Awaited<ReturnType<typeof loadContext>>, coverage: Coverage, extra?: { reads: ReadPerson[]; readDiffs: Diff[][] }): Promise<RunState> {
-  const plan = planPeople({
-    rows,
-    pages: extra?.reads.map((r) => r.page),
-    readDiffs: extra?.readDiffs,
-    existing: ctx.existing,
-    checkupType: u.checkup_type!,
-    fiscalYear: u.fiscal_year!,
-    kind,
-    rosterSize: ctx.persons.length,
-    // 特殊健診のPDFも、設定が「確認なし」なら、読み取りがそろった方は確認なしで取り込む(就業判定は産業医が行う)
-    pdfAuto: ctx.pdfAuto,
-    rules: ctx.rules,
-    roster: ctx.persons,
-  });
-  const people = plan
-    .filter((p) => p.action === "import" || p.action === "add")
-    .map((p) => toApply(p.row, p.action === "add" ? "add" : "new", p.existingId, p.action === "add" ? p.addItems : p.row.items, p.judgment, p.page, p.needsFollowup));
+// 読み取った行のまとまり(区分ごと)。section が null のものは、どの健診の結果か見分けられなかった分
+type SectionInput = { section: Section | null; rows: ImportRow[]; reads?: ReadPerson[]; readDiffs?: Diff[][]; labels?: string[] };
+
+// 読み取った行から、一人ずつの扱いを決めて取り込む。
+// 1つのファイルに複数の種類の健診が入っているときは、区分ごとに、すでに登録されている結果と照らして決める
+async function finalize(admin: SupabaseClient, u: Upload, actor: Actor, kind: "csv" | "pdf", inputs: SectionInput[], coverage: Coverage, extraNotes: string[] = []): Promise<RunState> {
+  const own = ownSection(u);
+  const ctxOf = contextCache(admin, u);
+  const several = inputs.length > 1 || inputs.some((inp) => !inp.section || !sameSection(inp.section, own));
+  // ファイルの種別・種類と違う区分で登録するには、データベース側の対応(SQL 0161)が要る
+  if (inputs.some((inp) => !inp.section || needsRowSection(u, inp.section))) {
+    const { error } = await admin.rpc("hm_auto_apply_sections");
+    if (error) return fail(admin, u, "1つのファイルに複数の種類の健診が入っています。種類ごとに分けて取り込むには、SQL 0161 の実行が必要です");
+  }
+  const plans: { p: PlannedPerson; read?: ReadPerson; section: Section; needsKind: boolean }[] = [];
+  for (const inp of inputs) {
+    // 見分けられなかった分は、ひとまず「特殊健診・種類なし」として照らし、全員を確認待ちにする
+    const section = inp.section ?? { type: "special", kind: null };
+    const ctx = await ctxOf(section);
+    const plan = planPeople({
+      rows: inp.rows,
+      pages: inp.reads?.map((r) => r.page),
+      readDiffs: inp.readDiffs,
+      existing: ctx.existing,
+      checkupType: section.type,
+      fiscalYear: u.fiscal_year!,
+      kind,
+      rosterSize: ctx.persons.length,
+      // 特殊健診のPDFも、設定が「確認なし」なら、読み取りがそろった方は確認なしで取り込む(就業判定は産業医が行う)
+      pdfAuto: ctx.pdfAuto,
+      rules: ctx.rules,
+      roster: ctx.persons,
+    });
+    plan.forEach((p, i) => {
+      const tagged = { ...p, row: tagRow(p.row, section) };
+      if (inp.section) return plans.push({ p: tagged, read: inp.reads?.[i], section, needsKind: false });
+      const why = inp.labels && inp.labels.length > 0 ? `${NEEDS_KIND_REASON}: ${inp.labels.slice(0, 8).join("、")}${inp.labels.length > 8 ? " ほか" : ""}` : NEEDS_KIND_REASON;
+      plans.push({ p: { ...tagged, action: "hold", reasons: [why, ...p.reasons], clean: false }, read: inp.reads?.[i], section, needsKind: true });
+    });
+  }
+  const all = plans.map((x) => x.p);
+  const people = plans
+    .filter(({ p }) => p.action === "import" || p.action === "add")
+    .map(({ p }) => toApply(p.row, p.action === "add" ? "add" : "new", p.existingId, p.action === "add" ? p.addItems : p.row.items, p.judgment, p.page, p.needsFollowup));
   // 取り込んだ方についての知らせ(確認待ちの方の分は、確認の画面に出る)
-  const notes = plan.filter((p) => p.action !== "hold").flatMap((p) => p.cautions.map((c) => `${p.row.target_name}さん: ${c}`));
+  const notes = [...extraNotes, ...all.filter((p) => p.action !== "hold").flatMap((p) => p.cautions.map((c) => `${p.row.target_name}さん: ${c}`))];
   const result: ReadResult = {
     kind,
-    summary: summarize(plan),
-    people: plan.map((p, i) => toStored(p, extra?.reads[i])),
+    summary: summarize(all),
+    people: plans.map(({ p, read, section, needsKind }) => toStored(p, read, several ? section : undefined, needsKind)),
     at: new Date().toISOString(),
     coverage,
-    otherRound: plan.some((p) => p.otherRound),
+    otherRound: all.some((p) => p.otherRound),
     ...(notes.length > 0 ? { notes } : {}),
+    ...(several
+      ? {
+          sections: inputs.map((inp) => ({
+            label: inp.section ? sectionLabel(inp.section) : "種類を見分けられなかった分",
+            type: inp.section?.type ?? "",
+            kind: inp.section?.kind ?? null,
+            count: inp.rows.length,
+          })),
+        }
+      : {}),
   };
   return apply(admin, u, actor, people, result);
 }
@@ -254,29 +328,68 @@ async function runCsv(admin: SupabaseClient, u: Upload, actor: Actor): Promise<R
   const undecided = header.some((h, i) => h.trim() !== "" && !baseCols.includes(i) && (cols.colModes[i]?.kind ?? "off") === "off" && !/判定/.test(h.normalize("NFKC")) && dataRows.some((r) => (r[i] ?? "").trim() !== ""));
   const gaps = cols.base.nameCol < 0 || cols.base.dateCol < 0 || cols.base.birthCol < 0 || cols.base.sexCol < 0;
   const special = u.checkup_type === "special";
+  const declared = special ? parseKinds(u.special_kind) : [];
+  // 種類の見分けが要るか: 特殊健診で種類が1つに決まっていない、または、見出しに別の種類の特殊健診の項目がある
+  // (定期健診として送られたCSVに、特殊健診の列が混ざっている場合を含む)
+  const hinted = hintedKinds(header);
+  const wantKinds = special ? declared.length !== 1 || hinted.some((k) => canonKind(declared[0]) !== k) : hinted.length > 0;
   let specialCols: number[] | null = null; // AIが「特殊健診の項目」と見分けた列
-  if ((gaps || undecided) && aiReady()) {
+  const colKinds: Record<number, string> = {}; // AIが見分けた、列ごとの健診の種類
+  if ((gaps || undecided || wantKinds) && aiReady()) {
     try {
-      const ai = await mapCsvColumns(header, dataRows.slice(0, 3), [cols.base.nameCol, cols.base.kanaCol].filter((c) => c >= 0), special);
+      const ai = await mapCsvColumns(header, dataRows.slice(0, 3), [cols.base.nameCol, cols.base.kanaCol].filter((c) => c >= 0), special || wantKinds, wantKinds ? { declared } : null);
       cols = applyAiMapping(header, cols, ai);
-      if (special && Array.isArray(ai.special)) specialCols = ai.special.filter((c) => Number.isInteger(c));
+      if ((special || wantKinds) && Array.isArray(ai.special)) specialCols = ai.special.filter((c) => Number.isInteger(c));
+      for (const k of ai.kinds ?? []) if (Number.isInteger(k.col) && k.col >= 0 && k.col < header.length && typeof k.kind === "string") colKinds[k.col] = k.kind;
     } catch (e) {
       console.error("csv mapping by AI failed", e);
     }
   }
   // 特殊健診は、法定項目のほかに、作業条件・代謝物・物質ごとの判定なども取り込む(労基署報告の集計に使う)
   if (special) cols = { base: cols.base, colModes: applySpecialColumns(header, dataRows, cols, specialCols) };
+  else if (wantKinds) {
+    // 定期健診として送られたCSV: 特殊健診の項目と分かった列だけを足す(それ以外の列は、今までどおり取り込まない)
+    const isSpecialCol = (i: number) => {
+      const t = canonKind(colKinds[i]) || kindOfLabel(header[i]) || "";
+      return t !== "" && t !== KIND_GENERAL && resolveSection("regular", [], t) !== "unknown";
+    };
+    const pool = (specialCols ?? header.map((_, i) => i)).filter(isSpecialCol);
+    cols = { base: cols.base, colModes: applySpecialColumns(header, dataRows, cols, pool) };
+  }
   if (cols.base.nameCol < 0) return fail(admin, u, "氏名の列が見つかりませんでした。手作業の取込(列を指定する画面)をお使いください");
   if (!Object.values(cols.colModes).some((m) => m.kind !== "off")) return fail(admin, u, "検査項目の列が見つかりませんでした。手作業の取込(列を指定する画面)をお使いください");
   // AIが見分けた列は、あとの判定・集計で同じ法定項目として扱える名前にそろえる
   const canon = canonicalHeaders(header, cols.colModes);
   header = canon.header;
-  const rows = buildImportRows({ header, dataRows, base: cols.base, colModes: cols.colModes, autoJudge: true, rules: ctx.rules, checkupType: u.checkup_type!, commonDate: "", persons: ctx.persons });
-  if (rows.length === 0) return fail(admin, u, "氏名のある行がありませんでした");
-  const coverage = coverageOf(keysWithData(dataRows, cols.colModes), u.checkup_type!, canon.renamed);
-  // 特殊健診は、取り込んだ項目名をそのまま知らせる
-  if (special) coverage.found = header.filter((h, i) => (cols.colModes[i]?.kind ?? "off") !== "off" && dataRows.some((r) => (r[i] ?? "").trim() !== "")).map((h) => h.trim());
-  return finalize(admin, u, actor, "csv", rows, ctx, coverage);
+  const build = (base: typeof cols.base, colModes: typeof cols.colModes, type: string, rowsOf: string[][] = dataRows) =>
+    buildImportRows({ header, dataRows: rowsOf, base, colModes, autoJudge: true, rules: ctx.rules, checkupType: type, commonDate: "", persons: ctx.persons });
+
+  if (!wantKinds) {
+    // 種類は1つ(送るときに選んだ種別・種類のまま)
+    const rows = build(cols.base, cols.colModes, u.checkup_type!);
+    if (rows.length === 0) return fail(admin, u, "氏名のある行がありませんでした");
+    const coverage = coverageOf(keysWithData(dataRows, cols.colModes), u.checkup_type!, canon.renamed);
+    // 特殊健診は、取り込んだ項目名をそのまま知らせる
+    if (special) coverage.found = header.filter((h, i) => (cols.colModes[i]?.kind ?? "off") !== "off" && dataRows.some((r) => (r[i] ?? "").trim() !== "")).map((h) => h.trim());
+    return finalize(admin, u, actor, "csv", [{ section: ownSection(u), rows }], coverage);
+  }
+
+  // 列を健診の種類ごとに分けて、種類ごとの記録にする。
+  // その種類の列(どの種類にも当たる「共通」の列を除く)に値が1つも入っていない方は、その種類の記録を作らない
+  const split = splitColumns({ header, base: cols.base, colModes: cols.colModes, colKinds, declaredType: u.checkup_type!, declared });
+  const having = (own: number[]) => dataRows.filter((r) => own.some((i) => (r[i] ?? "").trim() !== ""));
+  const inputs: SectionInput[] = split.sections
+    .map((x) => ({ section: x.section as Section | null, rows: build(x.base, x.colModes, x.section.type, having(x.own)).filter((r) => r.items.length > 0) }))
+    .filter((x) => x.rows.length > 0);
+  if (split.unknown) {
+    const rows = build(split.unknown.base, split.unknown.colModes, "special", having(split.unknown.own)).filter((r) => r.items.length > 0);
+    if (rows.length > 0) inputs.push({ section: null, rows, labels: split.unknown.labels });
+  }
+  if (inputs.length === 0) return fail(admin, u, "検査値の入っている行がありませんでした");
+  const general = split.sections.find((x) => x.section.type !== "special");
+  const coverage = coverageOf(keysWithData(dataRows, general?.colModes ?? {}), general?.section.type ?? u.checkup_type!, canon.renamed);
+  if (!general) coverage.found = header.filter((h, i) => (cols.colModes[i]?.kind ?? "off") !== "off" && dataRows.some((r) => (r[i] ?? "").trim() !== "")).map((h) => h.trim());
+  return finalize(admin, u, actor, "csv", inputs, coverage);
 }
 
 async function runPdf(admin: SupabaseClient, u: Upload, actor: Actor): Promise<RunState> {
@@ -299,25 +412,44 @@ async function runPdf(admin: SupabaseClient, u: Upload, actor: Actor): Promise<R
     return { status: "reading", progress: { done: 0, total: chunks.length }, result: null, error: null };
   }
 
+  const special = u.checkup_type === "special";
+  const declared = special ? parseKinds(u.special_kind) : [];
+  // 同じページを2回読ませて突き合わせる。食い違ったら、3回目を読んで多数決にする
+  const readTwice = async (c: Chunk, mode: ReadMode): Promise<(Reads & { kinds: string[] }) | "truncated"> => {
+    const part = await pdfSlice(bytes, c.from, c.to);
+    const [a, b] = await Promise.all([readPdfPart(part, c.from - 1, mode), readPdfPart(part, c.from - 1, mode)]);
+    if (a.truncated || b.truncated) return "truncated";
+    const kinds = [...a.specialKinds, ...b.specialKinds];
+    const cmp = compareReads(a.persons, b.persons);
+    let third: ReadPerson[] | undefined;
+    if (cmp.onlySecond.length > 0 || cmp.diffs.some((d) => d.length > 0)) {
+      try {
+        const r = await readPdfPart(part, c.from - 1, mode);
+        if (!r.truncated) {
+          third = r.persons;
+          kinds.push(...r.specialKinds);
+        }
+      } catch (e) {
+        console.error("third read failed", e); // 3回目が読めなければ、2回の突き合わせのまま進める
+      }
+    }
+    return { a: a.persons, b: b.persons, ...(third ? { c: third } : {}), kinds: Array.from(new Set(kinds)) };
+  };
+  // 定期健診として読んだあと、特殊健診の結果が載っていた区切りは、その部分をもう一度読む
+  const pendingSpecial = () => (special ? [] : work!.chunks.filter((c) => c.done && (c.sk?.length ?? 0) > 0 && !c.s?.done));
+  const progressOf = () => {
+    const extra = special ? [] : work!.chunks.filter((c) => (c.sk?.length ?? 0) > 0);
+    return { done: work!.chunks.filter((x) => x.done).length + extra.filter((c) => c.s?.done).length, total: work!.chunks.length + extra.length };
+  };
+
   const todo = work.chunks.filter((c) => !c.done).slice(0, CHUNKS_PER_STEP);
   if (todo.length > 0) {
-    const specialKind = u.checkup_type === "special" ? (u.special_kind ?? "").trim() : null;
-    // 区切りごとに、同じページを2回読ませて突き合わせる。食い違ったら、その区切りだけ3回目を読んで多数決にする
+    const mode: ReadMode = special ? { special: true, declared } : { special: false };
     const readChunk = async (c: Chunk): Promise<Chunk | "truncated"> => {
-      const part = await pdfSlice(bytes, c.from, c.to);
-      const [a, b] = await Promise.all([readPdfPart(part, c.from - 1, specialKind), readPdfPart(part, c.from - 1, specialKind)]);
-      if (a.truncated || b.truncated) return "truncated";
-      const cmp = compareReads(a.persons, b.persons);
-      let third: ReadPerson[] | undefined;
-      if (cmp.onlySecond.length > 0 || cmp.diffs.some((d) => d.length > 0)) {
-        try {
-          const r = await readPdfPart(part, c.from - 1, specialKind);
-          if (!r.truncated) third = r.persons;
-        } catch (e) {
-          console.error("third read failed", e); // 3回目が読めなければ、2回の突き合わせのまま進める
-        }
-      }
-      return { ...c, done: true, a: a.persons, b: b.persons, ...(third ? { c: third } : {}) };
+      const r = await readTwice(c, mode);
+      if (r === "truncated") return "truncated";
+      const { kinds, ...reads } = r;
+      return { ...c, done: true, ...reads, ...(kinds.length > 0 ? { sk: kinds } : {}) };
     };
     const settled = await Promise.allSettled(todo.map(readChunk));
     let progressed = false;
@@ -343,30 +475,95 @@ async function runPdf(admin: SupabaseClient, u: Upload, actor: Actor): Promise<R
     // 読めた区切りは残す(一時的な失敗があっても、次はその続きから)
     if (progressed) await admin.from("hm_csv_uploads").update({ read_work: work, read_updated_at: null }).eq("id", u.id);
     if (firstError) throw firstError;
-    if (work.chunks.some((x) => !x.done)) {
-      return { status: "reading", progress: { done: work.chunks.filter((x) => x.done).length, total: work.chunks.length }, result: null, error: null };
+    if (work.chunks.some((x) => !x.done) || pendingSpecial().length > 0) {
+      return { status: "reading", progress: progressOf(), result: null, error: null };
     }
+  }
+
+  // 定期健診のファイルに特殊健診の結果が載っていたとき: その区切りを、特殊健診として読む(定期健診の項目は除く)
+  const extraNotes: string[] = [];
+  const todoSpecial = pendingSpecial().slice(0, CHUNKS_PER_STEP);
+  if (todoSpecial.length > 0) {
+    const settled = await Promise.allSettled(todoSpecial.map((c) => readTwice(c, { special: true, declared: c.sk ?? [], excludeGeneral: true })));
+    let progressed = false;
+    let firstError: unknown = null;
+    settled.forEach((r, n) => {
+      const c = todoSpecial[n];
+      if (r.status === "rejected") {
+        firstError = firstError ?? r.reason;
+        return;
+      }
+      progressed = true;
+      if (r.value === "truncated") c.s = { done: true, failed: true };
+      else {
+        const { kinds: _kinds, ...reads } = r.value;
+        void _kinds;
+        c.s = { done: true, ...reads };
+      }
+    });
+    if (progressed) await admin.from("hm_csv_uploads").update({ read_work: work, read_updated_at: null }).eq("id", u.id);
+    if (firstError) throw firstError;
+    if (pendingSpecial().length > 0) return { status: "reading", progress: progressOf(), result: null, error: null };
+  }
+  for (const c of work.chunks) {
+    if (c.s?.failed) extraNotes.push(`${c.from}ページ付近に載っている特殊健診の結果は、読み取りきれませんでした(健診種別を「特殊健診」にして、送り直してください)`);
   }
 
   // 全部読み終えた: 読み取りを突き合わせて(2回以上そろった値を採る)、判定・取込へ
   const A = mergePeople(work.chunks.flatMap((c) => c.a ?? []));
   const B = mergePeople(work.chunks.flatMap((c) => c.b ?? []));
-  const C = mergePeople(work.chunks.flatMap((c) => c.c ?? c.a ?? []));
-  if (A.length === 0 && B.length === 0) return fail(admin, u, "健診結果を読み取れませんでした(検査結果の載っていないPDFの可能性があります)");
-  const { reads, diffs: readDiffs } = reconcileReads(A, B, C);
-  const ctx = await loadContext(admin, u);
-  if (!ctx.rules.some((r) => r.grade !== "S")) return fail(admin, u, "判定基準が未登録のため、自動では判定できません");
-  const rows = tableRows(reads, ctx, u.checkup_type!);
-  // 氏名のない人は personsToTable の時点でいないので、rows と reads は同じ並び
-  const coverage = coverageOf(reads.flatMap((p) => p.items.map((it) => it.k)), u.checkup_type!);
-  if (u.checkup_type === "special") coverage.found = Array.from(new Set(reads.flatMap((p) => p.items.map((it) => (it.l ?? "").trim()).filter(Boolean))));
-  return finalize(admin, u, actor, "pdf", rows, ctx, coverage, { reads, readDiffs });
+  const C = mergePeople(work.chunks.flatMap((c) => thirdOf(c)));
+  // 定期健診のファイルに載っていた特殊健診の部分
+  const SA = mergePeople(work.chunks.flatMap((c) => c.s?.a ?? []));
+  const SB = mergePeople(work.chunks.flatMap((c) => c.s?.b ?? []));
+  const SC = mergePeople(work.chunks.flatMap((c) => (c.s ? thirdOf(c.s) : [])));
+  if (A.length === 0 && B.length === 0 && SA.length === 0 && SB.length === 0) return fail(admin, u, "健診結果を読み取れませんでした(検査結果の載っていないPDFの可能性があります)");
+  const main = reconcileReads(A, B, C);
+  const extra = SA.length > 0 || SB.length > 0 ? reconcileReads(SA, SB, SC) : { reads: [], diffs: [] };
+  const own = ownSection(u);
+  const ctxOf = contextCache(admin, u);
+  if (!(await ctxOf(own)).rules.some((r) => r.grade !== "S")) return fail(admin, u, "判定基準が未登録のため、自動では判定できません");
+
+  // 読み取った結果を、健診の種類ごとに分ける(札のないもの = 定期健診として読んだ分は、送るときに選んだ種別のまま)
+  const groups = new Map<string, { section: Section | null; reads: ReadPerson[]; readDiffs: Diff[][] }>();
+  const put = (read: ReadPerson, diff: Diff[], sec: Section | "unknown") => {
+    const key = sec === "unknown" ? "?" : sectionKey(sec);
+    const g = groups.get(key) ?? { section: sec === "unknown" ? null : sec, reads: [], readDiffs: [] };
+    g.reads.push(read);
+    g.readDiffs.push(diff);
+    groups.set(key, g);
+  };
+  main.reads.forEach((r, i) => put(r, main.diffs[i] ?? [], special ? resolveSection("special", declared, r.kind) : own));
+  // 定期健診のファイルに載っていた特殊健診: 種類がはっきり読めたものはその種類に。そうでないものは事務所が選ぶ
+  extra.reads.forEach((r, i) => put(r, extra.diffs[i] ?? [], !r.kind || r.kind === KIND_GENERAL ? "unknown" : resolveSection(u.checkup_type!, [], r.kind)));
+
+  const inputs: SectionInput[] = [];
+  for (const g of Array.from(groups.values())) {
+    const type = g.section?.type ?? "special";
+    const ctx = await ctxOf(g.section ?? { type: "special", kind: null });
+    // 氏名のない人は読み取りの時点でいないので、rows と reads は同じ並び
+    inputs.push({ section: g.section, rows: tableRows(g.reads, ctx, type), reads: g.reads, readDiffs: g.readDiffs });
+  }
+  const generalReads = inputs.filter((x) => x.section && x.section.type !== "special").flatMap((x) => x.reads ?? []);
+  const coverage = coverageOf(generalReads.flatMap((p) => p.items.map((it) => it.k)), generalReads.length > 0 ? inputs.find((x) => x.section && x.section.type !== "special")!.section!.type : u.checkup_type!);
+  if (generalReads.length === 0) coverage.found = Array.from(new Set(inputs.flatMap((x) => x.reads ?? []).flatMap((p) => p.items.map((it) => (it.l ?? "").trim()).filter(Boolean))));
+  return finalize(admin, u, actor, "pdf", inputs, coverage, extraNotes);
+}
+
+// 多数決に使う3回目の読み取り。2回の読み取りがそろった区切りは3回目を読まないので、1回目と同じものを使う。
+// 食い違ったのに3回目を読めなかった区切りは、何も足さない(2回の突き合わせのまま、食い違いとして確認待ちに残す)
+function thirdOf(r: Reads): ReadPerson[] {
+  if (r.c) return r.c;
+  const cmp = compareReads(r.a ?? [], r.b ?? []);
+  const agree = cmp.onlySecond.length === 0 && cmp.diffs.every((d) => d.length === 0);
+  return agree ? (r.a ?? []) : [];
 }
 
 // 区切りをまたいで同じ方が出てきたら、1人にまとめる(氏名と生年月日が同じ)
 function mergePeople(list: ReadPerson[]): ReadPerson[] {
   const out: ReadPerson[] = [];
-  const key = (p: ReadPerson) => `${p.name.replace(/[\s　]/g, "")}|${p.birth.replace(/\s/g, "")}`;
+  // 1人に複数の種類の健診があるときは、種類ごとに別の要素のままにする
+  const key = (p: ReadPerson) => `${p.name.replace(/[\s　]/g, "")}|${p.birth.replace(/\s/g, "")}|${p.kind ?? ""}`;
   for (const p of list) {
     const prev = out.find((q) => key(q) === key(p) && Math.abs(q.page - p.page) <= 2);
     if (!prev) {
@@ -413,11 +610,13 @@ export async function runStep(admin: SupabaseClient, uploadId: string, actor: Ac
 }
 
 // 確認待ちの方を取り込む(事務所)。choices: 食い違いのあった項目で、2回目の読み取りを採るもの
-export async function approveHeld(admin: SupabaseClient, uploadId: string, actor: Actor, indexes: number[], choices: Record<string, string[]>, skip: boolean): Promise<RunState> {
+// kinds: どの健診の結果か見分けられなかった方について、事務所が選んだ種類(番号 → 特殊健診の種類、または「一般」= 定期健診)
+export async function approveHeld(admin: SupabaseClient, uploadId: string, actor: Actor, indexes: number[], choices: Record<string, string[]>, skip: boolean, kinds: Record<string, string> = {}): Promise<RunState> {
   const u = await loadUpload(admin, uploadId);
   if (!u || !u.read_result) return { status: "failed", progress: null, result: null, error: "ファイルが見つかりません" };
   const result: ReadResult = { ...u.read_result, people: u.read_result.people.map((p) => ({ ...p })) };
-  const ctx = await loadContext(admin, u);
+  const own = ownSection(u);
+  const ctxOf = contextCache(admin, u);
   const people: ReturnType<typeof toApply>[] = [];
   const errors: string[] = [];
   for (const i of indexes) {
@@ -427,7 +626,27 @@ export async function approveHeld(admin: SupabaseClient, uploadId: string, actor
       result.people[i] = { ...p, status: "skipped", row: undefined, read: undefined };
       continue;
     }
+    // どの健診の結果として登録するか。見分けられなかった方は、事務所が選んだ種類にする
+    let section = p.section ?? own;
+    if (p.needsKind) {
+      const chosen = canonKind(kinds[String(i)]);
+      if (!chosen) {
+        errors.push(`${p.name}さん: どの健診の結果か、種類を選んでください`);
+        continue;
+      }
+      section = chosen === KIND_GENERAL ? { type: u.checkup_type && u.checkup_type !== "special" ? u.checkup_type : "regular", kind: null } : { type: "special", kind: chosen };
+    }
+    if (needsRowSection(u, section)) {
+      const { error } = await admin.rpc("hm_auto_apply_sections");
+      if (error) {
+        errors.push("種類ごとに分けて取り込むには、SQL 0161 の実行が必要です");
+        break;
+      }
+    }
+    const ctx = await ctxOf(section);
     let row = p.row;
+    // 種類を選び直した方は、その種類として判定し直す(PDFから読んだ内容が残っているとき)
+    if (p.needsKind && p.read) row = tableRows([p.read], ctx, section.type)[0] ?? row;
     // 食い違いのうち「2回目を採る」とした項目は、2回目の値に置き換えて、判定し直す
     const useB = choices[String(i)] ?? [];
     if (p.read && p.diffKind === "read" && useB.length > 0) {
@@ -445,8 +664,9 @@ export async function approveHeld(admin: SupabaseClient, uploadId: string, actor
           if (it) it.v = d.b;
         }
       }
-      row = tableRows([read], ctx, u.checkup_type!)[0] ?? row;
+      row = tableRows([read], ctx, section.type)[0] ?? row;
     }
+    row = tagRow(row, section);
     const against = classifyAgainstExisting(row, ctx.existing);
     if (against.mode === "conflict") {
       errors.push(`${p.name}さん: すでに登録されている結果と値が違うため、ここからは取り込めません(個人の画面で値を直してください)`);
@@ -461,9 +681,21 @@ export async function approveHeld(admin: SupabaseClient, uploadId: string, actor
     const items = against.mode === "add" ? against.items : row.items;
     const all = existing ? [...existing.items.map((it) => ({ name: it.item_name, value: it.value, judgment: it.judgment })), ...items] : row.items;
     const mayJudge = !existing || !existing.work_judgment || existing.work_judgment_auto;
-    const wj = mayJudge ? decideWorkJudgment(row.overall_judgment, all, sex, u.checkup_type!, ctx.rules) : null;
+    const wj = mayJudge ? decideWorkJudgment(row.overall_judgment, all, sex, section.type, ctx.rules) : null;
     people.push(toApply(row, existing ? "add" : "new", existing?.id ?? null, items, wj, p.page, needsFollowup(row.overall_judgment, all, sex, ctx.rules)));
-    result.people[i] = { ...p, name: row.target_name, birth: row.birth_date, overall: row.overall_judgment, status: existing ? "added" : "imported", judgment: wj, reasons: [], row: undefined, read: undefined };
+    result.people[i] = {
+      ...p,
+      name: row.target_name,
+      birth: row.birth_date,
+      overall: row.overall_judgment,
+      status: existing ? "added" : "imported",
+      judgment: wj,
+      reasons: [],
+      row: undefined,
+      read: undefined,
+      ...(p.section || p.needsKind ? { section } : {}),
+      needsKind: undefined,
+    };
   }
   // 要約を作り直す
   const done = result.people.filter((p) => p.status === "imported" || p.status === "added");

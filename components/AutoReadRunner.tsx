@@ -8,10 +8,12 @@ import type { Coverage, ReadSummary } from "@/lib/autoRead";
 // 読み取りはサーバー側で少しずつ進むので、終わるまでこの部品が続けて呼ぶ(途中で閉じても、あとで続きから進められる)
 
 export type ReadTarget = { id: string; name: string; kind: "csv" | "pdf"; hash?: string };
+// 1つのファイルに複数の種類の健診が入っていたとき: 見つかった種類と人数(type が空 = 種類を見分けられなかった分)
+export type ReadSection = { label: string; type: string; kind: string | null; count: number };
 type ApiState = {
   status?: string;
   progress?: { done: number; total: number } | null;
-  result?: { summary: ReadSummary; coverage?: Coverage; otherRound?: boolean; notes?: string[] } | null;
+  result?: { summary: ReadSummary; coverage?: Coverage; otherRound?: boolean; notes?: string[]; sections?: ReadSection[] } | null;
   error?: string | null;
   busy?: boolean;
   retry?: boolean;
@@ -24,12 +26,45 @@ type FileState = ApiState & { phase: "wait" | "run" | "end" | "manual" | "stoppe
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 // 読み取り結果の要約(会社・事務所の画面で共通)
-export function ReadSummaryView({ summary, role, coverage, notes }: { summary: ReadSummary; role: "office" | "company"; coverage?: Coverage; notes?: string[] }) {
+export function ReadSummaryView({
+  summary,
+  role,
+  coverage,
+  notes,
+  sections,
+}: {
+  summary: ReadSummary;
+  role: "office" | "company";
+  coverage?: Coverage;
+  notes?: string[];
+  sections?: ReadSection[];
+}) {
   const returned = summary.normal + summary.consult + summary.pending;
   const li = { margin: "2px 0" } as const;
+  const several = sections && sections.length > 0;
   return (
     <div>
-      <div style={{ fontWeight: 700, marginBottom: 4 }}>{summary.total}名分を読み取りました</div>
+      <div style={{ fontWeight: 700, marginBottom: 4 }}>{several ? `延べ${summary.total}名分` : `${summary.total}名分`}を読み取りました</div>
+      {/* 1つのファイルに複数の種類の健診が入っていたとき: 種類ごとに分けて登録したことを知らせる */}
+      {several && (
+        <div style={{ background: "var(--teal-light)", border: "1px solid var(--line)", borderRadius: 8, padding: "8px 12px", margin: "0 0 8px", fontSize: 14 }}>
+          <div>このファイルの結果を、健診の種類ごとに分けました（同じ方でも、種類ごとに別の記録になります）。</div>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: "4px 8px", marginTop: 6 }}>
+            {sections.map((s) => (
+              <span key={s.label} className={`badge${s.type ? "" : " orange"}`}>
+                {s.label} {s.count}名
+              </span>
+            ))}
+          </div>
+          {sections.some((s) => !s.type) && (
+            <div style={{ marginTop: 6, color: "#b45415", fontSize: 13 }}>
+              {role === "office"
+                ? "種類を見分けられなかった分は、「読み取りの確認待ち」で種類を選ぶと取り込めます。"
+                : "種類を見分けられなかった分は、産業医事務所が種類を確かめてから取り込みます。"}
+            </div>
+          )}
+        </div>
+      )}
       <ul style={{ margin: 0, paddingLeft: 20, fontSize: 14 }}>
         {returned > 0 && (
           <li style={li}>
@@ -207,7 +242,7 @@ export default function AutoReadRunner({
                 </div>
               </div>
             )}
-            {s.phase === "end" && s.result && (s.status === "done" || s.status === "review") && <ReadSummaryView summary={s.result.summary} role={role} coverage={s.result.coverage} notes={s.result.notes} />}
+            {s.phase === "end" && s.result && (s.status === "done" || s.status === "review") && <ReadSummaryView summary={s.result.summary} role={role} coverage={s.result.coverage} notes={s.result.notes} sections={s.result.sections} />}
             {/* 別の回(2回目など)の健診を、違う回として送ったとみられるとき */}
             {s.phase === "end" && s.status === "review" && s.result?.otherRound && (
               <p style={{ margin: "8px 0 0", background: "var(--orange-light)", border: "1px solid var(--orange)", borderRadius: 8, padding: "8px 12px", fontSize: 14 }}>

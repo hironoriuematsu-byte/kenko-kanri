@@ -102,7 +102,7 @@ export async function POST(req: Request) {
   if (!actor) return fail(401, "ログインの有効期限が切れました。ページを再読み込みしてください。");
   const admin = adminClient();
   if (!admin) return fail(503, "自動の読み取りは準備中です(設定が済むと使えるようになります)");
-  let body: { action?: unknown; uploadId?: unknown; indexes?: unknown; choices?: unknown; pdfAuto?: unknown; hash?: unknown; round?: unknown };
+  let body: { action?: unknown; uploadId?: unknown; indexes?: unknown; choices?: unknown; pdfAuto?: unknown; hash?: unknown; round?: unknown; kinds?: unknown };
   try {
     body = await req.json();
   } catch {
@@ -143,7 +143,11 @@ export async function POST(req: Request) {
     if (u.read_status !== "review") return out(stateOf(u));
     const indexes = (Array.isArray(body.indexes) ? body.indexes : []).filter((x): x is number => Number.isInteger(x));
     const choices = (body.choices && typeof body.choices === "object" ? body.choices : {}) as Record<string, string[]>;
-    return out(await approveHeld(admin, uploadId, actor, indexes, choices, body.action === "skip"));
+    // 見分けられなかった方について、事務所が選んだ種類(番号 → 種類)
+    const kinds = Object.fromEntries(
+      Object.entries(body.kinds && typeof body.kinds === "object" ? (body.kinds as Record<string, unknown>) : {}).filter((e): e is [string, string] => typeof e[1] === "string")
+    );
+    return out(await approveHeld(admin, uploadId, actor, indexes, choices, body.action === "skip", kinds));
   }
   if (body.action === "reround") {
     if (actor.role !== "office") return fail(403, "実施回の変更は、産業医事務所が行います");
