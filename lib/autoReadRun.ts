@@ -210,8 +210,8 @@ async function finalize(admin: SupabaseClient, u: Upload, actor: Actor, kind: "c
     fiscalYear: u.fiscal_year!,
     kind,
     rosterSize: ctx.persons.length,
-    // 特殊健診のPDFは、健診の種類ごとに書式が大きく違うため、設定にかかわらず事務所が確認してから取り込む
-    pdfAuto: ctx.pdfAuto && u.checkup_type !== "special",
+    // 特殊健診のPDFも、設定が「確認なし」なら、読み取りがそろった方は確認なしで取り込む(就業判定は産業医が行う)
+    pdfAuto: ctx.pdfAuto,
     rules: ctx.rules,
     roster: ctx.persons,
   });
