@@ -15,7 +15,16 @@ const fail = (status: number, error: string, extra: Record<string, unknown> = {}
 export async function GET() {
   const admin = adminClient();
   const settings = admin ? await admin.rpc("second_step_settings") : null;
-  return NextResponse.json({ ready: serverReady(), applied: Boolean(settings && !settings.error) });
+  const applied = Boolean(settings && !settings.error);
+  // 足りない設定の「名前」だけを返す(値は返さない)。何を Vercel に入れればよいかを、開いた人がすぐ分かるように
+  const missing = ["SUPABASE_SERVICE_ROLE_KEY", "RESEND_API_KEY", "SENDER_EMAIL"].filter((k) => !(process.env[k] ?? "").trim());
+  const hint =
+    missing.length > 0
+      ? `Vercel(健康管理Web)の環境変数に ${missing.join("・")} を入れて、再デプロイしてください`
+      : !applied
+        ? "SUPABASE_SERVICE_ROLE_KEY の値が合っていないか、SQL 0035 が未実行です"
+        : "準備できています";
+  return NextResponse.json({ ready: serverReady(), applied, missing, hint });
 }
 
 export async function POST(req: Request) {
