@@ -12,9 +12,11 @@ export default function CompanyList({
   badges?: Record<string, number>; // 就業判定が必要な人数(未入力+判定保留)。0の企業には出さない
 }) {
   const [query, setQuery] = useState("");
-  const q = query.trim().toLowerCase();
+  // 空白(半角・全角)・全角/半角・大文字/小文字の違いは無視して探す
+  const key = (v: string) => v.normalize("NFKC").toLowerCase().replace(/\s+/g, "");
+  const q = key(query);
   const filtered = q
-    ? companies.filter((c) => c.name.toLowerCase().includes(q))
+    ? companies.filter((c) => key(c.name).includes(q))
     : companies;
 
   return (

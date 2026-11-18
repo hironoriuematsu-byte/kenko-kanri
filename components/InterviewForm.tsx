@@ -38,6 +38,7 @@ type Person = {
 // 検索用の正規化: 空白除去・小文字化・ひらがな→カタカナ
 function normalizeSearch(s: string): string {
   return s
+    .normalize("NFKC")
     .replace(/[\s　]/g, "")
     .toLowerCase()
     .replace(/[ぁ-ん]/g, (ch) => String.fromCharCode(ch.charCodeAt(0) + 0x60));
