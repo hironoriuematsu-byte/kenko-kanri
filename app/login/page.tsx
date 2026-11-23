@@ -102,19 +102,9 @@ function LoginForm() {
           >
             パスワードをお忘れの方 ↗
           </a>
-          <span className="muted" style={{ display: "block", fontSize: 12, marginTop: 4 }}>
-            ストレスチェックWebの画面で再設定します（パスワードは両方のWebで共通です）。
-          </span>
         </p>
         <p className="muted" style={{ marginTop: 14 }}>
           ストレスチェックWebと同じアカウントでログインできます。アカウントをお持ちでない方は産業医事務所にお問い合わせください。
-        </p>
-        <p className="muted" style={{ marginTop: 6 }}>
-          導入をご検討の方は、架空データによる
-          <a href="/demo" style={{ margin: "0 4px", fontWeight: 700 }}>
-            サンプル(デモ)
-          </a>
-          をログインなしでご覧いただけます。
         </p>
         {/* 個人情報保護法第32条に基づく安全管理措置の概要(保存先・外部事業者)の案内 */}
         <p className="muted" style={{ marginTop: 10, fontSize: 12, lineHeight: 1.7 }}>
