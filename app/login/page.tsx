@@ -92,6 +92,20 @@ function LoginForm() {
             {busy ? "ログイン中…" : "ログイン"}
           </button>
         </form>
+        {/* パスワードはストレスチェックWebと共通。再設定はストレスチェックWebの画面で行う */}
+        <p style={{ marginTop: 12, textAlign: "center" }}>
+          <a
+            href={`${(process.env.NEXT_PUBLIC_STRESS_URL || "https://stres.mestate.jp").replace(/\/$/, "")}/reset-password`}
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{ fontWeight: 700 }}
+          >
+            パスワードをお忘れの方 ↗
+          </a>
+          <span className="muted" style={{ display: "block", fontSize: 12, marginTop: 4 }}>
+            ストレスチェックWebの画面で再設定します（パスワードは両方のWebで共通です）。
+          </span>
+        </p>
         <p className="muted" style={{ marginTop: 14 }}>
           ストレスチェックWebと同じアカウントでログインできます。アカウントをお持ちでない方は産業医事務所にお問い合わせください。
         </p>
