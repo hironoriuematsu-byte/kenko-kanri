@@ -11,8 +11,10 @@ import { CHECKUP_TYPES } from "@/lib/checkups";
 import { DOC_TYPES, VISIBILITY_LABELS } from "@/lib/karte";
 import {
   INTERVIEW_TYPES,
-  INTERVIEW_STATUS,
   WORK_JUDGMENTS,
+  SITUATION_OPINION,
+  interviewStatusLabel,
+  isOpinionOnly,
   formatDateTimeJa,
 } from "@/lib/interviews";
 
@@ -136,7 +138,8 @@ export default async function KartePage({ params }: { params: { personId: string
         "interview_id",
         interviews.map((i: any) => i.id)
       );
-    opinions = (data as OpinionRow[]) ?? [];
+    const onlyIds = new Set(interviews.filter((i: any) => isOpinionOnly(i.interview_type)).map((i: any) => i.id));
+    opinions = ((data as OpinionRow[]) ?? []).map((o) => ({ ...o, opinion_only: onlyIds.has(o.interview_id) }));
   }
 
   const companyName = (person as any).companies?.name ?? "";
@@ -220,6 +223,19 @@ export default async function KartePage({ params }: { params: { personId: string
           {isOffice && (
             <p className="muted">
               公開範囲を「産業医事務所のみ」にした書類は、企業側には一切表示されません。産業医意見書は、面談の画面で「企業側に公開」したものだけが企業側に表示されます。
+            </p>
+          )}
+          {isOffice && (
+            <p>
+              <Link
+                className="btn orange"
+                href={`/office/${person.company_id}/interviews/new?person=${person.id}&type=${SITUATION_OPINION}`}
+              >
+                ＋ 状況から産業医意見書を作成（面談なし）
+              </Link>
+              <span className="muted" style={{ fontSize: 12, marginLeft: 8 }}>
+                面談を行わず、事業場からの報告などをもとに就業区分と意見を出すときに使います。
+              </span>
             </p>
           )}
           <PersonFilesPanel
@@ -320,12 +336,12 @@ export default async function KartePage({ params }: { params: { personId: string
                   <tr key={`i-${iv.id}`}>
                     <td>{formatDateTimeJa(iv.scheduled_at)}</td>
                     <td>
-                      <span className="badge">面談</span>
+                      <span className="badge">{isOpinionOnly(iv.interview_type) ? "意見" : "面談"}</span>
                     </td>
                     <td>
                       <Link href={`/interviews/${iv.id}`}>
                         {INTERVIEW_TYPES[iv.interview_type] ?? iv.interview_type}（
-                        {INTERVIEW_STATUS[iv.status] ?? iv.status}）
+                        {interviewStatusLabel(iv.status, iv.interview_type)}）
                       </Link>
                     </td>
                   </tr>

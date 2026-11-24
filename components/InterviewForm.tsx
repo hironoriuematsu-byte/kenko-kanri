@@ -5,7 +5,7 @@ import { startNavigationProgress } from "@/lib/navigate";
 import { currentUserId, logAccessInBackground } from "@/lib/session";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/browser";
-import { INTERVIEW_TYPES, INTERVIEW_METHODS } from "@/lib/interviews";
+import { INTERVIEW_TYPES, INTERVIEW_METHODS, isOpinionOnly } from "@/lib/interviews";
 import DateTextInput from "@/components/DateTextInput";
 import { BIRTH_DATE_LABEL, BIRTH_DATE_REQUIRED } from "@/lib/personPolicy";
 
@@ -78,6 +78,8 @@ export default function InterviewForm({
   const set = <K extends keyof InterviewInput>(k: K, val: InterviewInput[K]) =>
     setV((p) => ({ ...p, [k]: val }));
 
+  // 面談なしで、状況をもとに出す産業医意見(実施方法・場所は使わない)
+  const opinionOnly = isOpinionOnly(v.interview_type);
   // 手で登録する高ストレス面接指導(ストレスチェックWebの申出から登録されたものではない)は、申出の確認が要る
   const needsConfirm = v.interview_type === "high_stress" && !v.interview_request_id;
   // 保存する申出の確認の印(SQL 0159 の実行前は送らない)
@@ -116,8 +118,8 @@ export default function InterviewForm({
       scheduled_at: v.scheduled_local
         ? new Date(`${v.scheduled_local}T12:00:00`).toISOString()
         : null,
-      method: v.method || null,
-      location: v.location || null,
+      method: opinionOnly ? null : v.method || null,
+      location: opinionOnly ? null : v.location || null,
     };
 
     // 氏名を直接入力した場合もカルテに反映する:
@@ -314,6 +316,12 @@ export default function InterviewForm({
                 </option>
               ))}
             </select>
+            {opinionOnly && (
+              <p className="muted" style={{ margin: "6px 0 0" }}>
+                面談は行わず、事業場からの報告などの状況をもとに産業医意見書を出します。保存すると、就業区分と意見の入力画面に進みます。
+                意見書には「産業医面談は実施していません」と記載されます。
+              </p>
+            )}
             {v.interview_type === "high_stress" && v.interview_request_id && (
               <p className="muted" style={{ margin: "6px 0 0" }}>
                 ストレスチェックWebで本人が面接指導を申し出た面談です(会社への結果の提供に同意済み)。
@@ -342,13 +350,15 @@ export default function InterviewForm({
       )}
 
       <div className="form-row">
-        <label>予定日</label>
+        <label>{opinionOnly ? "状況を確認した日" : "予定日"}</label>
         <input
           type="date"
           value={v.scheduled_local}
           onChange={(e) => set("scheduled_local", e.target.value)}
         />
       </div>
+      {!opinionOnly && (
+        <>
       <div className="form-row">
         <label>実施方法</label>
         <select value={v.method} onChange={(e) => set("method", e.target.value)}>
@@ -369,6 +379,8 @@ export default function InterviewForm({
           placeholder="本社会議室A、Zoom URL など（健康情報は書かないでください）"
         />
       </div>
+        </>
+      )}
 
       {error && <p className="error-message">{error}</p>}
 

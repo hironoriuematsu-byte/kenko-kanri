@@ -50,7 +50,7 @@ export async function POST(req: Request) {
 
   const { data: iv } = await supabase
     .from("hm_interviews")
-    .select("id, companies(name)")
+    .select("id, interview_type, companies(name)")
     .eq("id", interviewId)
     .maybeSingle();
   const { data: op } = await supabase.from("hm_interview_opinions").select("interview_date").eq("interview_id", interviewId).maybeSingle();
@@ -58,13 +58,18 @@ export async function POST(req: Request) {
   const date = (op?.interview_date as string | null) ?? null;
   const origin = process.env.NEXT_PUBLIC_SITE_URL || req.headers.get("origin") || new URL(req.url).origin;
 
+  // 面談なしで、状況をもとに出した産業医意見は、文面を切り替える
+  const opinionOnly = (iv as { interview_type?: string } | null)?.interview_type === "situation_opinion";
+
   const text = [
     `${companyName ? `${companyName} ` : ""}事業者ご担当者さま`,
     "",
-    "従業員の方の産業医面談が終わり、産業医の意見書(就業上の措置に関する意見)が発行されました。",
+    opinionOnly
+      ? "事業場からご報告いただいた状況をもとに、産業医の意見書(就業上の措置に関する意見)が発行されました。"
+      : "従業員の方の産業医面談が終わり、産業医の意見書(就業上の措置に関する意見)が発行されました。",
     "詳細は、健康管理Webにログインしてご確認ください。",
     "",
-    ...(date ? [`面談日: ${date.replace(/-/g, "/")}`] : []),
+    ...(date ? [`${opinionOnly ? "状況確認日" : "面談日"}: ${date.replace(/-/g, "/")}`] : []),
     `${origin}/interviews/${interviewId}`,
     "",
     "※このメールには、対象の方の氏名や健康に関する情報は記載していません。",
@@ -77,7 +82,7 @@ export async function POST(req: Request) {
   const failed: string[] = [];
   for (let i = 0; i < list.length; i++) {
     if (i > 0) await sleep(600); // 1秒に2通までの制限に合わせる
-    const r = await sendMail(list[i].email, "【健康管理Web】産業医面談の意見書が発行されました", text);
+    const r = await sendMail(list[i].email, opinionOnly ? "【健康管理Web】産業医の意見書が発行されました" : "【健康管理Web】産業医面談の意見書が発行されました", text);
     if (r.ok) sent++;
     else failed.push(list[i].name || "(氏名未登録)");
   }

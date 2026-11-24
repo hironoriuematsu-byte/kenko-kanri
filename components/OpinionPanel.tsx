@@ -48,11 +48,16 @@ export default function OpinionPanel({
   interviewId,
   companyId,
   initial,
+  opinionOnly = false,
 }: {
   interviewId: string;
   companyId: string;
   initial: OpinionInitial;
+  opinionOnly?: boolean; // 面談なしで、状況をもとに出す産業医意見(文言を切り替える)
 }) {
+  // 公開のチェック欄の文言(面談なしの意見は「実施済」ではなく「発行済」)
+  const publishLabel = opinionOnly ? "企業側に公開し、発行済にする" : "企業側に公開し、面談を実施済にする";
+  const doneWord = opinionOnly ? "発行済" : "面談を実施済";
   const router = useRouter();
   const [v, setV] = useState<OpinionInitial>(initial);
   const [error, setError] = useState<string | null>(null);
@@ -134,8 +139,8 @@ export default function OpinionPanel({
           doneOk = false;
           setError(
             /function|schema cache/i.test(doneErr.message)
-              ? "意見書は保存しましたが、面談を実施済にできませんでした(SQL 0137 が未実行です。SQL Editor で実行してください)。"
-              : `意見書は保存しましたが、面談を実施済にできませんでした: ${doneErr.message}`
+              ? `意見書は保存しましたが、${doneWord}にできませんでした(SQL 0137 が未実行です。SQL Editor で実行してください)。`
+              : `意見書は保存しましたが、${doneWord}にできませんでした: ${doneErr.message}`
           );
         }
       }
@@ -144,14 +149,14 @@ export default function OpinionPanel({
       const hm = `${t.getHours()}:${String(t.getMinutes()).padStart(2, "0")}`;
       setStatus(
         (auto ? "自動保存しました" : "保存しました") +
-          (current.published && !wasPublished && doneOk ? "。企業側に公開し、面談を実施済にしました" : "") +
+          (current.published && !wasPublished && doneOk ? `。企業側に公開し、${doneWord}にしました` : "") +
           `（${hm}）`
       );
       // 公開状態(=実施済の表示)が変わったときは、裏でページのデータを更新する
       if (current.published !== wasPublished) router.refresh();
       setBusy(false);
     },
-    [v, initial, interviewId, companyId, router]
+    [v, initial, interviewId, companyId, router, doneWord]
   );
 
   // 入力が止まってしばらくしたら自動保存する
@@ -167,7 +172,7 @@ export default function OpinionPanel({
   const reportByMail = async () => {
     setMailMsg(null);
     if (!v.published || !lastSaved.current?.published) {
-      setMailMsg({ ok: false, text: "先に「企業側に公開し、面談を実施済にする」を付けて保存してください。" });
+      setMailMsg({ ok: false, text: `先に「${publishLabel}」を付けて保存してください。` });
       return;
     }
     setMailBusy(true);
@@ -212,7 +217,7 @@ export default function OpinionPanel({
   return (
     <form onSubmit={onSubmit}>
       <div className="form-row">
-        <label>面談実施日（意見書に記載）</label>
+        <label>{opinionOnly ? "状況を確認した日（意見書に記載）" : "面談実施日（意見書に記載）"}</label>
         <input
           type="date"
           value={v.interview_date}
@@ -266,7 +271,7 @@ export default function OpinionPanel({
           onChange={(e) => setV((p) => ({ ...p, published: e.target.checked }))}
         />
         <label htmlFor="publish-opinion" style={{ margin: 0 }}>
-          企業側に公開し、面談を実施済にする
+          {publishLabel}
         </label>
         <button
           type="button"

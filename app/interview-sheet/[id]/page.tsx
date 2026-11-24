@@ -4,7 +4,7 @@ import Header from "@/components/Header";
 import PrintButton from "@/components/PrintButton";
 import { requireProfile, homePathFor } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
-import { INTERVIEW_TYPES, WORK_JUDGMENTS } from "@/lib/interviews";
+import { INTERVIEW_TYPES, WORK_JUDGMENTS, isOpinionOnly } from "@/lib/interviews";
 import { formatDateJa } from "@/lib/fiscal";
 
 export const dynamic = "force-dynamic";
@@ -41,18 +41,20 @@ export default async function InterviewSheetPage({ params }: { params: { id: str
   });
 
   const companyName = (iv as any).companies?.name ?? "";
+  // 面談なしで、状況をもとに出す産業医意見(表題と項目名を切り替える)
+  const opinionOnly = isOpinionOnly(iv.interview_type);
 
   return (
     <>
       <Header profile={profile} />
       <main className="container">
         <p className="muted no-print">
-          <Link href={`/interviews/${iv.id}`}>← 面談詳細に戻る</Link>
+          <Link href={`/interviews/${iv.id}`}>{opinionOnly ? "← 詳細に戻る" : "← 面談詳細に戻る"}</Link>
         </p>
 
         <div className="card print-sheet">
           <div style={{ textAlign: "center", marginBottom: 20 }}>
-            <h1 style={{ fontSize: 20, margin: 0 }}>面談結果報告・意見書</h1>
+            <h1 style={{ fontSize: 20, margin: 0 }}>{opinionOnly ? "産業医意見書" : "面談結果報告・意見書"}</h1>
           </div>
 
           <p>{companyName} 御中</p>
@@ -63,14 +65,29 @@ export default async function InterviewSheetPage({ params }: { params: { id: str
                 <th style={{ width: 160 }}>対象者氏名</th>
                 <td>{iv.target_name}</td>
               </tr>
-              <tr>
-                <th>面談種別</th>
-                <td>{INTERVIEW_TYPES[iv.interview_type] ?? iv.interview_type}</td>
-              </tr>
-              <tr>
-                <th>面談実施日</th>
-                <td>{formatDateJa(opinion.interview_date)}</td>
-              </tr>
+              {opinionOnly ? (
+                <>
+                  <tr>
+                    <th>意見の根拠</th>
+                    <td>事業場からの状況報告等（産業医面談は実施していません）</td>
+                  </tr>
+                  <tr>
+                    <th>状況確認日</th>
+                    <td>{formatDateJa(opinion.interview_date)}</td>
+                  </tr>
+                </>
+              ) : (
+                <>
+                  <tr>
+                    <th>面談種別</th>
+                    <td>{INTERVIEW_TYPES[iv.interview_type] ?? iv.interview_type}</td>
+                  </tr>
+                  <tr>
+                    <th>面談実施日</th>
+                    <td>{formatDateJa(opinion.interview_date)}</td>
+                  </tr>
+                </>
+              )}
               <tr>
                 <th>就業区分の判定</th>
                 <td>

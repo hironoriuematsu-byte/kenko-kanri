@@ -17,9 +17,11 @@ export default function InterviewRecordPanel({
   interviewId,
   defaultDate,
   interviewRequestId,
+  opinionOnly = false,
 }: {
   interviewId: string;
   defaultDate?: string; // 面談予定日(YYYY-MM-DD)。実施日の初期値に使う
+  opinionOnly?: boolean; // 面談なしで、状況をもとに出す産業医意見(文言を切り替える)
   interviewRequestId?: string | null; // ストレスチェックWebの面接指導の申出から登録された面談(事前問診の内容を転記する)
 }) {
   const router = useRouter();
@@ -166,7 +168,7 @@ export default function InterviewRecordPanel({
   return (
     <form onSubmit={onSubmit}>
       <div className="form-row">
-        <label>実施日</label>
+        <label>{opinionOnly ? "状況を確認した日" : "実施日"}</label>
         <input
           type="date"
           value={conductedDate}
@@ -175,7 +177,7 @@ export default function InterviewRecordPanel({
       </div>
       <div className="form-row">
         <label style={{ color: "var(--orange)" }}>
-          所見と指導内容（産業医事務所のみ・企業側には一切表示されません）
+          {opinionOnly ? "経過と判断の根拠" : "所見と指導内容"}（産業医事務所のみ・企業側には一切表示されません）
           <VoiceInputButton
             onAppend={(t) => {
               setNotes((prev) => appendText(prev, t));
@@ -191,7 +193,11 @@ export default function InterviewRecordPanel({
           }}
           onBlur={() => save(true)}
           style={{ background: "var(--orange-light)", minHeight: 160 }}
-          placeholder="面談での所見、本人への指導内容、メモなど。入力が止まると自動で保存されます。"
+          placeholder={
+            opinionOnly
+              ? "事業場から受けた報告の内容、判断の根拠、メモなど。入力が止まると自動で保存されます。"
+              : "面談での所見、本人への指導内容、メモなど。入力が止まると自動で保存されます。"
+          }
         />
       </div>
       {intakeText && (
@@ -213,13 +219,15 @@ export default function InterviewRecordPanel({
         </div>
       )}
       <p className="muted" style={{ fontSize: 12 }}>
-        面談を「実施済」にするには、下の意見書で「企業側に公開し、面談を実施済にする」を付けて保存してください。
+        {opinionOnly
+          ? "「発行済」にするには、下の意見書で「企業側に公開し、発行済にする」を付けて保存してください。"
+          : "面談を「実施済」にするには、下の意見書で「企業側に公開し、面談を実施済にする」を付けて保存してください。"}
       </p>
       {error && <p className="error-message">{error}</p>}
       {status && <p style={{ color: "var(--teal-dark)", fontSize: 13 }}>{status}</p>}
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
         <button className="btn" type="submit" disabled={busy}>
-          {busy ? "保存中…" : "実施記録を保存"}
+          {busy ? "保存中…" : opinionOnly ? "記録を保存" : "実施記録を保存"}
         </button>
         {needLogin && (
           <button className="btn orange" type="button" onClick={goLogin}>

@@ -26,6 +26,7 @@ export type OpinionRow = {
   issued_date: string | null;
   work_judgment: string | null;
   published: boolean;
+  opinion_only?: boolean; // 面談なしで、状況をもとに出した産業医意見
 };
 
 // 登録日時(UTC)を日本時間の日付(YYYY-MM-DD)にする
@@ -181,10 +182,18 @@ export default function PersonFilesPanel({
                   <td style={{ whiteSpace: "nowrap" }}>産業医意見書</td>
                   <td>
                     <Link href={`/interview-sheet/${r.o.interview_id}`}>産業医意見書を表示（印刷/PDF）</Link>
+                    {role === "office" && (
+                      <>
+                        {" "}
+                        <Link className="muted" href={`/interviews/${r.o.interview_id}`} style={{ fontSize: 12 }}>
+                          編集
+                        </Link>
+                      </>
+                    )}
                   </td>
                   <td className="muted">
                     {r.o.work_judgment ? `就業区分: ${WORK_JUDGMENTS[r.o.work_judgment] ?? r.o.work_judgment}` : ""}
-                    {r.o.interview_date ? `${r.o.work_judgment ? " / " : ""}面談日 ${r.o.interview_date.replaceAll("-", ".")}` : ""}
+                    {r.o.interview_date ? `${r.o.work_judgment ? " / " : ""}${r.o.opinion_only ? "状況確認日（面談なし）" : "面談日"} ${r.o.interview_date.replaceAll("-", ".")}` : ""}
                   </td>
                   {role === "office" && (
                     <td>

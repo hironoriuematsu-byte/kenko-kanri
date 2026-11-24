@@ -5,7 +5,25 @@ export const INTERVIEW_TYPES: Record<string, string> = {
   return_to_work: "復職面談",
   return_followup: "復職後フォローアップ面談",
   other: "その他・健康相談等",
+  situation_opinion: "状況に基づく産業医意見（面談なし）",
 };
+
+// 面談を行わず、事業場からの報告などの状況をもとに産業医意見書だけを出す記録(SQL 0162)。
+// 面談と同じ表(hm_interviews / hm_interview_opinions)に保存し、画面と帳票の文言だけを切り替える
+export const SITUATION_OPINION = "situation_opinion";
+export function isOpinionOnly(interviewType: string | null | undefined): boolean {
+  return interviewType === SITUATION_OPINION;
+}
+
+// 状態の表示名。面談なしの意見は「実施済」ではなく「発行済」と表す
+export function interviewStatusLabel(status: string, interviewType?: string | null): string {
+  if (isOpinionOnly(interviewType)) {
+    if (status === "scheduled") return "作成中";
+    if (status === "done") return "発行済";
+    if (status === "cancelled") return "取消";
+  }
+  return INTERVIEW_STATUS[status] ?? status;
+}
 
 export const INTERVIEW_METHODS: Record<string, string> = {
   in_person: "対面",
