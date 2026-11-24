@@ -2,7 +2,7 @@ import Link from "next/link";
 import {
   INTERVIEW_TYPES,
   INTERVIEW_METHODS,
-  INTERVIEW_STATUS,
+  interviewStatusLabel,
   formatDateTimeJa,
 } from "@/lib/interviews";
 
@@ -49,11 +49,11 @@ export default function InterviewsTable({
             <td>{i.method ? INTERVIEW_METHODS[i.method] : "—"}</td>
             <td>
               {i.status === "scheduled" ? (
-                <span className="badge">{INTERVIEW_STATUS[i.status]}</span>
+                <span className="badge">{interviewStatusLabel(i.status, i.interview_type)}</span>
               ) : i.status === "done" ? (
-                <span className="badge orange">{INTERVIEW_STATUS[i.status]}</span>
+                <span className="badge orange">{interviewStatusLabel(i.status, i.interview_type)}</span>
               ) : (
-                <span className="muted">{INTERVIEW_STATUS[i.status]}</span>
+                <span className="muted">{interviewStatusLabel(i.status, i.interview_type)}</span>
               )}
             </td>
           </tr>
