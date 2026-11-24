@@ -11,5 +11,7 @@ export default async function VerifyPage({ searchParams }: { searchParams: { nex
   const next = safeNext(searchParams.next);
   const { user } = await currentLogin();
   if (!user) redirect("/login");
-  return <VerifyForm next={next} email={maskEmail(user.email)} />;
+  // 送り先のアドレスは伏せずに出す(パスワードで本人のログインが済んでいる画面。
+  // 事業場ごとに別のアカウントを持つ方が、どちらのアカウントで入ろうとしているかを見分けられるように)
+  return <VerifyForm next={next} email={user.email || maskEmail(null)} />;
 }

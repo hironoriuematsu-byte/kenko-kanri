@@ -9,6 +9,7 @@ export type Profile = {
   department: string | null;
   company_id: string | null;
   view_only?: boolean; // 企業担当者のうち、閲覧のみ(登録・編集・取込は不可)の方
+  email?: string | null; // ログインしているアカウントのメールアドレス(どのアカウントで入っているかを画面に出すため)
 };
 
 // ログイン済みユーザーとプロフィールを取得(未ログインは/loginへ)
@@ -50,7 +51,7 @@ export async function requireProfile(): Promise<{ profile: Profile }> {
     p.hm_company_access && (p.role === "employee" || p.role === "jimu") ? "company" : p.role;
   // 閲覧のみは企業担当者にだけ意味を持つ(実施者には適用しない)
   const view_only = role === "company" && Boolean(p.hm_view_only);
-  return { profile: { ...p, role, view_only } };
+  return { profile: { ...p, role, view_only, email: user.email ?? null } };
 }
 
 export function homePathFor(role: Profile["role"]): string {

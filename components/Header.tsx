@@ -47,6 +47,12 @@ export default function Header({ profile }: { profile: Profile }) {
           )}
           <span>
             {profile.full_name ?? "—"}（{ROLE_LABEL[profile.role] ?? profile.role}）
+            {/* 事業場ごとに別のアカウントを持つ担当者が、どのアカウントで入っているかを見分けられるように、ログイン中のアドレスを出す */}
+            {profile.email && profile.role !== "employee" && (
+              <span className="header-account" title="ログイン中のアカウント">
+                {profile.email}
+              </span>
+            )}
           </span>
           {/* 氏名・所属・パスワードなどのアカウント設定はストレスチェックWeb側で行う
               (アカウントは両システムで共通)。事業者担当者・従業員に案内を出す */}

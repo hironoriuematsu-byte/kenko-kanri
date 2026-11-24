@@ -86,6 +86,30 @@ table.list.dense td {
   color: var(--muted);
 }
 
+/* ログイン中のアカウント(メールアドレス)。氏名の下に小さく出す */
+.header-account {
+  display: block;
+  font-size: 11px;
+  line-height: 1.3;
+  color: var(--muted);
+  word-break: break-all;
+}
+/* 幅の狭い画面(スマートフォン): 右側の項目を折り返して、文字が縦に細切れにならないようにする */
+@media (max-width: 720px) {
+  .site-header .inner {
+    flex-wrap: wrap;
+    row-gap: 6px;
+  }
+  .header-right {
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    row-gap: 4px;
+  }
+  .header-right > * {
+    white-space: nowrap;
+  }
+}
+
 .site-footer {
   text-align: center;
   color: var(--muted);
