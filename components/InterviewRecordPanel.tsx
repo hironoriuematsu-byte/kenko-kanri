@@ -21,7 +21,7 @@ export default function InterviewRecordPanel({
 }: {
   interviewId: string;
   defaultDate?: string; // 面談予定日(YYYY-MM-DD)。実施日の初期値に使う
-  opinionOnly?: boolean; // 面談なしで、状況をもとに出す産業医意見(文言を切り替える)
+  opinionOnly?: boolean; // 面談後の追加意見(文言を切り替える)
   interviewRequestId?: string | null; // ストレスチェックWebの面接指導の申出から登録された面談(事前問診の内容を転記する)
 }) {
   const router = useRouter();
@@ -168,7 +168,7 @@ export default function InterviewRecordPanel({
   return (
     <form onSubmit={onSubmit}>
       <div className="form-row">
-        <label>{opinionOnly ? "状況を確認した日" : "実施日"}</label>
+        <label>{opinionOnly ? "意見日" : "実施日"}</label>
         <input
           type="date"
           value={conductedDate}

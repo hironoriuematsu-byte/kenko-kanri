@@ -231,10 +231,10 @@ export default async function KartePage({ params }: { params: { personId: string
                 className="btn orange"
                 href={`/office/${person.company_id}/interviews/new?person=${person.id}&type=${SITUATION_OPINION}`}
               >
-                ＋ 状況から産業医意見書を作成（面談なし）
+                ＋ 面談後の追加意見書を作成
               </Link>
               <span className="muted" style={{ fontSize: 12, marginLeft: 8 }}>
-                面談を行わず、事業場からの報告などをもとに就業区分と意見を出すときに使います。
+                前回の面談の後の経過（復職後の体調の変化など）を受けて、就業区分と意見を出し直すときに使います。
               </span>
             </p>
           )}

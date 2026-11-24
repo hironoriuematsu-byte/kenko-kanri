@@ -58,18 +58,18 @@ export async function POST(req: Request) {
   const date = (op?.interview_date as string | null) ?? null;
   const origin = process.env.NEXT_PUBLIC_SITE_URL || req.headers.get("origin") || new URL(req.url).origin;
 
-  // 面談なしで、状況をもとに出した産業医意見は、文面を切り替える
+  // 面談後の追加意見は、文面を切り替える
   const opinionOnly = (iv as { interview_type?: string } | null)?.interview_type === "situation_opinion";
 
   const text = [
     `${companyName ? `${companyName} ` : ""}事業者ご担当者さま`,
     "",
     opinionOnly
-      ? "事業場からご報告いただいた状況をもとに、産業医の意見書(就業上の措置に関する意見)が発行されました。"
+      ? "従業員の方について、産業医の意見書(就業上の措置に関する意見)が新たに発行されました。"
       : "従業員の方の産業医面談が終わり、産業医の意見書(就業上の措置に関する意見)が発行されました。",
     "詳細は、健康管理Webにログインしてご確認ください。",
     "",
-    ...(date ? [`${opinionOnly ? "状況確認日" : "面談日"}: ${date.replace(/-/g, "/")}`] : []),
+    ...(date ? [`${opinionOnly ? "意見日" : "面談日"}: ${date.replace(/-/g, "/")}`] : []),
     `${origin}/interviews/${interviewId}`,
     "",
     "※このメールには、対象の方の氏名や健康に関する情報は記載していません。",

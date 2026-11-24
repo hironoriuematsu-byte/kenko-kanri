@@ -45,7 +45,7 @@
    20. `supabase/migrations/0120_hm_interview_type_followup.sql` …… 面談種別に復職後フォローアップ面談を追加
    21. `supabase/migrations/0121_hm_work_judgment_pending.sql` …… 就業判定に「判定保留」を追加・医師の意見の更新RPC
    22. `supabase/migrations/0122_hm_office_info.sql` …… 産業医事務所の情報（帳票・CSV記載用）
-   23. `supabase/migrations/0162_hm_situation_opinion.sql` …… 面談なしで、状況をもとに出す産業医意見（種別の追加）
+   23. `supabase/migrations/0162_hm_situation_opinion.sql` …… 面談後の追加意見（種別の追加）
 3. `0000_dev_base.sql` の末尾コメントに沿って、テストユーザー（office / company）とテスト企業を作成
 
 ### 2. ローカル/Vercelの環境変数

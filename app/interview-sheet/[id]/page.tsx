@@ -4,7 +4,7 @@ import Header from "@/components/Header";
 import PrintButton from "@/components/PrintButton";
 import { requireProfile, homePathFor } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
-import { INTERVIEW_TYPES, WORK_JUDGMENTS, isOpinionOnly } from "@/lib/interviews";
+import { INTERVIEW_TYPES, WORK_JUDGMENTS, findPreviousInterview, isOpinionOnly } from "@/lib/interviews";
 import { formatDateJa } from "@/lib/fiscal";
 
 export const dynamic = "force-dynamic";
@@ -19,7 +19,7 @@ export default async function InterviewSheetPage({ params }: { params: { id: str
   const supabase = createClient();
   const { data: iv } = await supabase
     .from("hm_interviews")
-    .select("id, company_id, target_name, interview_type, companies(name)")
+    .select("id, company_id, person_id, scheduled_at, target_name, interview_type, companies(name)")
     .eq("id", params.id)
     .single();
   if (!iv) notFound();
@@ -41,8 +41,9 @@ export default async function InterviewSheetPage({ params }: { params: { id: str
   });
 
   const companyName = (iv as any).companies?.name ?? "";
-  // 面談なしで、状況をもとに出す産業医意見(表題と項目名を切り替える)
+  // 面談後の追加意見(前回の面談の意見の続きとして出す。表題と項目名を切り替える)
   const opinionOnly = isOpinionOnly(iv.interview_type);
+  const previous = opinionOnly ? await findPreviousInterview(supabase, iv) : null;
 
   return (
     <>
@@ -67,12 +68,17 @@ export default async function InterviewSheetPage({ params }: { params: { id: str
               </tr>
               {opinionOnly ? (
                 <>
+                  {previous && (
+                    <tr>
+                      <th>前回の面談</th>
+                      <td>
+                        {INTERVIEW_TYPES[previous.interview_type] ?? previous.interview_type}
+                        {previous.date ? `（${formatDateJa(previous.date)}実施）` : ""}
+                      </td>
+                    </tr>
+                  )}
                   <tr>
-                    <th>意見の根拠</th>
-                    <td>事業場からの状況報告等（産業医面談は実施していません）</td>
-                  </tr>
-                  <tr>
-                    <th>状況確認日</th>
+                    <th>意見日</th>
                     <td>{formatDateJa(opinion.interview_date)}</td>
                   </tr>
                 </>

@@ -15,6 +15,7 @@ import {
   interviewStatusLabel,
   isOpinionOnly,
   formatDateTimeJa,
+  findPreviousInterview,
 } from "@/lib/interviews";
 import { formatDateJa } from "@/lib/fiscal";
 
@@ -64,8 +65,9 @@ export default async function InterviewDetailPage({ params }: { params: { id: st
   const isOffice = profile.role === "office";
   const isCompany = profile.role === "company" && profile.company_id === iv.company_id;
   const companyName = (iv as any).companies?.name ?? "";
-  // 面談なしで、状況をもとに出す産業医意見(文言を切り替える)
+  // 面談後の追加意見(前回の面談の意見の続きとして出す。文言を切り替える)
   const opinionOnly = isOpinionOnly(iv.interview_type);
+  const previous = opinionOnly ? await findPreviousInterview(supabase, iv) : null;
   // 面談予定日(ローカル日付)を実施日の既定値に使う
   const scheduledDate = iv.scheduled_at
     ? (() => {
@@ -87,11 +89,6 @@ export default async function InterviewDetailPage({ params }: { params: { id: st
         <h1 className="page-title">
           {opinionOnly ? "産業医意見" : "面談"}: {iv.target_name}（{INTERVIEW_TYPES[iv.interview_type] ?? iv.interview_type}）
         </h1>
-        {opinionOnly && (
-          <p className="muted no-print">
-            面談は行わず、事業場からの報告などの状況をもとに産業医意見書を出す記録です。
-          </p>
-        )}
 
         <div className="card">
           <h2>{opinionOnly ? "概要" : "予定"}</h2>
@@ -102,9 +99,20 @@ export default async function InterviewDetailPage({ params }: { params: { id: st
                 <td>{companyName}</td>
               </tr>
               <tr>
-                <th>{opinionOnly ? "状況確認日" : "面談日"}</th>
+                <th>{opinionOnly ? "意見日" : "面談日"}</th>
                 <td>{formatDateTimeJa(iv.scheduled_at)}</td>
               </tr>
+              {opinionOnly && previous && (
+                <tr>
+                  <th>前回の面談</th>
+                  <td>
+                    <Link href={`/interviews/${previous.id}`}>
+                      {INTERVIEW_TYPES[previous.interview_type] ?? previous.interview_type}
+                      {previous.date ? `（${formatDateJa(previous.date)}）` : ""}
+                    </Link>
+                  </td>
+                </tr>
+              )}
               {!opinionOnly && (
                 <>
                   <tr>
@@ -163,7 +171,7 @@ export default async function InterviewDetailPage({ params }: { params: { id: st
 
         {(isOffice || isCompany) && (
           <div className="card">
-            <h2>{opinionOnly ? "事業場からの状況報告" : "事前情報"}</h2>
+            <h2>{opinionOnly ? "事業場からの報告" : "事前情報"}</h2>
             <p className="muted">
               企業担当者と産業医事務所の間で共有されます。対象の従業員本人には表示されません。
             </p>
@@ -205,7 +213,7 @@ export default async function InterviewDetailPage({ params }: { params: { id: st
                 <table className="list">
                   <tbody>
                     <tr>
-                      <th style={{ width: 140 }}>{opinionOnly ? "状況確認日" : "面談実施日"}</th>
+                      <th style={{ width: 140 }}>{opinionOnly ? "意見日" : "面談実施日"}</th>
                       <td>{formatDateJa(opinion.interview_date)}</td>
                     </tr>
                     <tr>

@@ -78,7 +78,7 @@ export default function InterviewForm({
   const set = <K extends keyof InterviewInput>(k: K, val: InterviewInput[K]) =>
     setV((p) => ({ ...p, [k]: val }));
 
-  // 面談なしで、状況をもとに出す産業医意見(実施方法・場所は使わない)
+  // 面談後の追加意見(実施方法・場所は使わない)
   const opinionOnly = isOpinionOnly(v.interview_type);
   // 手で登録する高ストレス面接指導(ストレスチェックWebの申出から登録されたものではない)は、申出の確認が要る
   const needsConfirm = v.interview_type === "high_stress" && !v.interview_request_id;
@@ -318,8 +318,7 @@ export default function InterviewForm({
             </select>
             {opinionOnly && (
               <p className="muted" style={{ margin: "6px 0 0" }}>
-                面談は行わず、事業場からの報告などの状況をもとに産業医意見書を出します。保存すると、就業区分と意見の入力画面に進みます。
-                意見書には「産業医面談は実施していません」と記載されます。
+                前回の面談の後の経過を受けて、産業医意見書を出し直します。保存すると、就業区分と意見の入力画面に進みます。
               </p>
             )}
             {v.interview_type === "high_stress" && v.interview_request_id && (
@@ -350,7 +349,7 @@ export default function InterviewForm({
       )}
 
       <div className="form-row">
-        <label>{opinionOnly ? "状況を確認した日" : "予定日"}</label>
+        <label>{opinionOnly ? "意見日" : "予定日"}</label>
         <input
           type="date"
           value={v.scheduled_local}

@@ -56,9 +56,9 @@ export default function OpinionPanel({
   interviewId: string;
   companyId: string;
   initial: OpinionInitial;
-  opinionOnly?: boolean; // 面談なしで、状況をもとに出す産業医意見(文言を切り替える)
+  opinionOnly?: boolean; // 面談後の追加意見(文言を切り替える)
 }) {
-  // 公開のチェック欄の文言(面談なしの意見は「実施済」ではなく「発行済」)
+  // 公開のチェック欄の文言(追加意見は「実施済」ではなく「発行済」)
   const publishLabel = opinionOnly ? "企業側に公開し、発行済にする" : "企業側に公開し、面談を実施済にする";
   const doneWord = opinionOnly ? "発行済" : "面談を実施済";
   const router = useRouter();
@@ -229,7 +229,7 @@ export default function OpinionPanel({
   return (
     <form onSubmit={onSubmit}>
       <div className="form-row">
-        <label>{opinionOnly ? "状況を確認した日（意見書に記載）" : "面談実施日（意見書に記載）"}</label>
+        <label>{opinionOnly ? "意見日（意見書に記載）" : "面談実施日（意見書に記載）"}</label>
         <input
           type="date"
           value={v.interview_date}
