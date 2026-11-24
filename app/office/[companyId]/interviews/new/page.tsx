@@ -32,7 +32,7 @@ export default async function NewInterviewPage({
     .order("employee_no", { ascending: true, nullsFirst: false })
     .order("full_name");
 
-  // カルテの「状況から産業医意見書を作成」から来たとき: 対象者と種別を入れた状態で開く
+  // カルテの「面談後の追加意見書を作成」から来たとき: 対象者と種別を入れた状態で開く
   const opinionOnly = isOpinionOnly(searchParams?.type);
   const preset = (persons ?? []).find((x) => x.id === searchParams?.person) ?? null;
   const today = new Intl.DateTimeFormat("sv-SE", { timeZone: "Asia/Tokyo" }).format(new Date());
@@ -46,7 +46,7 @@ export default async function NewInterviewPage({
       <Header profile={profile} />
       <main className="container">
         <h1 className="page-title">
-          {company.name} — {opinionOnly ? "状況に基づく産業医意見の作成（面談なし）" : "面談予定の登録"}
+          {company.name} — {opinionOnly ? "面談後の追加意見の作成" : "面談予定の登録"}
         </h1>
         <div className="card">
           <InterviewForm
@@ -61,7 +61,7 @@ export default async function NewInterviewPage({
               target_name: preset?.full_name ?? "",
               birth_date: "",
               // 種類は必ず選んでもらう(「高ストレス面接指導」のまま登録してしまう誤りを防ぐ)
-              // (面談なしの産業医意見は、カルテから種別を指定して開く)
+              // (面談後の追加意見は、カルテから種別を指定して開く)
               interview_type: opinionOnly ? SITUATION_OPINION : "",
               scheduled_local: opinionOnly ? today : "",
               method: "",

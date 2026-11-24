@@ -9,7 +9,7 @@ export default function CancelInterviewButton({
   opinionOnly = false,
 }: {
   interviewId: string;
-  opinionOnly?: boolean; // 面談なしで、状況をもとに出す産業医意見(文言を切り替える)
+  opinionOnly?: boolean; // 面談後の追加意見(文言を切り替える)
 }) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);

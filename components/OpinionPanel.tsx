@@ -22,6 +22,9 @@ export type OpinionInitial = {
 // 入力が止まって数秒たつと自動で保存する。「企業側に公開し、面談を実施済にする」を付けて
 // 保存(自動保存を含む)すると公開され、面談が実施済になる
 const AUTOSAVE_DELAY_MS = 4000;
+// 意見の記入欄の高さ(px)。最低でもこの高さを出し、長文は上限まで自動で広げる
+const OPINION_MIN_HEIGHT = 240;
+const OPINION_MAX_HEIGHT = 720;
 const LOG_INTERVAL_MS = 60 * 60 * 1000; // 保存のログは同じ面談で1時間に1行
 
 // 同じ面談の保存ログを1時間に1行にする(ブラウザ側で最後に記録した時刻を覚えておく)
@@ -53,9 +56,9 @@ export default function OpinionPanel({
   interviewId: string;
   companyId: string;
   initial: OpinionInitial;
-  opinionOnly?: boolean; // 面談なしで、状況をもとに出す産業医意見(文言を切り替える)
+  opinionOnly?: boolean; // 面談後の追加意見(文言を切り替える)
 }) {
-  // 公開のチェック欄の文言(面談なしの意見は「実施済」ではなく「発行済」)
+  // 公開のチェック欄の文言(追加意見は「実施済」ではなく「発行済」)
   const publishLabel = opinionOnly ? "企業側に公開し、発行済にする" : "企業側に公開し、面談を実施済にする";
   const doneWord = opinionOnly ? "発行済" : "面談を実施済";
   const router = useRouter();
@@ -159,6 +162,15 @@ export default function OpinionPanel({
     [v, initial, interviewId, companyId, router, doneWord]
   );
 
+  // 意見の記入欄は、書いた分量に合わせて高さを広げる(欄の中でのスクロールを減らす)
+  const opinionRef = useRef<HTMLTextAreaElement | null>(null);
+  useEffect(() => {
+    const el = opinionRef.current;
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = `${Math.min(Math.max(el.scrollHeight + 2, OPINION_MIN_HEIGHT), OPINION_MAX_HEIGHT)}px`;
+  }, [v.opinion]);
+
   // 入力が止まってしばらくしたら自動保存する
   useEffect(() => {
     if (timer.current) clearTimeout(timer.current);
@@ -217,7 +229,7 @@ export default function OpinionPanel({
   return (
     <form onSubmit={onSubmit}>
       <div className="form-row">
-        <label>{opinionOnly ? "状況を確認した日（意見書に記載）" : "面談実施日（意見書に記載）"}</label>
+        <label>{opinionOnly ? "意見日（意見書に記載）" : "面談実施日（意見書に記載）"}</label>
         <input
           type="date"
           value={v.interview_date}
@@ -244,9 +256,11 @@ export default function OpinionPanel({
           <VoiceInputButton onAppend={(t) => setV((p) => ({ ...p, opinion: appendText(p.opinion, t) }))} />
         </label>
         <textarea
+          ref={opinionRef}
           value={v.opinion}
           onChange={(e) => setV((p) => ({ ...p, opinion: e.target.value }))}
           onBlur={() => save(true)}
+          style={{ minHeight: OPINION_MIN_HEIGHT, maxHeight: OPINION_MAX_HEIGHT }}
           placeholder="時間外労働の制限、業務内容の配慮 など。個人の詳細な健康情報は記載しないでください。入力が止まると自動で保存されます。"
         />
       </div>
