@@ -123,11 +123,15 @@ function normalizeHeader(s: string): string {
 // 尿沈渣(尿中の赤血球・白血球など)は法定項目ではなく、「尿沈渣赤血球」が血液の赤血球数に割り当たるのを防ぐ
 // (「尿沈査」の誤記、「尿沈」だけの略記にも対応)
 // non-HDL コレステロール、LDL/HDL 比(L/H 比)は法定項目ではなく、HDL・LDL に誤って割り当たるのを防ぐ
+// 問診の列(「服薬1(血圧)」「服薬2(血糖)」「既往歴2(心血管)」など)は、1・2 の区分番号が入るだけで検査値ではない。
+// 「血圧」「血糖」に割り当たると、区分番号の 2 が血圧・血糖の値として扱われ、全員が「ありえない値」で止まる
+// 撮影年月日・フィルム番号・検査方法は検査の付帯情報、負荷後の血糖・尿糖(糖負荷試験)は空腹時とは別の検査、
+// ABI・上腕血圧の左右差は血圧とは別の検査なので、いずれも割り当てない
 const NOT_LEGAL_HEADER =
-  /hbs|hbc|hbe|hbv|hcv|hiv|htlv|肝炎|抗原|抗体|ウイルス|ウィルス|尿沈|沈渣|沈査|尿中赤血球|尿赤血球|尿潜血|non-?hdl|nonhdl|ノンhdl|\/hdl|hdl比|l\/h比|比$|肥満度/;
+  /hbs|hbc|hbe|hbv|hcv|hiv|htlv|肝炎|抗原|抗体|ウイルス|ウィルス|尿沈|沈渣|沈査|尿中赤血球|尿赤血球|尿潜血|non-?hdl|nonhdl|ノンhdl|\/hdl|hdl比|l\/h比|比$|肥満度|服薬|内服|既往|問診|撮影年月日|撮影日|フィルム|検査方法|負荷後|左右差|足関節|abi/;
 
 // 自動割り当ての版(取込画面に表示し、新しい判定が反映されているかを確かめられるようにする)
-export const HEADER_RULES_VERSION = "2026-10-05e";
+export const HEADER_RULES_VERSION = "2026-11-25a";
 
 export function findLegalItemByHeader(header: string): string | null {
   const h = normalizeHeader(header);

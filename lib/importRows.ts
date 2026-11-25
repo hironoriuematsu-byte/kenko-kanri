@@ -60,13 +60,18 @@ export function guessColumns(header: string[]): { base: BaseCols; colModes: Reco
     });
   // 氏名は漢字の列を優先し、カナの列(氏名カナ・フリガナ)は「フリガナ」として別に取り込む
   const isKana = /カナ|かな|ｶﾅ|フリガナ|ふりがな|ﾌﾘｶﾞﾅ|kana/i;
-  const nameIdx = find(["氏名", "名前", "社員名", "受診者名"], isKana);
+  // 「氏名コード」「氏名番号」のような番号の列は氏名ではない(「氏名漢字」より左にあっても選ばない)
+  const isCode = /コード|code|番号|no\.?$|cd$|id$/i;
+  const nameIdx = find(["氏名", "名前", "社員名", "受診者名"], new RegExp(`${isKana.source}|${isCode.source}`, "i"));
   const kanaIdx = find(["フリガナ", "ふりがな", "ﾌﾘｶﾞﾅ", "氏名カナ", "氏名かな", "カナ氏名", "かな氏名", "カナ", "かな", "ｶﾅ"]);
   // 漢字の氏名列が無ければ、カナの列を氏名として使う
   const nameCol = nameIdx >= 0 ? nameIdx : kanaIdx;
   const kanaCol = nameIdx >= 0 ? kanaIdx : -1;
-  const deptCol = (find(["所属", "部署", "部門", "部課", "職場"]));
-  const empNoCol = (find(["社員番号", "社員No", "従業員番号", "職員番号"]));
+  // 所属は名称の列を優先する(「所属コード」と「所属名称」が両方あるCSVでは、名称を使う)
+  const deptWords = ["所属", "部署", "部門", "部課", "職場"];
+  const deptNamed = find(deptWords, isCode);
+  const deptCol = deptNamed >= 0 ? deptNamed : find(deptWords);
+  const empNoCol = (find(["社員番号", "社員No", "社員コード", "社員CD", "従業員番号", "従業員コード", "職員番号", "職員コード"]));
   const sexCol = (find(["性別", "性"]));
   const birthCol = (find(["生年月日", "生年", "誕生日", "birth"]));
   // 健診日の列: 健診機関ごとに見出しが異なる(健診年月日・受診年月日・検診日・健康診断日 など)。
@@ -109,14 +114,31 @@ export function guessColumns(header: string[]): { base: BaseCols; colModes: Reco
     //   眼底検査、物質コード・特定化学物質・業務内容・業務歴・有所見項目、物質ごとの「判定」(見出しがちょうど「判定」)
     const SPECIAL_VALUE =
       /作業時間|作業日数|保護具|換気|工程変更|取扱量|ばく露|暴露|業務名番号|業務名\(番号\)|有機溶剤名|有機溶剤コード|眼底|物質コード|^特定化学物質$|業務内容|業務歴|有所見項目|有機既往歴|有機業務の経歴|区分$/;
-    if (head === "判定" || SPECIAL_VALUE.test(head)) init[i] = { kind: "value" };
+    // 「健診区分」「受診区分」は健診の種類を表す番号で、検査の結果ではない
+    if (/^(健診|受診|検診)区分$/.test(head)) init[i] = { kind: "off" };
+    else if (head === "判定" || SPECIAL_VALUE.test(head)) init[i] = { kind: "value" };
     else if (/判定/.test(head) || /^判/.test(head)) init[i] = { kind: "off" };
     // 「尿中馬尿酸分布」のような分布区分の列は 1〜3 を A〜C に読み替える
     else if (/分布/.test(head)) init[i] = { kind: "distribution" };
     else if (key) init[i] = { kind: "legal", itemKey: key };
     else init[i] = { kind: "off" };
   });
+  // 尿糖・尿蛋白が「区分番号の列」と「記号(-, +- など)の列(見出しの末尾が『結果』)」の両方で載っているCSVでは、
+  // 記号の列で判定する(区分番号 1〜5 は、記号として読めず、強陽性でも異常なしになってしまう)
+  const squashHead = (c: string) => c.normalize("NFKC").replace(/\s/g, "");
+  h.forEach((c, i) => {
+    const m = init[i];
+    if (m?.kind !== "legal" || (m.itemKey !== "urine_glucose" && m.itemKey !== "urine_protein")) return;
+    const sym = h.findIndex((x, j) => j !== i && squashHead(x) === `${squashHead(c)}結果`);
+    const sm = sym >= 0 ? init[sym] : undefined;
+    if (sm?.kind === "legal" && sm.itemKey === m.itemKey) init[i] = { kind: "off" };
+  });
   return { base: { nameCol, kanaCol, deptCol, empNoCol, sexCol, birthCol, dateCol, judgmentCol }, colModes: init };
+}
+
+// 「1回目」「2回目」のように、何回目の測定かが見出しに書かれている血圧の列か
+export function isNthReadingHeader(header: string): boolean {
+  return /[①②③]/.test(header) || /[1-9一二三]回目/.test(header.normalize("NFKC"));
 }
 
 export function readSexCell(v: string): "male" | "female" | null {
@@ -166,6 +188,24 @@ export function buildImportRows({
   const dbpCols = bpCols("dbp");
   const hasAvgCol = [...sbpCols, ...dbpCols].some(({ h }) => isAverageHeader(h));
   const needBpAverage = !hasAvgCol && (sbpCols.length >= 2 || dbpCols.length >= 2);
+  // 「収縮期血圧」(健診機関が採用した値)と「収縮期血圧(1回目)」「(2回目)」が並ぶCSVでは、
+  // 1回目・2回目だけで平均を求める(採用した値は、どちらかの回と同じ値なので、足すと二重に数えてしまう)
+  const readingsOf = (cols: { h: string; i: number }[]) => {
+    const nth = cols.filter(({ h }) => isNthReadingHeader(h));
+    return nth.length >= 2 ? nth : cols;
+  };
+  // 視力: 同じ側の矯正視力の列に値がある方は、矯正視力で判定する(裸眼の値は残すが、判定は付けない)
+  const visionKey = (s: string) => s.normalize("NFKC").replace(/[\s　]/g, "");
+  const correctedOf = new Map<number, number>();
+  header.forEach((h, i) => {
+    const m = colModes[i];
+    if (baseCols.includes(i) || m?.kind !== "legal" || m.itemKey !== "vision" || /矯正/.test(h)) return;
+    const j = header.findIndex((x, k) => {
+      const mk = colModes[k];
+      return k !== i && !baseCols.includes(k) && mk?.kind === "legal" && mk.itemKey === "vision" && /矯正/.test(x) && visionKey(x).replace(/[:・,、]?矯正(視力)?/, "") === visionKey(h);
+    });
+    if (j >= 0) correctedOf.set(i, j);
+  });
   const bpReadingCols = new Set<number>(
     needBpAverage ? [...sbpCols, ...dbpCols].map(({ i }) => i) : []
   );
@@ -187,6 +227,13 @@ export function buildImportRows({
 
         // 各回の血圧は値だけ保存し、判定は平均で行う
         if (bpReadingCols.has(i)) {
+          items.push({ name: h.trim(), value: cell });
+          return;
+        }
+
+        // 矯正視力のある方の裸眼視力は、値だけ保存する(判定は矯正視力で行う)
+        const corrected = correctedOf.get(i);
+        if (corrected != null && (r[corrected] ?? "").trim() !== "") {
           items.push({ name: h.trim(), value: cell });
           return;
         }
@@ -237,8 +284,8 @@ export function buildImportRows({
       // 血圧2回測定の平均(平均の列が無い場合のみ)
       if (needBpAverage) {
         // 「142/90」形式の列は収縮期の列として読み取られるため、拡張期もそこから求める
-        const sbpReadings = sbpCols.map(({ i }) => r[i] ?? "");
-        const dbpReadings = (dbpCols.length > 0 ? dbpCols : sbpCols).map(({ i }) => r[i] ?? "");
+        const sbpReadings = readingsOf(sbpCols).map(({ i }) => r[i] ?? "");
+        const dbpReadings = readingsOf(dbpCols.length > 0 ? dbpCols : sbpCols).map(({ i }) => r[i] ?? "");
         const sbpAvg = averageBloodPressure(sbpReadings, "sbp");
         const dbpAvg = averageBloodPressure(dbpReadings, "dbp");
         if (sbpAvg != null) {
