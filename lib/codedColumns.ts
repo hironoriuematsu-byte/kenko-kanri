@@ -26,6 +26,8 @@ export type CodedResult = {
   rows: string[][];
   // 区分番号を直した列(見出し)と、その向き
   converted: { header: string; presentCode: "1" | "2" }[];
+  // 区分番号の列があるのに、向きを確かめられなかった(これまでどおり 1 = なし・2 = あり として読んだ)列の見出し
+  undetermined: string[];
 };
 
 export function normalizeCodedColumns(header: string[], dataRows: string[][], colModes: Record<number, ColumnMode>): CodedResult {
@@ -39,11 +41,12 @@ export function normalizeCodedColumns(header: string[], dataRows: string[][], co
       const vals = dataRows.map((r) => cell(r, i)).filter((v) => v !== "");
       return vals.length > 0 && vals.every((v) => v === "1" || v === "2");
     });
-  if (coded.length === 0) return { rows: dataRows, converted: [] };
+  if (coded.length === 0) return { rows: dataRows, converted: [], undetermined: [] };
 
-  // となりの所見の文言の列から、向きを確かめる
+  // となりの所見の文言の列から、向きを確かめる。
+  // 文言の入っている行の区分番号が、すべて同じ番号の列だけを証拠にする
   const companionOf = new Map<number, number>();
-  const proven = new Map<number, "1" | "2">();
+  const votes: { dir: "1" | "2"; rows: number }[] = [];
   for (const { h, i } of coded) {
     const wants = findingHeaders(h);
     const j = header.findIndex((x, k) => k !== i && wants.includes(squash(x)));
@@ -52,19 +55,21 @@ export function normalizeCodedColumns(header: string[], dataRows: string[][], co
     const withText = dataRows.filter((r) => cell(r, j) !== "");
     const ones = withText.filter((r) => cell(r, i) === "1").length;
     const twos = withText.filter((r) => cell(r, i) === "2").length;
-    if (ones > 0 && twos === 0) proven.set(i, "1");
-    else if (twos > 0 && ones === 0) proven.set(i, "2");
+    if (ones > 0 && twos === 0) votes.push({ dir: "1", rows: ones });
+    else if (twos > 0 && ones === 0) votes.push({ dir: "2", rows: twos });
   }
-  // ファイル全体の向き: 確かめられた列がすべて同じ向きのときだけ使う
-  const dirs = new Set(proven.values());
-  const fileDir = dirs.size === 1 ? Array.from(dirs)[0] : null;
+  // 区分番号の向きは、ファイル(健診機関)ごとに1つ。列ごとには決めない。
+  // 「所見なし」の方の文言の列に、所見ではない添え書き(「今回じん肺健診受診有り」など)だけが入っていると、
+  // その列だけ逆向きに見えることがある。証拠になった列の多数決(同数なら、証拠の行数の多いほう)で決め、
+  // それでも決まらないファイルは、これまでどおり(1 = なし・2 = あり)に読む
+  const tally = (d: "1" | "2") => ({ cols: votes.filter((v) => v.dir === d).length, rows: votes.filter((v) => v.dir === d).reduce((a, v) => a + v.rows, 0) });
+  const t1 = tally("1");
+  const t2 = tally("2");
+  const fileDir: "1" | "2" | null = t1.cols !== t2.cols ? (t1.cols > t2.cols ? "1" : "2") : t1.rows !== t2.rows ? (t1.rows > t2.rows ? "1" : "2") : null;
 
   const plan = new Map<number, "1" | "2">();
-  for (const { i } of coded) {
-    const dir = proven.get(i) ?? (companionOf.has(i) ? null : fileDir);
-    if (dir) plan.set(i, dir);
-  }
-  if (plan.size === 0) return { rows: dataRows, converted: [] };
+  if (fileDir) for (const { i } of coded) plan.set(i, fileDir);
+  if (plan.size === 0) return { rows: dataRows, converted: [], undetermined: coded.map(({ h }) => h.trim()) };
 
   const rows = dataRows.map((r) => {
     const out = [...r];
@@ -84,7 +89,7 @@ export function normalizeCodedColumns(header: string[], dataRows: string[][], co
     }
     return out;
   });
-  return { rows, converted: Array.from(plan).map(([i, presentCode]) => ({ header: header[i].trim(), presentCode })) };
+  return { rows, converted: Array.from(plan).map(([i, presentCode]) => ({ header: header[i].trim(), presentCode })), undetermined: [] };
 }
 
 // 1つのファイルに複数の事業場(会社)の方が入っていないか。入っていれば、事業場ごとの人数を返す
