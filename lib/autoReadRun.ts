@@ -3,6 +3,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { parseCsv, parseKinds } from "@/lib/checkups";
 import { canonKind, hintedKinds, kindOfLabel, resolveSection, sameSection, sectionKey, sectionLabel, splitColumns, KIND_GENERAL, type Section } from "@/lib/checkupKinds";
 import { buildImportRows, guessColumns, type ImportItem, type ImportRow } from "@/lib/importRows";
+import { normalizeCodedColumns, workplacesIn } from "@/lib/codedColumns";
 import type { JudgmentRule } from "@/lib/judgment";
 import type { PersonCandidate } from "@/lib/personMatch";
 import {
@@ -318,7 +319,7 @@ async function runCsv(admin: SupabaseClient, u: Upload, actor: Actor): Promise<R
   // 表題などの行が先頭にあるCSVでは、氏名の見出しがある行を見出しとして使う
   const headerRow = findHeaderRow(table, (h) => guessColumns(h).base.nameCol);
   let header = table[headerRow];
-  const dataRows = table.slice(headerRow + 1).filter((r) => r.some((c) => (c ?? "").trim() !== ""));
+  let dataRows = table.slice(headerRow + 1).filter((r) => r.some((c) => (c ?? "").trim() !== ""));
   const ctx = await loadContext(admin, u);
   if (!ctx.rules.some((r) => r.grade !== "S")) return fail(admin, u, "判定基準が未登録のため、自動では判定できません");
   let cols = guessColumns(header);
@@ -361,6 +362,11 @@ async function runCsv(admin: SupabaseClient, u: Upload, actor: Actor): Promise<R
   // AIが見分けた列は、あとの判定・集計で同じ法定項目として扱える名前にそろえる
   const canon = canonicalHeaders(header, cols.colModes);
   header = canon.header;
+  // 所見の有無を 1・2 の区分番号で載せている列は、ファイルの中身から番号の向きを確かめて、文字(所見なし・所見あり)に直す
+  dataRows = normalizeCodedColumns(header, dataRows, cols.colModes).rows;
+  // 複数の事業場(会社)の方が入っているファイルは、止めずに取り込み、事業場ごとの人数を知らせる
+  const places = workplacesIn(header, dataRows);
+  const placeNotes = places.length > 0 ? [`このファイルには、複数の事業場の方が入っています(${places.map((p) => `${p.name} ${p.count}名`).join("、")})。この企業の方でない分が混ざっていないか、ご確認ください`] : [];
   const build = (base: typeof cols.base, colModes: typeof cols.colModes, type: string, rowsOf: string[][] = dataRows) =>
     buildImportRows({ header, dataRows: rowsOf, base, colModes, autoJudge: true, rules: ctx.rules, checkupType: type, commonDate: "", persons: ctx.persons });
 
@@ -371,7 +377,7 @@ async function runCsv(admin: SupabaseClient, u: Upload, actor: Actor): Promise<R
     const coverage = coverageOf(keysWithData(dataRows, cols.colModes), u.checkup_type!, canon.renamed);
     // 特殊健診は、取り込んだ項目名をそのまま知らせる
     if (special) coverage.found = header.filter((h, i) => (cols.colModes[i]?.kind ?? "off") !== "off" && dataRows.some((r) => (r[i] ?? "").trim() !== "")).map((h) => h.trim());
-    return finalize(admin, u, actor, "csv", [{ section: ownSection(u), rows }], coverage);
+    return finalize(admin, u, actor, "csv", [{ section: ownSection(u), rows }], coverage, placeNotes);
   }
 
   // 列を健診の種類ごとに分けて、種類ごとの記録にする。
@@ -389,7 +395,7 @@ async function runCsv(admin: SupabaseClient, u: Upload, actor: Actor): Promise<R
   const general = split.sections.find((x) => x.section.type !== "special");
   const coverage = coverageOf(keysWithData(dataRows, general?.colModes ?? {}), general?.section.type ?? u.checkup_type!, canon.renamed);
   if (!general) coverage.found = header.filter((h, i) => (cols.colModes[i]?.kind ?? "off") !== "off" && dataRows.some((r) => (r[i] ?? "").trim() !== "")).map((h) => h.trim());
-  return finalize(admin, u, actor, "csv", inputs, coverage);
+  return finalize(admin, u, actor, "csv", inputs, coverage, placeNotes);
 }
 
 async function runPdf(admin: SupabaseClient, u: Upload, actor: Actor): Promise<RunState> {
