@@ -363,10 +363,13 @@ async function runCsv(admin: SupabaseClient, u: Upload, actor: Actor): Promise<R
   const canon = canonicalHeaders(header, cols.colModes);
   header = canon.header;
   // 所見の有無を 1・2 の区分番号で載せている列は、ファイルの中身から番号の向きを確かめて、文字(所見なし・所見あり)に直す
-  dataRows = normalizeCodedColumns(header, dataRows, cols.colModes).rows;
+  const codedFix = normalizeCodedColumns(header, dataRows, cols.colModes);
+  dataRows = codedFix.rows;
   // 複数の事業場(会社)の方が入っているファイルは、止めずに取り込み、事業場ごとの人数を知らせる
   const places = workplacesIn(header, dataRows);
-  const placeNotes = places.length > 0 ? [`このファイルには、複数の事業場の方が入っています(${places.map((p) => `${p.name} ${p.count}名`).join("、")})。この企業の方でない分が混ざっていないか、ご確認ください`] : [];
+  const codeNotes = codedFix.undetermined.length > 0 ? [`所見の有無が 1・2 の番号で載っている列(${codedFix.undetermined.slice(0, 6).join("、")}${codedFix.undetermined.length > 6 ? " ほか" : ""})は、番号の向きをファイルから確かめられませんでした。「1 = 所見なし・2 = 所見あり」として読んでいます。健診機関の向きが逆でないか、ご確認ください`] : [];
+  const placeNotes0 = places.length > 0 ? [`このファイルには、複数の事業場の方が入っています(${places.map((p) => `${p.name} ${p.count}名`).join("、")})。この企業の方でない分が混ざっていないか、ご確認ください`] : [];
+  const placeNotes = [...codeNotes, ...placeNotes0];
   const build = (base: typeof cols.base, colModes: typeof cols.colModes, type: string, rowsOf: string[][] = dataRows) =>
     buildImportRows({ header, dataRows: rowsOf, base, colModes, autoJudge: true, rules: ctx.rules, checkupType: type, commonDate: "", persons: ctx.persons });
 

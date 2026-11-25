@@ -283,12 +283,19 @@ function hasDWord(segment: string): boolean {
   return CHEST_XRAY_D_WORDS.some((w) => t.includes(normalizeFinding(w)));
 }
 
+// 所見ではない添え書き(「今回じん肺健診受診有り」など、別の健診を受けたことの記載)
+const CHEST_XRAY_NOTE = /じん肺健診(を)?受診|じん肺健康診断(を)?受診/;
+
 export function judgeChestXrayText(text: string): Grade | null {
   if (text == null) return null;
   if (isNormalFinding(text)) return "A";
+  const segs = splitChestXrayFindings(text);
+  // 添え書きだけなら、所見なし
+  if (segs.length > 0 && segs.every((seg) => isNormalFinding(seg) || CHEST_XRAY_NOTE.test(seg.normalize("NFKC")))) return "A";
   let worst: Grade = "B";
-  for (const seg of splitChestXrayFindings(text)) {
+  for (const seg of segs) {
     if (isNormalFinding(seg)) continue;
+    if (CHEST_XRAY_NOTE.test(seg.normalize("NFKC"))) continue;
     if (isOldChange(seg)) continue; // 陳旧性は B
     if (hasDWord(seg)) worst = "D";
   }
